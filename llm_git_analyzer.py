@@ -26,7 +26,7 @@ class LLMGitAnalyzer:
     def __init__(self):
         self.setup_environment()
         self.setup_gemini()
-        self.current_repo_path = None
+        self.current_repo_path = self.load_current_repo()
         self.available_tools = {
             'package_churn': 'Analyze package-level code changes and churn',
             'loc_analysis': 'Lines of code analysis by package/file',
@@ -39,6 +39,26 @@ class LLMGitAnalyzer:
             'custom_analysis': 'Custom formula-based analysis',
             'visualization': 'Generate charts and visualizations'
         }
+        
+    def load_current_repo(self):
+        """Load the current repository path from state file"""
+        try:
+            if os.path.exists('.current_repo'):
+                with open('.current_repo', 'r', encoding='utf-8') as f:
+                    repo_path = f.read().strip()
+                    if os.path.exists(repo_path) and os.path.exists(os.path.join(repo_path, '.git')):
+                        return repo_path
+        except Exception:
+            pass
+        return None
+    
+    def save_current_repo(self, repo_path):
+        """Save the current repository path to state file"""
+        try:
+            with open('.current_repo', 'w', encoding='utf-8') as f:
+                f.write(repo_path)
+        except Exception:
+            pass
         
     def setup_environment(self):
         """Setup environment variables"""
@@ -91,10 +111,22 @@ class LLMGitAnalyzer:
         - combined_analysis: Combines multiple metrics (LOC, complexity, time ratios) in one analysis
         - file_class_analysis: Lists files by package and counts classes/interfaces in each file
         - custom_analysis: Executes custom calculations or formulas
+        - clone_repo: Clone a Git repository from URL
         
         Current repository: {self.current_repo_path or "Not set"}
         
         User command: "{user_command}"
+        
+        SPECIAL COMMANDS:
+        Clone Repository:
+        - Commands about "clone", "download repo", "get from github"
+        - Bengali: "clone koro", "github theke ano", "repo download koro"
+        - Extract the Git URL and local path if provided
+        
+        Commit Limits:
+        - Commands with "first N commits", "last N commits", "limit to N"
+        - Bengali: "prothom 1000 ta commit", "500 commit porjonto", "limit 200"
+        - Extract the number as commit_limit parameter
         
         UNDERSTAND the user's intent completely. Map natural language to the correct analysis_type:
         
@@ -137,13 +169,16 @@ class LLMGitAnalyzer:
         
         Return ONLY valid JSON with this exact structure:
         {{
-            "analysis_type": "MUST be one of: package_churn, loc_analysis, complexity_analysis, release_analysis, loc_time_ratio, complexity_time_ratio, combined_analysis, custom_analysis",
+            "analysis_type": "MUST be one of: package_churn, loc_analysis, complexity_analysis, release_analysis, loc_time_ratio, complexity_time_ratio, combined_analysis, custom_analysis, clone_repo",
             "parameters": {{
                 "threshold": 500,
                 "output_format": "excel",
                 "custom_formula": "if custom analysis",
                 "time_range": "if applicable",
-                "combine_metrics": ["loc", "complexity"] // for combined analysis
+                "combine_metrics": ["loc", "complexity"], // for combined analysis
+                "commit_limit": null, // number for commit limit
+                "git_url": "if clone_repo", // GitHub URL to clone
+                "local_path": "if clone_repo" // optional local path
             }},
             "description": "Clear description in English of what will be analyzed",
             "code_to_execute": null
@@ -158,6 +193,10 @@ class LLMGitAnalyzer:
         - "Show complexity ratio with time" → {{"analysis_type": "complexity_time_ratio"}}
         - "Show LOC and complexity together with time ratios" → {{"analysis_type": "combined_analysis", "parameters": {{"combine_metrics": ["loc", "complexity", "time"]}}}}
         - "Calculate custom metric: additions - deletions" → {{"analysis_type": "custom_analysis", "parameters": {{"custom_formula": "additions - deletions"}}}}
+        - "Clone https://github.com/SeleniumHQ/selenium" → {{"analysis_type": "clone_repo", "parameters": {{"git_url": "https://github.com/SeleniumHQ/selenium"}}}}
+        - "LOC analysis with first 1000 commits" → {{"analysis_type": "loc_analysis", "parameters": {{"commit_limit": 1000}}}}
+        - "Complexity for 500 commits only" → {{"analysis_type": "complexity_analysis", "parameters": {{"commit_limit": 500}}}}
+        - "Clone and analyze selenium repo first 200 commits" → {{"analysis_type": "clone_repo", "parameters": {{"git_url": "https://github.com/SeleniumHQ/selenium", "commit_limit": 200}}}}
         
         THINK STEP BY STEP:
         1. Identify the main topic (LOC, churn, complexity, releases, time ratios)
@@ -195,10 +234,43 @@ class LLMGitAnalyzer:
         """Set the repository path for analysis"""
         if os.path.exists(repo_path) and os.path.exists(os.path.join(repo_path, '.git')):
             self.current_repo_path = repo_path
+            self.save_current_repo(repo_path)
             print(f"✅ Repository set: {repo_path}")
             return True
         else:
             print(f"❌ Invalid repository path: {repo_path}")
+            return False
+    
+    def clone_and_set_repository(self, git_url: str, local_path: str = None) -> bool:
+        """Clone a Git repository and set it for analysis"""
+        import subprocess
+        
+        try:
+            # Generate local path if not provided
+            if not local_path:
+                repo_name = git_url.split('/')[-1].replace('.git', '')
+                local_path = os.path.join(os.getcwd(), repo_name)
+            
+            print(f"📥 Cloning repository from {git_url}...")
+            print(f"📁 Target location: {local_path}")
+            
+            # Clone the repository
+            result = subprocess.run(['git', 'clone', git_url, local_path], 
+                                  capture_output=True, text=True, check=True)
+            
+            print(f"✅ Repository cloned successfully!")
+            
+            # Set as current repository
+            success = self.set_repository(local_path)
+            if success:
+                self.save_current_repo(local_path)
+            return success
+            
+        except subprocess.CalledProcessError as e:
+            print(f"❌ Git clone failed: {e.stderr}")
+            return False
+        except Exception as e:
+            print(f"❌ Clone operation failed: {str(e)}")
             return False
     
     def detect_package_from_source(self, src_text: str) -> Optional[str]:
@@ -250,12 +322,12 @@ class LLMGitAnalyzer:
         
         return '<<unknown>>'
     
-    def analyze_package_churn(self, threshold: int = 500, output_format: str = 'excel') -> str:
+    def analyze_package_churn(self, threshold: int = 500, output_format: str = 'excel', commit_limit: int = None) -> str:
         """Analyze package-level code churn"""
         if not self.current_repo_path:
             return "❌ No repository set. Use set_repository() first."
         
-        print(f"🔍 Analyzing package churn (threshold: {threshold} lines)...")
+        print(f"🔍 Analyzing package churn (threshold: {threshold} lines, limit: {commit_limit or 'no limit'})...")
         
         rows = []
         commit_count = 0
@@ -263,8 +335,15 @@ class LLMGitAnalyzer:
         try:
             for commit in Repository(self.current_repo_path).traverse_commits():
                 commit_count += 1
+                
+                # Show progress every 50 commits
                 if commit_count % 50 == 0:
-                    print(f"  Processed {commit_count} commits...")
+                    print(f"  📈 Processed {commit_count} commits...")
+                
+                # Apply commit limit if specified
+                if commit_limit and commit_count > commit_limit:
+                    print(f"  ⏹️ Reached commit limit of {commit_limit}")
+                    break
                 
                 commit_hash = commit.hash
                 commit_date = commit.author_date.isoformat()
@@ -585,6 +664,120 @@ class LLMGitAnalyzer:
                 
         except Exception as e:
             return f"❌ Release analysis failed: {str(e)}"
+    
+    def analyze_loc_time_ratio(self, output_format: str = 'excel', commit_limit: int = None) -> str:
+        """Analyze Lines of Code to time ratio for each package (LOC per month)"""
+        if not self.current_repo_path:
+            return "❌ No repository set. Use set_repository() first."
+        
+        print("🔍 Analyzing LOC/time ratio...")
+        
+        package_data = {}
+        commit_count = 0
+        
+        try:
+            # Get all commits to track package evolution over time
+            repo = Repository(self.current_repo_path)
+            total_commits = sum(1 for _ in repo.traverse_commits()) if commit_limit else "unknown"
+            
+            print(f"📊 Processing commits (limit: {commit_limit or 'no limit'}, total: {total_commits})...")
+            
+            for commit in Repository(self.current_repo_path).traverse_commits():
+                commit_count += 1
+                
+                # Show progress every 100 commits
+                if commit_count % 100 == 0:
+                    print(f"   📈 Processed {commit_count} commits...")
+                
+                # Apply commit limit if specified
+                if commit_limit and commit_count > commit_limit:
+                    print(f"   ⏹️ Reached commit limit of {commit_limit}")
+                    break
+                commit_date = commit.author_date
+                month_key = commit_date.strftime("%Y-%m")
+                
+                for mod in commit.modified_files:
+                    if not (mod.filename and mod.filename.endswith('.java')):
+                        continue
+                    
+                    # Get package name
+                    pkg = None
+                    if mod.source_code:
+                        pkg = self.detect_package_from_source(mod.source_code)
+                    
+                    if not pkg:
+                        file_path = mod.new_path or mod.old_path or mod.filename
+                        pkg = self.package_from_filepath(file_path)
+                    
+                    if not pkg:
+                        pkg = '<<unknown>>'
+                    
+                    # Track package metrics per month
+                    if pkg not in package_data:
+                        package_data[pkg] = {}
+                    
+                    if month_key not in package_data[pkg]:
+                        package_data[pkg][month_key] = {
+                            'total_loc': 0,
+                            'files': set(),
+                            'commits': 0,
+                            'lines_added': 0,
+                            'lines_deleted': 0
+                        }
+                    
+                    # Add LOC metrics
+                    if mod.added_lines:
+                        package_data[pkg][month_key]['lines_added'] += mod.added_lines
+                    if mod.deleted_lines:
+                        package_data[pkg][month_key]['lines_deleted'] += mod.deleted_lines
+                    
+                    # Calculate current LOC if source is available
+                    if mod.source_code:
+                        current_loc = len(mod.source_code.splitlines())
+                        package_data[pkg][month_key]['total_loc'] = max(
+                            package_data[pkg][month_key]['total_loc'], 
+                            current_loc
+                        )
+                    
+                    package_data[pkg][month_key]['files'].add(mod.new_path or mod.old_path or mod.filename)
+                    package_data[pkg][month_key]['commits'] += 1
+            
+            # Flatten data for DataFrame
+            ratio_data = []
+            for pkg, months in package_data.items():
+                for month, data in months.items():
+                    net_change = data['lines_added'] - data['lines_deleted']
+                    
+                    ratio_data.append({
+                        'package': pkg,
+                        'month': month,
+                        'total_loc': data['total_loc'],
+                        'lines_added': data['lines_added'],
+                        'lines_deleted': data['lines_deleted'],
+                        'net_loc_change': net_change,
+                        'num_files': len(data['files']),
+                        'num_commits': data['commits']
+                    })
+            
+            if ratio_data:
+                df = pd.DataFrame(ratio_data)
+                df = df.sort_values(['package', 'month'])
+                
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                
+                if output_format.lower() == 'excel':
+                    filename = f"loc_time_ratio_analysis_{timestamp}.xlsx"
+                    df.to_excel(filename, index=False, engine='openpyxl')
+                else:
+                    filename = f"loc_time_ratio_analysis_{timestamp}.csv"
+                    df.to_csv(filename, index=False, encoding='utf-8')
+                
+                return f"✅ LOC/time ratio analysis complete! Report saved: {filename}"
+            else:
+                return "❌ No LOC data found"
+                
+        except Exception as e:
+            return f"❌ LOC/time ratio analysis failed: {str(e)}"
     
     def analyze_complexity_time_ratio(self, output_format: str = 'excel') -> str:
         """Analyze complexity to time ratio for each package"""
@@ -975,10 +1168,50 @@ class LLMGitAnalyzer:
         """Main method to process user commands"""
         print(f"🤖 Processing: {user_command}")
         
-        # Use LLM to understand the command
-        analysis_plan = self.process_natural_language_command(user_command)
+        # Handle simple commands without LLM to avoid quota issues
+        lower_cmd = user_command.lower().strip()
         
-        print(f"📋 Analysis plan: {analysis_plan['description']}")
+        # Simple clone command detection
+        if lower_cmd.startswith('clone ') and 'github.com' in lower_cmd:
+            git_url = user_command.split()[-1]  # Get last word as URL
+            success = self.clone_and_set_repository(git_url)
+            return "✅ Repository cloned and set! Ready for analysis." if success else "❌ Failed to clone repository"
+        
+        # Simple analysis commands with commit limits
+        commit_limit = None
+        output_format = 'excel'
+        
+        # Extract commit limit from command
+        import re
+        limit_match = re.search(r'(?:first|limit|শেষ|প্রথম)\s*(\d+)', lower_cmd)
+        if limit_match:
+            commit_limit = int(limit_match.group(1))
+        
+        # Simple command mappings
+        if 'loc' in lower_cmd and ('time' in lower_cmd or 'month' in lower_cmd or 'ratio' in lower_cmd):
+            return self.analyze_loc_time_ratio(output_format, commit_limit)
+        elif 'package' in lower_cmd and 'churn' in lower_cmd:
+            threshold = 500
+            threshold_match = re.search(r'(\d+)\s*(?:line|লাইন)', lower_cmd)
+            if threshold_match:
+                threshold = int(threshold_match.group(1))
+            return self.analyze_package_churn(threshold, output_format, commit_limit)
+        elif 'loc' in lower_cmd or 'lines of code' in lower_cmd:
+            return self.analyze_loc(output_format)
+        elif 'complexity' in lower_cmd:
+            return self.analyze_complexity(output_format)
+        elif 'release' in lower_cmd:
+            return self.analyze_releases(output_format)
+        
+        # If simple mapping fails, try LLM
+        try:
+            # Use LLM to understand the command
+            analysis_plan = self.process_natural_language_command(user_command)
+            print(f"📋 Analysis plan: {analysis_plan['description']}")
+        except Exception as e:
+            print(f"⚠️ LLM failed ({e}), trying fallback analysis...")
+            # Fallback to LOC analysis
+            return self.analyze_loc(output_format)
         
         # Execute the appropriate analysis
         analysis_type = analysis_plan.get('analysis_type', 'package_churn')
@@ -987,7 +1220,8 @@ class LLMGitAnalyzer:
         if analysis_type == 'package_churn':
             threshold = parameters.get('threshold', 500)
             output_format = parameters.get('output_format', 'excel')
-            return self.analyze_package_churn(threshold, output_format)
+            commit_limit = parameters.get('commit_limit', None)
+            return self.analyze_package_churn(threshold, output_format, commit_limit)
             
         elif analysis_type == 'loc_analysis':
             output_format = parameters.get('output_format', 'excel')
@@ -1003,7 +1237,8 @@ class LLMGitAnalyzer:
             
         elif analysis_type == 'loc_time_ratio':
             output_format = parameters.get('output_format', 'excel')
-            return self.analyze_loc_time_ratio(output_format)
+            commit_limit = parameters.get('commit_limit', None)
+            return self.analyze_loc_time_ratio(output_format, commit_limit)
             
         elif analysis_type == 'complexity_time_ratio':
             output_format = parameters.get('output_format', 'excel')
@@ -1022,6 +1257,23 @@ class LLMGitAnalyzer:
             formula = parameters.get('custom_formula', 'lines_added + lines_removed')
             output_format = parameters.get('output_format', 'excel')
             return self.execute_custom_analysis(formula, output_format)
+            
+        elif analysis_type == 'clone_repo':
+            git_url = parameters.get('git_url')
+            local_path = parameters.get('local_path')
+            if not git_url:
+                return "❌ Git URL required for clone operation"
+            
+            success = self.clone_and_set_repository(git_url, local_path)
+            if success:
+                # If commit_limit is specified, store it for next analysis
+                commit_limit = parameters.get('commit_limit')
+                if commit_limit:
+                    return f"✅ Repository cloned and set! Ready for analysis with {commit_limit} commit limit."
+                else:
+                    return "✅ Repository cloned and set! Ready for analysis."
+            else:
+                return "❌ Failed to clone repository"
             
         else:
             return f"❌ Unknown analysis type: {analysis_type}"
