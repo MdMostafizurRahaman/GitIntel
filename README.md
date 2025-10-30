@@ -155,36 +155,36 @@ Your reports shouldn't look like they came from a grad student's script. GitInte
 ```mermaid
 graph TB
     subgraph "User Interface Layer"
-        A[llm_cli.py<br/>Statistical Analysis CLI] --> B[Natural Language Parser]
-        C[repochat_cli.py<br/>Interactive Q&A CLI] --> D[Question Processor]
+        A[llm_cli.py\nStatistical Analysis CLI] --> B[Natural Language Parser]
+        C[repochat_cli.py\nInteractive Q&A CLI] --> D[Question Processor]
         E[Bengali/English Input] --> B
         F[Direct Questions] --> D
     end
 
     subgraph "AI Processing Layer"
-        B --> G[Google Gemini LLM<br/>Command Interpretation]
-        B --> H[Pattern Matching<br/>Fallback]
-        G --> I[Analysis Parameters<br/>Extraction]
+        B --> G[Google Gemini LLM\nCommand Interpretation]
+        B --> H[Pattern Matching\nFallback]
+        G --> I[Analysis Parameters\nExtraction]
         H --> I
     end
 
     subgraph "Analysis Engines"
-        I --> J[LLMGitAnalyzer<br/>Traditional Statistical Analysis]
-        D --> K[RepoChatCore<br/>Knowledge Graph Q&A]
-        J --> L[Statistical Methods<br/>LOC, Churn, Complexity]
-        K --> M[Knowledge Graph<br/>Query Generation]
+        I --> J[LLMGitAnalyzer\nTraditional Statistical Analysis]
+        D --> K[RepoChatCore\nKnowledge Graph Q&A]
+        J --> L[Statistical Methods\nLOC, Churn, Complexity]
+        K --> M[Knowledge Graph\nQuery Generation]
     end
 
     subgraph "Data Processing"
-        L --> N[PyDriller Engine<br/>Git Repository Mining]
+        L --> N[PyDriller Engine\nGit Repository Mining]
         M --> N
-        N --> O[Git Repository Data<br/>Commits, Files, Authors]
+        N --> O[Git Repository Data\nCommits, Files, Authors]
     end
 
     subgraph "Output Generation"
-        L --> P[Excel Reports<br/>Professional Charts]
-        M --> Q[Interactive Responses<br/>Natural Language Answers]
-        P --> R[Timestamped Files<br/>analysis_output/]
+        L --> P[Excel Reports\nProfessional Charts]
+        M --> Q[Interactive Responses\nNatural Language Answers]
+        P --> R[Timestamped Files\nanalysis_output/]
         Q --> R
     end
 ```
@@ -195,37 +195,37 @@ graph TB
 flowchart LR
     A[Natural Language Command] --> B{Command Type}
     
-    B -->|Statistical Analysis<br/>e.g., "package churn analysis"| C[llm_cli.py Processing]
-    B -->|Interactive Q&A<br/>e.g., "Who are top contributors?"| D[repochat_cli.py Processing]
+    B -->|Statistical Analysis\ne.g., package churn analysis| C[llm_cli.py Processing]
+    B -->|Interactive Q&A\ne.g., Who are top contributors?| D[repochat_cli.py Processing]
     
-    C --> E[Language Detection<br/>Bengali/English]
+    C --> E[Language Detection\nBengali/English]
     E -->|Bengali| F[Bengali Command Processing]
     E -->|English| G[English Command Processing]
     
-    F --> H[Google Gemini LLM<br/>Command Interpretation]
+    F --> H[Google Gemini LLM\nCommand Interpretation]
     G --> H
     
     H --> I{Analysis Type Mapping}
-    I -->|Package Churn| J[analyze_package_churn()]
-    I -->|LOC Analysis| K[analyze_loc()]
-    I -->|Complexity| L[analyze_complexity()]
-    I -->|Time Ratios| M[analyze_loc_time_ratio()]
+    I -->|Package Churn| J[analyze_package_churn]
+    I -->|LOC Analysis| K[analyze_loc]
+    I -->|Complexity| L[analyze_complexity]
+    I -->|Time Ratios| M[analyze_loc_time_ratio]
     
-    J --> N[PyDriller Processing<br/>Git Data Mining]
+    J --> N[PyDriller Processing\nGit Data Mining]
     K --> N
     L --> N
     M --> N
     
-    N --> O[Data Aggregation<br/>Pandas Processing]
-    O --> P[Excel Report Generation<br/>OpenPyXL]
+    N --> O[Data Aggregation\nPandas Processing]
+    O --> P[Excel Report Generation\nOpenPyXL]
     P --> Q[Timestamped Excel Files]
     
-    D --> R[Question Analysis<br/>Intent Understanding]
-    R --> S[Knowledge Graph Building<br/>Metadata Extraction]
-    S --> T[Cypher Query Generation<br/>Graph Pattern Matching]
-    T --> U[Graph Database Query<br/>Neo4j/Cypher]
-    U --> V[Result Processing<br/>Natural Language Formatting]
-    V --> W[Interactive Response<br/>Contextual Answers]
+    D --> R[Question Analysis\nIntent Understanding]
+    R --> S[Knowledge Graph Building\nMetadata Extraction]
+    S --> T[Cypher Query Generation\nGraph Pattern Matching]
+    T --> U[Graph Database Query\nNeo4j/Cypher]
+    U --> V[Result Processing\nNatural Language Formatting]
+    V --> W[Interactive Response\nContextual Answers]
 ```
 
 ---
