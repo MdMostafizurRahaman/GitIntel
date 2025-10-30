@@ -19,7 +19,7 @@ except ImportError:
     print("⚠️ Neo4j not available, using in-memory graph storage")
 
 class KnowledgeGraphBuilder:
-    def __init__(self, neo4j_uri: str = None, neo4j_user: str = None, neo4j_password: str = None):
+    def __init__(self, neo4j_uri: str = None, neo4j_user: str = None, neo4j_password: str = None, repo_path: str = None):
         self.logger = logging.getLogger(__name__)
         
         # Try Neo4j first, fallback to in-memory
@@ -33,8 +33,43 @@ class KnowledgeGraphBuilder:
                 'relationships': []
             }
             
-        self.graph_file = '.repochat_graph.json'
+        # Dynamic graph file naming based on repository
+        self.graph_file = self._get_graph_file_name(repo_path)
         self.load_graph()
+    
+    def _get_graph_file_name(self, repo_path: str) -> str:
+        """Generate dynamic graph file name based on repository"""
+        if not repo_path:
+            return '.repochat_graph.json'  # Default fallback
+        
+        try:
+            # Get repository name from path
+            repo_name = os.path.basename(repo_path.rstrip(os.sep))
+            
+            # Clean repo name for file system
+            clean_name = "".join(c for c in repo_name if c.isalnum() or c in ('-', '_', '.')).lower()
+            
+            # Create filename
+            graph_filename = f'.repochat_graph_{clean_name}.json'
+            
+            return graph_filename
+            
+        except Exception as e:
+            self.logger.warning(f"Could not generate dynamic graph filename: {e}")
+            return '.repochat_graph.json'  # Fallback to default
+    
+    def set_repository(self, repo_path: str):
+        """Update graph file when repository changes"""
+        new_graph_file = self._get_graph_file_name(repo_path)
+        if new_graph_file != self.graph_file:
+            # Save current graph before switching
+            self.save_graph()
+            
+            # Switch to new repository graph
+            self.graph_file = new_graph_file
+            self.load_graph()
+            
+            print(f"📊 Switched to knowledge graph: {self.graph_file}")
     
     def __del__(self):
         """Close Neo4j driver if available"""

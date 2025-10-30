@@ -20,7 +20,7 @@ from repochat_metrics import RepositoryMetrics
 class RepoChatCLI:
     def __init__(self):
         self.core = RepoChatCore()
-        self.kg_builder = KnowledgeGraphBuilder()
+        self.kg_builder = None  # Will be initialized when repo is set
         self.query_generator = CypherQueryGenerator()
         self.metrics = RepositoryMetrics()
         
@@ -45,6 +45,13 @@ class RepoChatCLI:
                 return False
                 
             self.core.set_repository(repo_path)
+            
+            # Initialize KG builder with repository-specific naming
+            if self.kg_builder:
+                self.kg_builder.set_repository(repo_path)
+            else:
+                self.kg_builder = KnowledgeGraphBuilder(repo_path=repo_path)
+                
             print(f"✅ Repository setup complete: {repo_path}")
             return True
             

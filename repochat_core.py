@@ -18,8 +18,8 @@ class RepoChatCore:
         self.repo_metadata = {}
         self.logger = logging.getLogger(__name__)
         
-        # Load saved repository state
-        self.load_repository_state()
+        # Don't load repository state automatically
+        # It will be set explicitly via set_repository method
     
     def load_repository_state(self):
         """Load previously saved repository state"""
@@ -344,17 +344,60 @@ class RepoChatCore:
                     dirs.remove('.git')
                 total_files += len([f for f in files if self._is_source_file(f)])
             
-            # Count contributors
-            contributors = set()
+            # Count contributors with detailed info
+            contributors = {}
+            contributor_count = 0
+            top_contributors = []
+            
             for commit in Repository(self.current_repo_path).traverse_commits():
-                contributors.add(commit.author.email)
+                author_email = commit.author.email
+                author_name = commit.author.name
+                
+                if author_email not in contributors:
+                    contributors[author_email] = {
+                        'name': author_name,
+                        'email': author_email,
+                        'commits': 0,
+                        'lines_added': 0,
+                        'lines_deleted': 0
+                    }
+                    contributor_count += 1
+                
+                contributors[author_email]['commits'] += 1
+                contributors[author_email]['lines_added'] += commit.insertions
+                contributors[author_email]['lines_deleted'] += commit.deletions
+            
+            # Get top contributors
+            top_contributors = sorted(contributors.values(), 
+                                    key=lambda x: x['commits'], reverse=True)[:10]
+            
+            # Get frequently changed files
+            file_changes = {}
+            for commit in Repository(self.current_repo_path).traverse_commits():
+                for file in commit.modified_files:
+                    if file.filename not in file_changes:
+                        file_changes[file.filename] = 0
+                    file_changes[file.filename] += 1
+            
+            frequently_changed_files = [
+                {'file': filename, 'changes': count}
+                for filename, count in sorted(file_changes.items(), 
+                                            key=lambda x: x[1], reverse=True)[:10]
+            ]
             
             return {
+                'total_commits': len(commits),
+                'total_files': total_files,
+                'contributors_count': contributor_count,
+                'contributors': contributors,
+                'top_contributors': top_contributors,
+                'frequently_changed_files': frequently_changed_files,
+                'branches': len(list(repo.branches)),
+                'tags': len(list(repo.tags)),
+                # Legacy keys for compatibility
                 'commits': len(commits),
                 'files': total_files,
-                'contributors': len(contributors),
-                'branches': len(list(repo.branches)),
-                'tags': len(list(repo.tags))
+                'contributors': contributor_count
             }
             
         except Exception as e:
