@@ -1,0 +1,5 @@
+repository,package_name,package_depth,is_test_package,lines_added,lines_removed,churn_ratio,file_count,churn_per_file,commit_message_length,is_major_change,change_type
+MOOC-Java-course,test.java,2,True,2761,0,0.0,38,72.65789473684211,23,True,TEST
+MOOC-Java-course,test.java,2,True,2724,0,0.0,40,68.1,15,True,TEST
+MOOC-Java-course,test.java,2,True,2389,0,0.0,32,74.65625,36,True,TEST
+MOOC-Java-course,test.java,2,True,3849,0,0.0,33,116.63636363636364,16,True,TEST
