@@ -356,28 +356,189 @@ class KnowledgeGraphBuilder:
         
         try:
             query_lower = cypher_query.lower()
+            print(f"🔍 Executing memory query: {cypher_query}")
             
-            # Handle simple node queries
-            if 'match' in query_lower and 'return' in query_lower:
-                if 'contributor' in query_lower:
-                    for node_id, node in self.in_memory_graph['nodes'].items():
-                        if node['type'] == 'Contributor':
-                            results.append(node['properties'])
+            # Handle different types of queries
+            if 'match' in query_lower and 'contributor' in query_lower:
+                # Check if this is a date-based contributor query
+                if 'authored' in query_lower and 'commit' in query_lower and 'starts with' in query_lower:
+                    # Date-based query: MATCH (contributor:Contributor)-[:AUTHORED]->(commit:Commit) WHERE commit.date STARTS WITH '2025-10-30'
+                    import re
+                    date_match = re.search(r"starts with '([^']+)'", query_lower)
+                    if date_match:
+                        target_date = date_match.group(1)
+                        print(f"🔍 Searching for commits on date: {target_date}")
+                        
+                        # Find contributors who made commits on the target date
+                        date_contributors = {}
+                        
+                        # Look through all commits
+                        for node_id, node in self.in_memory_graph['nodes'].items():
+                            if node['type'] == 'Commit':
+                                commit_date = node['properties'].get('date', '')
+                                if commit_date.startswith(target_date):
+                                    # Find the author of this commit through relationships
+                                    commit_hash = node['properties'].get('hash', '')
+                                    for rel in self.in_memory_graph['relationships']:
+                                        if (rel['type'] == 'AUTHORED' and 
+                                            rel['to'] == node_id):
+                                            # Get contributor details
+                                            contributor_node = self.in_memory_graph['nodes'].get(rel['from'])
+                                            if contributor_node and contributor_node['type'] == 'Contributor':
+                                                contributor_props = contributor_node['properties']
+                                                contributor_name = contributor_props.get('name', 'Unknown')
+                                                contributor_email = contributor_props.get('email', 'Unknown')
+                                                
+                                                # Count commits for this contributor on this date
+                                                key = f"{contributor_name}|{contributor_email}"
+                                                if key not in date_contributors:
+                                                    date_contributors[key] = {
+                                                        'name': contributor_name,
+                                                        'email': contributor_email,
+                                                        'today_commits': 0
+                                                    }
+                                                date_contributors[key]['today_commits'] += 1
+                        
+                        # Convert to list and sort by today_commits
+                        result_contributors = list(date_contributors.values())
+                        result_contributors.sort(key=lambda x: x.get('today_commits', 0), reverse=True)
+                        
+                        print(f"🔍 Found {len(result_contributors)} contributors who made commits on {target_date}")
+                        return result_contributors
                 
-                elif 'commit' in query_lower:
-                    for node_id, node in self.in_memory_graph['nodes'].items():
-                        if node['type'] == 'Commit':
-                            results.append(node['properties'])
+                # Regular contributor queries
+                contributors = []
+                for node_id, node in self.in_memory_graph['nodes'].items():
+                    if node['type'] == 'Contributor':
+                        contributors.append(node['properties'])
                 
-                elif 'file' in query_lower:
-                    for node_id, node in self.in_memory_graph['nodes'].items():
-                        if node['type'] == 'File':
-                            results.append(node['properties'])
+                # Handle WHERE clauses
+                if 'where' in query_lower:
+                    where_clause = query_lower.split('where')[1]
+                    if 'return' in where_clause:
+                        where_clause = where_clause.split('return')[0]
+                    
+                    # Handle CONTAINS search
+                    if 'contains' in where_clause:
+                        if "'" in where_clause:
+                            search_term = where_clause.split("'")[1].lower()
+                            print(f"🔍 Searching for: '{search_term}'")
+                            
+                            filtered_contributors = []
+                            for c in contributors:
+                                name = c.get('name', '').lower()
+                                email = c.get('email', '').lower()
+                                if search_term in name or search_term in email:
+                                    filtered_contributors.append(c)
+                            
+                            contributors = filtered_contributors
+                            print(f"🔍 Found {len(contributors)} matching contributors")
+                    
+                    # Handle exact commit count match (c.commits = X)
+                    elif '=' in where_clause and 'commits' in where_clause:
+                        import re
+                        # Extract the number after = 
+                        match = re.search(r'commits\s*=\s*(\d+)', where_clause)
+                        if match:
+                            target_commits = int(match.group(1))
+                            print(f"🔍 Filtering for exactly {target_commits} commits")
+                            contributors = [c for c in contributors if c.get('commits', 0) == target_commits]
+                            print(f"🔍 Found {len(contributors)} contributors with exactly {target_commits} commits")
+                    
+                    # Handle greater than (c.commits > X)
+                    elif '>' in where_clause and 'commits' in where_clause:
+                        import re
+                        match = re.search(r'commits\s*>\s*(\d+)', where_clause)
+                        if match:
+                            min_commits = int(match.group(1))
+                            print(f"🔍 Filtering for more than {min_commits} commits")
+                            contributors = [c for c in contributors if c.get('commits', 0) > min_commits]
+                    
+                    # Handle less than (c.commits < X)
+                    elif '<' in where_clause and 'commits' in where_clause:
+                        import re
+                        match = re.search(r'commits\s*<\s*(\d+)', where_clause)
+                        if match:
+                            max_commits = int(match.group(1))
+                            print(f"🔍 Filtering for less than {max_commits} commits")
+                            contributors = [c for c in contributors if c.get('commits', 0) < max_commits]
                 
-                # Add more query patterns as needed
+                # Handle ORDER BY
+                if 'order by' in query_lower:
+                    if 'asc' in query_lower:
+                        contributors.sort(key=lambda x: x.get('commits', 0))
+                    else:
+                        contributors.sort(key=lambda x: x.get('commits', 0), reverse=True)
+                
+                # Handle LIMIT
+                if 'limit' in query_lower:
+                    try:
+                        limit_parts = query_lower.split('limit')
+                        if len(limit_parts) > 1:
+                            limit_num = int(limit_parts[-1].strip())
+                            contributors = contributors[:limit_num]
+                    except:
+                        contributors = contributors[:10]
+                
+                return contributors
+            
+            elif 'match' in query_lower and 'commit' in query_lower:
+                commits = []
+                for node_id, node in self.in_memory_graph['nodes'].items():
+                    if node['type'] == 'Commit':
+                        commits.append(node['properties'])
+                
+                # Handle ORDER BY date
+                if 'order by' in query_lower:
+                    if 'date' in query_lower:
+                        commits.sort(key=lambda x: x.get('date', ''), reverse=True)
+                
+                # Handle LIMIT
+                if 'limit' in query_lower:
+                    try:
+                        limit_parts = query_lower.split('limit')
+                        if len(limit_parts) > 1:
+                            limit_num = int(limit_parts[-1].strip())
+                            commits = commits[:limit_num]
+                    except:
+                        commits = commits[:10]
+                
+                return commits
+            
+            elif 'match' in query_lower and 'file' in query_lower:
+                files = []
+                for node_id, node in self.in_memory_graph['nodes'].items():
+                    if node['type'] == 'File':
+                        files.append(node['properties'])
+                
+                # Handle relationships (file changes)
+                if 'modified' in query_lower:
+                    file_changes = {}
+                    for rel in self.in_memory_graph['relationships']:
+                        if rel['type'] == 'MODIFIED':
+                            file_node = self.in_memory_graph['nodes'].get(rel['to'])
+                            if file_node and file_node['type'] == 'File':
+                                file_name = file_node['properties'].get('name', 'Unknown')
+                                file_changes[file_name] = file_changes.get(file_name, 0) + 1
+                    
+                    # Convert to result format
+                    results = []
+                    for file_name, changes in sorted(file_changes.items(), key=lambda x: x[1], reverse=True):
+                        results.append({'f.name': file_name, 'changes': changes})
+                    
+                    return results[:10]
+                
+                return files[:10]
+            
+            # Handle repository queries
+            elif 'match' in query_lower and 'repository' in query_lower:
+                for node_id, node in self.in_memory_graph['nodes'].items():
+                    if node['type'] == 'Repository':
+                        return [node['properties']]
                 
         except Exception as e:
             self.logger.error(f"Memory query processing failed: {e}")
+            print(f"❌ Query processing error: {e}")
         
         return results
     

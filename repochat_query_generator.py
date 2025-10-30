@@ -8,6 +8,10 @@ import json
 import re
 from typing import Dict, List, Any, Optional
 import logging
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Try to import Gemini AI, fallback to simple pattern matching
 try:
@@ -25,8 +29,20 @@ class CypherQueryGenerator:
         # Common query patterns for fallback
         self.query_patterns = {
             'top_contributors': {
-                'patterns': ['top contributors', 'most active', 'who committed', 'active developers'],
-                'cypher': 'MATCH (c:Contributor) RETURN c.name, c.email, c.commits ORDER BY c.commits DESC LIMIT 10'
+                'patterns': ['top contributors', 'most active', 'who committed', 'active developers', 'most commits', 'commits more', 'who commits more'],
+                'cypher': 'MATCH (c:Contributor) RETURN c.name, c.email, c.commits ORDER BY c.commits DESC LIMIT 20'
+            },
+            'list_contributors': {
+                'patterns': ['list of users', 'list users', 'show users', 'list contributors', 'show contributors'],
+                'cypher': 'MATCH (c:Contributor) RETURN c.name, c.email, c.commits ORDER BY c.commits DESC LIMIT 20'
+            },
+            'lowest_contributors': {
+                'patterns': ['lowest contributors', 'least active', 'fewest commits', 'minimum contributors'],
+                'cypher': 'MATCH (c:Contributor) RETURN c.name, c.email, c.commits ORDER BY c.commits ASC LIMIT 10'
+            },
+            'specific_commit_count': {
+                'patterns': ['exactly', 'exact', 'precisely', 'specifically'],
+                'cypher': 'MATCH (c:Contributor) WHERE c.commits = {count} RETURN c.name, c.email, c.commits ORDER BY c.name'
             },
             'file_changes': {
                 'patterns': ['file changes', 'modified files', 'changed files', 'file modifications'],
@@ -63,11 +79,23 @@ class CypherQueryGenerator:
             'monthly_commits': {
                 'patterns': ['monthly commits', 'commits per month', 'monthly activity', 'commit timeline'],
                 'cypher': 'MATCH (c:Commit) RETURN substring(c.date, 0, 7) as month, count(c) as commits ORDER BY month DESC LIMIT 12'
+            },
+            'all_contributors': {
+                'patterns': ['all contributors', 'list contributors', 'contributors list', 'show contributors'],
+                'cypher': 'MATCH (c:Contributor) RETURN c.name, c.email, c.commits ORDER BY c.commits DESC'
+            },
+            'commit_range': {
+                'patterns': ['commits between', 'commit range', 'contributors with'],
+                'cypher': 'MATCH (c:Contributor) WHERE c.commits >= {min} AND c.commits <= {max} RETURN c.name, c.email, c.commits ORDER BY c.commits DESC'
             }
         }
     
     def setup_gemini(self):
         """Setup Google Gemini AI for query generation"""
+        # Temporarily disable LLM to avoid quota issues - using pattern-based approach
+        self.model = None
+        return
+        
         if not GEMINI_AVAILABLE:
             self.model = None
             return
@@ -162,10 +190,85 @@ Now generate the query for: {question}
     
     def _generate_query_with_patterns(self, question: str) -> Optional[str]:
         """Generate Cypher query using pattern matching"""
+        import re
+        from datetime import datetime
+        
         question_lower = question.lower()
         
         # Check for Bengali keywords and translate them
         question_lower = self._translate_bengali_keywords(question_lower)
+        
+        # Extract numbers from question for various purposes
+        numbers = re.findall(r'\d+', question_lower)
+        
+        # Handle date-based queries (today, recent, etc.)
+        if any(word in question_lower for word in ['today', 'আজ', 'আজকে']):
+            today_date = datetime.now().strftime('%Y-%m-%d')
+            if any(word in question_lower for word in ['change', 'commit', 'code', 'modify', 'update']):
+                # Query for commits made today
+                return f"MATCH (contributor:Contributor)-[:AUTHORED]->(commit:Commit) WHERE commit.date STARTS WITH '{today_date}' RETURN DISTINCT contributor.name as name, contributor.email as email, count(commit) as today_commits ORDER BY today_commits DESC"
+            elif any(word in question_lower for word in ['who', 'contributor', 'author', 'developer']):
+                return f"MATCH (contributor:Contributor)-[:AUTHORED]->(commit:Commit) WHERE commit.date STARTS WITH '{today_date}' RETURN DISTINCT contributor.name as name, contributor.email as email, count(commit) as today_commits ORDER BY today_commits DESC"
+        
+        # Handle recent queries (last few days)
+        elif any(word in question_lower for word in ['recent', 'recently', 'latest', 'last']):
+            if any(word in question_lower for word in ['change', 'commit', 'code', 'modify', 'update']):
+                # Show recent commits (last 7 days)
+                return "MATCH (commit:Commit) WHERE commit.date >= date() - duration('P7D') RETURN commit.hash, commit.message, commit.author_name, commit.date ORDER BY commit.date DESC LIMIT 20"
+            elif any(word in question_lower for word in ['who', 'contributor', 'author', 'developer']):
+                return "MATCH (c:Contributor) WHERE c.last_commit IS NOT NULL RETURN c.name, c.email, c.commits, c.last_commit ORDER BY c.last_commit DESC LIMIT 10"
+        
+        # Handle this week/month queries - fallback to most recent contributors
+        if any(phrase in question_lower for phrase in ['this week', 'এই সপ্তাহে', 'weekly']):
+            return "MATCH (c:Contributor) WHERE c.last_commit IS NOT NULL RETURN c.name, c.email, c.commits, c.last_commit ORDER BY c.last_commit DESC LIMIT 20"
+        
+        if any(phrase in question_lower for phrase in ['this month', 'এই মাসে', 'monthly']):
+            return "MATCH (c:Contributor) WHERE c.last_commit IS NOT NULL RETURN c.name, c.email, c.commits, c.last_commit ORDER BY c.last_commit DESC LIMIT 20"
+        
+        # Handle list queries with specific count
+        if ('list' in question_lower or 'show' in question_lower) and numbers:
+            count = int(numbers[0])
+            # Check for any contributor-related words
+            if any(word in question_lower for word in ['user', 'contributor', 'developer', 'author', 'contributer']):
+                if any(word in question_lower for word in ['more', 'most', 'top', 'high']):
+                    return f"MATCH (c:Contributor) RETURN c.name, c.email, c.commits ORDER BY c.commits DESC LIMIT {count}"
+                elif any(word in question_lower for word in ['less', 'least', 'low', 'bottom']):
+                    return f"MATCH (c:Contributor) RETURN c.name, c.email, c.commits ORDER BY c.commits ASC LIMIT {count}"
+                else:
+                    # Default to showing contributors in descending order by commits
+                    return f"MATCH (c:Contributor) RETURN c.name, c.email, c.commits ORDER BY c.commits DESC LIMIT {count}"
+        
+        # Handle specific commit count queries
+        if 'exactly' in question_lower or 'exact' in question_lower:
+            if numbers:
+                commit_count = numbers[0]
+                return f"MATCH (c:Contributor) WHERE c.commits = {commit_count} RETURN c.name, c.email, c.commits ORDER BY c.name"
+        
+        # Handle range queries
+        if 'more than' in question_lower or 'greater than' in question_lower:
+            if numbers:
+                commit_count = numbers[0]
+                return f"MATCH (c:Contributor) WHERE c.commits > {commit_count} RETURN c.name, c.email, c.commits ORDER BY c.commits DESC LIMIT 20"
+        
+        if 'less than' in question_lower or 'fewer than' in question_lower:
+            if numbers:
+                commit_count = numbers[0]
+                return f"MATCH (c:Contributor) WHERE c.commits < {commit_count} RETURN c.name, c.email, c.commits ORDER BY c.commits ASC LIMIT 20"
+        
+        # Handle specific contributor queries - more flexible patterns
+        if any(phrase in question_lower for phrase in ['commits from', 'number of commit', 'commit from', 'commits by']):
+            # Extract contributor name from question
+            patterns = ['commits from', 'number of commit from', 'commit from', 'commits by']
+            for pattern in patterns:
+                if pattern in question_lower:
+                    name_part = question_lower.split(pattern)[-1].strip().rstrip('?').strip()
+                    if name_part:
+                        return f"MATCH (c:Contributor) WHERE toLower(c.name) CONTAINS '{name_part}' OR toLower(c.email) CONTAINS '{name_part}' RETURN c.name, c.email, c.commits"
+        
+        # Handle lowest/fewest contributors
+        if any(word in question_lower for word in ['lowest', 'fewest', 'minimum', 'least']):
+            if 'contributor' in question_lower:
+                return 'MATCH (c:Contributor) RETURN c.name, c.email, c.commits ORDER BY c.commits ASC LIMIT 10'
         
         # Find matching pattern
         for query_type, config in self.query_patterns.items():
@@ -174,9 +277,19 @@ Now generate the query for: {question}
                     print(f"🔍 Matched pattern: {pattern} -> {query_type}")
                     return config['cypher']
         
+        # Check for specific patterns that might not be in our predefined list
+        if any(word in question_lower for word in ['who', 'contributor', 'contributer', 'developer', 'author']):
+            print("🔍 Generic contributor query")
+            # Check if they want more contributors
+            if numbers and int(numbers[0]) > 10:
+                limit = int(numbers[0])
+                return f'MATCH (c:Contributor) RETURN c.name, c.email, c.commits ORDER BY c.commits DESC LIMIT {limit}'
+            else:
+                return 'MATCH (c:Contributor) RETURN c.name, c.email, c.commits ORDER BY c.commits DESC LIMIT 20'
+        
         # Default fallback query
         print("🔍 No specific pattern matched, using default query")
-        return 'MATCH (c:Contributor) RETURN c.name, c.commits ORDER BY c.commits DESC LIMIT 5'
+        return 'MATCH (c:Contributor) RETURN c.name, c.email, c.commits ORDER BY c.commits DESC LIMIT 20'
     
     def _translate_bengali_keywords(self, question: str) -> str:
         """Translate Bengali keywords to English"""
@@ -196,6 +309,12 @@ Now generate the query for: {question}
             'ইস্যু': 'issue',
             'ফিক্স': 'fix',
             'কোড': 'code',
+            'আজ': 'today',
+            'আজকে': 'today',
+            'সাম্প্রতিক': 'recent',
+            'নতুন': 'new',
+            'হালনাগাদ': 'update',
+            'পরিবর্তন': 'change',
             'লাইন': 'line',
             'প্যাকেজ': 'package',
             'ক্লাস': 'class',
@@ -245,6 +364,12 @@ Now generate the query for: {question}
         """Generate natural language response from query results"""
         try:
             if not query_results:
+                # Check if this was a date-specific query
+                question_lower = question.lower()
+                if any(word in question_lower for word in ['today', 'আজ', 'আজকে']):
+                    from datetime import datetime
+                    today_date = datetime.now().strftime('%B %d, %Y')
+                    return f"📅 **No code changes found for today ({today_date})**\n\n❌ No contributors made commits today in this repository."
                 return "❌ No results found for your question."
             
             if self.model:
@@ -286,13 +411,16 @@ Keep the response concise but informative.
         """Generate response using templates"""
         question_lower = question.lower()
         
-        if any(word in question_lower for word in ['contributor', 'developer', 'author', 'who']):
-            return self._format_contributors_response(query_results)
+        # Check if this is a contributor search query
+        if ('contributor' in question_lower or 'developer' in question_lower or 'author' in question_lower or 
+            'who' in question_lower or 'commits from' in question_lower or 'number of commits' in question_lower or
+            'today' in question_lower or 'recent' in question_lower):
+            return self._format_contributors_response(query_results, question_lower)
         
         elif any(word in question_lower for word in ['file', 'changes', 'modified']):
             return self._format_files_response(query_results)
         
-        elif any(word in question_lower for word in ['commit', 'recent', 'latest']):
+        elif any(word in question_lower for word in ['commit', 'recent', 'latest']) and 'from' not in question_lower:
             return self._format_commits_response(query_results)
         
         elif any(word in question_lower for word in ['bug', 'fix', 'issue']):
@@ -302,21 +430,76 @@ Keep the response concise but informative.
             return self._format_repository_response(query_results)
         
         else:
-            return self._format_raw_results(query_results)
+            # Default to contributor format if we have contributor-like data
+            if query_results and any(key in query_results[0] for key in ['name', 'email', 'commits', 'c.name', 'c.email', 'c.commits']):
+                return self._format_contributors_response(query_results, question_lower)
+            else:
+                return self._format_raw_results(query_results)
     
-    def _format_contributors_response(self, results: List[Dict[str, Any]]) -> str:
+    def _format_contributors_response(self, results: List[Dict[str, Any]], question_context: str = "") -> str:
         """Format contributors query results"""
         if not results:
+            # Check if this was a today-specific query
+            if any(word in question_context for word in ['today', 'আজ', 'আজকে']):
+                return "📅 **No code changes found for today (October 30, 2025)**\n\n❌ No contributors made commits today in this repository."
             return "❌ No contributors found."
         
-        response = "👥 **Top Contributors:**\n\n"
-        for i, contributor in enumerate(results[:10], 1):
-            name = contributor.get('c.name', contributor.get('name', 'Unknown'))
-            commits = contributor.get('c.commits', contributor.get('commits', 0))
-            email = contributor.get('c.email', contributor.get('email', ''))
+        # Customize response based on question context
+        if any(word in question_context for word in ['today', 'আজ', 'আজকে']):
+            response = "� **Contributors who changed code today (October 30, 2025):**\n\n"
+        elif any(word in question_context for word in ['recent', 'recently', 'latest', 'last']):
+            response = "🔍 **Recent Contributors:**\n\n"
+        else:
+            response = "👥 **Contributors:**\n\n"
+        
+        # Handle both regular contributor queries and search results
+        if len(results) == 1 and ('commits' in results[0] or 'today_commits' in results[0]):
+            # Single contributor result (likely a search)
+            contributor = results[0]
+            name = contributor.get('name', contributor.get('c.name', 'Unknown'))
+            commits = contributor.get('commits', contributor.get('c.commits', contributor.get('today_commits', 0)))
+            email = contributor.get('email', contributor.get('c.email', ''))
+            last_commit = contributor.get('last_commit', contributor.get('c.last_commit', ''))
+            today_commits = contributor.get('today_commits', 0)
             
-            response += f"{i}. **{name}** ({email})\n"
-            response += f"   📊 Commits: {commits}\n\n"
+            response = f"👤 **Contributor: {name}**\n\n"
+            response += f"📧 **Email:** {email}\n"
+            
+            if today_commits > 0:
+                response += f"📊 **Commits Today:** {today_commits}\n"
+            else:
+                response += f"📊 **Total Commits:** {commits}\n"
+                
+            if last_commit:
+                response += f"🕐 **Last Activity:** {last_commit}\n"
+            
+            if commits == 0 and today_commits == 0:
+                response += "\n❌ This contributor has no commits in the analyzed repository."
+            
+            return response
+        
+        # Multiple contributors (top contributors list)
+        # Use all results, not just first 10
+        for i, contributor in enumerate(results, 1):
+            name = contributor.get('name', contributor.get('c.name', 'Unknown'))
+            commits = contributor.get('commits', contributor.get('c.commits', 0))
+            today_commits = contributor.get('today_commits', 0)
+            email = contributor.get('email', contributor.get('c.email', ''))
+            last_commit = contributor.get('last_commit', contributor.get('c.last_commit', ''))
+            
+            if email:
+                response += f"{i}. **{name}** ({email})\n"
+            else:
+                response += f"{i}. **{name}**\n"
+            
+            if today_commits > 0:
+                response += f"   📊 Commits Today: {today_commits}\n"
+            else:
+                response += f"   📊 Commits: {commits}\n"
+                
+            if last_commit:
+                response += f"   🕐 Last Activity: {last_commit}\n"
+            response += "\n"
         
         return response.strip()
     
