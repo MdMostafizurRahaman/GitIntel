@@ -1,4 +1,4 @@
-# LLM-Powered Git Analysis Tool
+# LLM-Powered Git Analysis Tool for Java Repositories
 
 ## Overview
 This tool uses Google Gemini LLM and PyDriller to analyze Java Git repositories using natural language commands. It generates automated Excel reports for package churn, LOC, complexity, and release analysis with support for Git cloning and commit limits.
@@ -19,6 +19,51 @@ pip install -r requirements.txt
 
 # Set up Gemini API key (create .env file)
 echo "GEMINI_API_KEY=your_api_key_here" > .env
+```
+
+## Neo4j Setup (Optional - for Knowledge Graph)
+
+### Option 1: Neo4j Aura (Cloud - Recommended)
+1. **Sign up:** https://neo4j.com/cloud/aura/
+2. **Free tier:** Select "Free" plan (200k nodes, 400k relationships)
+3. **Create instance:** Name it "GitIntel"
+4. **Get connection details:** Copy the connection URI (neo4j+s://xxxxx.databases.neo4j.io)
+5. **Test connection:**
+```pwsh
+python test_neo4j.py
+# Enter your Aura URI and password when prompted
+```
+
+### Option 2: Neo4j Desktop (Local)
+- Download from: https://neo4j.com/download-center/
+- Choose "Neo4j Desktop" for Windows
+- Install and run the installer
+- Create a new project and database
+- Start the database (default: bolt://localhost:7687)
+- Default credentials: neo4j/neo4j (change password on first login)
+
+### Use with GitIntel
+```pwsh
+# For Aura (replace with your URI)
+python git_analyzer_tool.py D:\GitIntel\kafka --create-graph --neo4j-uri "neo4j+s://your-instance.databases.neo4j.io" --neo4j-password your_password
+
+# For Desktop
+python git_analyzer_tool.py D:\GitIntel\kafka --create-graph --neo4j-password your_password
+
+# View graph in Neo4j Browser at http://localhost:7474/browser or your Aura instance
+# Query examples:
+# MATCH (n) RETURN n LIMIT 25
+# MATCH (a:Author)-[:COMMITTED]->(c:Commit) RETURN a,c LIMIT 50
+# MATCH (p:Package) WHERE p.total_churn > 1000 RETURN p
+```
+```pwsh
+# Run analysis with Neo4j graph creation
+python git_analyzer_tool.py D:\GitIntel\kafka --create-graph --neo4j-password your_password
+
+# View graph in Neo4j Browser at http://localhost:7474
+# Query examples:
+# MATCH (n) RETURN n LIMIT 25
+# MATCH (a:Author)-[:COMMITTED]->(c:Commit) RETURN a,c LIMIT 50
 ```
 
 ## Usage
@@ -54,11 +99,11 @@ python llm_cli.py "releases"
 ```
 
 ## Supported Repositories
-- ✅ **Apache Kafka** (D:\GitIntel\kafka)
-- ✅ **Apache Maven** (cloned from GitHub)
-- ✅ **Selenium** (cloned from GitHub)
-- ✅ **Spring Boot** (D:\GitIntel\Spring-Boot-in-Detailed-Way)
-- ✅ **Any Java repository** (local or GitHub)
+- ✅ **Apache Kafka** (D:\GitIntel\kafka) - Large-scale enterprise repository
+- ✅ **Apache Maven** (cloned from GitHub) - Build tool with complex package structure  
+- ✅ **Selenium** (cloned from GitHub) - Testing framework with multiple modules
+- ✅ **Spring Boot** (D:\GitIntel\Spring-Boot-in-Detailed-Way) - Framework with extensive documentation
+- ✅ **Any Java repository** (local or GitHub) - Automatic package detection and analysis
 
 ## Output Files
 All reports are timestamped Excel files:

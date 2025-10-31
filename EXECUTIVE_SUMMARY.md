@@ -1,7 +1,7 @@
 # GitIntel: Executive Summary
 ## Intelligent Git Repository Analysis Platform
 
-**Project Overview:** AI-powered tool that analyzes software repositories using natural language commands, providing instant insights for technical decision-making.
+**Project Overview:** AI-enhanced tool that analyzes Java Git repositories using natural language commands, providing comprehensive Excel reports for technical decision-making and code quality assessment.
 
 ---
 
@@ -11,9 +11,9 @@ Software teams spend **10-15 hours weekly** manually analyzing code changes, tra
 
 ## 💡 **Our Solution**
 
-**GitIntel** transforms complex Git analysis into simple conversations:
-- **Input:** "আমাকে 500+ line changes দেখাও" (Show me 500+ line changes)
-- **Output:** Professional Excel report with actionable insights in under 2 minutes
+**GitIntel** transforms complex Git analysis into simple commands:
+- **Input:** "package churn first 500 commits" or "আমাকে LOC analysis দাও"
+- **Output:** Professional Excel report with comprehensive metrics in under 5 minutes
 
 ## 📊 **Key Metrics & Results**
 
@@ -40,10 +40,10 @@ Software teams spend **10-15 hours weekly** manually analyzing code changes, tra
 ### **2. Intelligent Performance Optimization**
 - **Smart Commit Limiting:** Analyze specific ranges for faster results
 - **Progress Tracking:** Real-time status updates during processing
-- **Memory Efficient:** Handle enterprise-scale repositories
+- **Memory Efficient:** Handle enterprise-scale Java repositories
 
 ### **3. Professional Output**
-- **Excel Reports:** Multi-sheet analysis with charts and summaries
+- **Excel Reports:** Multi-sheet analysis with package summaries and file details
 - **Timestamped Files:** Automatic versioning and organization
 - **Export Ready:** CSV data for further analysis
 

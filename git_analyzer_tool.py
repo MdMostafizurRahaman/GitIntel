@@ -21,6 +21,7 @@ from datetime import datetime
 import re
 from typing import Dict, List, Tuple, Optional
 import logging
+from neo4j import GraphDatabase
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -29,11 +30,24 @@ logger = logging.getLogger(__name__)
 class GitRepoAnalyzer:
     """Main class for Git repository analysis with LLM integration"""
     
-    def __init__(self, repo_path: str):
+    def __init__(self, repo_path: str, neo4j_uri: str = None, neo4j_user: str = None, neo4j_password: str = None):
         self.repo_path = Path(repo_path)
         self.repo_name = self.repo_path.name
         self.output_dir = self.repo_path / "analysis_output"
         self.output_dir.mkdir(exist_ok=True)
+        
+        # Neo4j connection
+        self.neo4j_driver = None
+        if neo4j_uri and neo4j_user and neo4j_password:
+            try:
+                self.neo4j_driver = GraphDatabase.driver(neo4j_uri, auth=(neo4j_user, neo4j_password))
+                # Test connection
+                with self.neo4j_driver.session() as session:
+                    session.run("RETURN 'Hello Neo4j!' as message")
+                logger.info("✅ Connected to Neo4j database successfully!")
+            except Exception as e:
+                logger.error(f"❌ Failed to connect to Neo4j: {e}")
+                logger.info("💡 Make sure Neo4j Desktop is running and database is started")
         
         if not self._is_git_repo():
             raise ValueError(f"Not a valid Git repository: {repo_path}")
@@ -50,9 +64,10 @@ class GitRepoAnalyzer:
                 cwd=self.repo_path,
                 capture_output=True,
                 text=True,
-                check=True
+                encoding='utf-8',  # Specify UTF-8 encoding
+                errors='replace'   # Replace undecodable bytes
             )
-            return result.stdout.strip()
+            return result.stdout.strip() if result.stdout else ""
         except subprocess.CalledProcessError as e:
             logger.error(f"Git command failed: {e}")
             return ""
@@ -338,6 +353,111 @@ class GitRepoAnalyzer:
         
         return str(prompts_file)
     
+    def create_knowledge_graph(self, churn_df: pd.DataFrame, summary_df: pd.DataFrame, 
+                              commits_data: List[Dict] = None) -> bool:
+        """Create knowledge graph in Neo4j for repository analysis"""
+        if not self.neo4j_driver:
+            logger.warning("Neo4j not connected. Skipping knowledge graph creation.")
+            return False
+        
+        logger.info("Creating knowledge graph in Neo4j...")
+        
+        try:
+            with self.neo4j_driver.session() as session:
+                # Clear existing data
+                session.run("MATCH (n) DETACH DELETE n")
+                
+                # Create repository node
+                session.run(
+                    "CREATE (r:Repository {name: $name, path: $path})",
+                    name=self.repo_name, path=str(self.repo_path)
+                )
+                
+                # Create author nodes and relationships
+                authors = {}
+                if not churn_df.empty:
+                    for _, row in churn_df.iterrows():
+                        author_name = row['author']
+                        if author_name not in authors:
+                            authors[author_name] = True
+                            session.run(
+                                "MERGE (a:Author {name: $name})",
+                                name=author_name
+                            )
+                            # Connect author to repository
+                            session.run(
+                                "MATCH (a:Author {name: $name}), (r:Repository {name: $repo}) "
+                                "CREATE (a)-[:CONTRIBUTES_TO]->(r)",
+                                name=author_name, repo=self.repo_name
+                            )
+                
+                # Create package nodes
+                packages = {}
+                if not summary_df.empty:
+                    for _, row in summary_df.iterrows():
+                        package_name = row['package']
+                        if package_name not in packages:
+                            packages[package_name] = True
+                            session.run(
+                                "MERGE (p:Package {name: $name, total_churn: $churn, files_count: $files, commits_count: $commits})",
+                                name=package_name, churn=int(row['total_churn']), 
+                                files=int(row['files_count']), commits=int(row['commits_count'])
+                            )
+                            # Connect package to repository
+                            session.run(
+                                "MATCH (p:Package {name: $name}), (r:Repository {name: $repo}) "
+                                "CREATE (p)-[:BELONGS_TO]->(r)",
+                                name=package_name, repo=self.repo_name
+                            )
+                
+                # Create commit nodes and relationships
+                if commits_data:
+                    for commit in commits_data[:100]:  # Limit to avoid too many nodes
+                        session.run(
+                            "CREATE (c:Commit {hash: $hash, date: $date, message: $message})",
+                            hash=commit['hash'], date=commit['date'], message=commit['message']
+                        )
+                        
+                        # Connect commit to author
+                        session.run(
+                            "MATCH (c:Commit {hash: $hash}), (a:Author {name: $author}) "
+                            "CREATE (a)-[:COMMITTED]->(c)",
+                            hash=commit['hash'], author=commit['author']
+                        )
+                        
+                        # Connect commit to repository
+                        session.run(
+                            "MATCH (c:Commit {hash: $hash}), (r:Repository {name: $repo}) "
+                            "CREATE (c)-[:BELONGS_TO]->(r)",
+                            hash=commit['hash'], repo=self.repo_name
+                        )
+                
+                # Create file nodes and relationships from churn data
+                files = {}
+                if not churn_df.empty:
+                    for _, row in churn_df.iterrows():
+                        file_name = row['file']
+                        if file_name not in files:
+                            files[file_name] = True
+                            session.run(
+                                "MERGE (f:File {name: $name, package: $package})",
+                                name=file_name, package=row['package']
+                            )
+                            
+                            # Connect file to package
+                            session.run(
+                                "MATCH (f:File {name: $name}), (p:Package {name: $package}) "
+                                "CREATE (f)-[:BELONGS_TO]->(p)",
+                                name=file_name, package=row['package']
+                            )
+                
+                logger.info("Knowledge graph created successfully")
+                return True
+                
+        except Exception as e:
+            logger.error(f"Failed to create knowledge graph: {e}")
+            return False
+    
     def analyze_releases(self, repo_path, threshold=500):
         """Analyze changes between releases/tags"""
         
@@ -566,6 +686,13 @@ def main():
     parser.add_argument("--from-tag", help="Start tag for release analysis")
     parser.add_argument("--to-tag", help="End tag for release analysis")
     parser.add_argument("--clone-repo", help="Clone repository from URL before analysis")
+    parser.add_argument("--neo4j-uri", default="bolt://localhost:7687",
+                       help="Neo4j database URI (default: bolt://localhost:7687)")
+    parser.add_argument("--neo4j-user", default="neo4j",
+                       help="Neo4j username (default: neo4j)")
+    parser.add_argument("--neo4j-password", help="Neo4j password")
+    parser.add_argument("--create-graph", action="store_true",
+                       help="Create knowledge graph in Neo4j")
     
     args = parser.parse_args()
     
@@ -582,8 +709,21 @@ def main():
             
             args.repo_path = str(clone_path)
         
-        # Initialize analyzer
-        analyzer = GitRepoAnalyzer(args.repo_path)
+        # Initialize analyzer with Neo4j if provided
+        neo4j_params = {}
+        if args.neo4j_password:
+            neo4j_params = {
+                'neo4j_uri': args.neo4j_uri,
+                'neo4j_user': args.neo4j_user,
+                'neo4j_password': args.neo4j_password
+            }
+        
+        analyzer = GitRepoAnalyzer(args.repo_path, **neo4j_params)
+        
+        # Get commits data for graph
+        commits_data = None
+        if args.create_graph:
+            commits_data = analyzer.get_all_commits()
         
         # Perform package churn analysis
         logger.info("Starting package churn analysis...")
@@ -619,6 +759,14 @@ def main():
         # Generate LLM prompts
         prompts_file = analyzer.generate_llm_prompts(summary_df, releases_data)
         logger.info(f"LLM prompts generated: {prompts_file}")
+        
+        # Create knowledge graph if requested
+        if args.create_graph and analyzer.neo4j_driver:
+            success = analyzer.create_knowledge_graph(churn_df, summary_df, commits_data)
+            if success:
+                print("\n🕸️ Knowledge graph created in Neo4j!")
+            else:
+                print("\n❌ Failed to create knowledge graph")
         
         print(f"\n✅ Analysis complete! Check {analyzer.output_dir} for outputs.")
         
