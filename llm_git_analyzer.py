@@ -37,7 +37,17 @@ class LLMGitAnalyzer:
             'complexity_time_ratio': 'Complexity to time ratio analysis',
             'combined_analysis': 'Combined metrics analysis (LOC + complexity + time)',
             'custom_analysis': 'Custom formula-based analysis',
-            'visualization': 'Generate charts and visualizations'
+            'visualization': 'Generate charts and visualizations',
+            'maintainability_index': 'Calculate maintainability index for code quality',
+            'halstead_metrics': 'Analyze Halstead complexity metrics',
+            'cognitive_complexity': 'Measure cognitive complexity of methods',
+            'technical_debt': 'Estimate technical debt and code smells',
+            'test_coverage': 'Analyze test coverage metrics',
+            'code_duplication': 'Detect code duplication patterns',
+            'dependency_analysis': 'Analyze package dependencies and coupling',
+            'refactoring_opportunities': 'Identify refactoring opportunities',
+            'security_metrics': 'Basic security analysis and vulnerability patterns',
+            'performance_metrics': 'Performance-related code analysis'
         }
         
     def load_current_repo(self):
@@ -435,10 +445,24 @@ class LLMGitAnalyzer:
         loc_data = []
         
         try:
+            # First count total files for progress
+            total_files = sum(1 for root, dirs, files in os.walk(self.current_repo_path) 
+                            for file in files if file.endswith('.java'))
+            
+            print(f"📁 Found {total_files} Java files to analyze...")
+            processed = 0
+            
             # Walk through all Java files
             for root, dirs, files in os.walk(self.current_repo_path):
+                # Skip .git and other hidden directories for speed
+                dirs[:] = [d for d in dirs if not d.startswith('.')]
+                
                 for file in files:
                     if file.endswith('.java'):
+                        processed += 1
+                        if processed % 50 == 0:  # Show progress every 50 files
+                            print(f"   📈 Processed {processed}/{total_files} files...")
+                        
                         file_path = os.path.join(root, file)
                         rel_path = os.path.relpath(file_path, self.current_repo_path)
                         
@@ -1196,6 +1220,20 @@ class LLMGitAnalyzer:
             if threshold_match:
                 threshold = int(threshold_match.group(1))
             return self.analyze_package_churn(threshold, output_format, commit_limit)
+        elif 'halstead' in lower_cmd or 'halstead metrics' in lower_cmd:
+            return self.analyze_halstead_metrics(output_format)
+        elif 'maintainability' in lower_cmd or 'maintainability index' in lower_cmd:
+            return self.analyze_maintainability_index(output_format)
+        elif 'technical debt' in lower_cmd or 'debt' in lower_cmd or 'code smell' in lower_cmd:
+            return self.analyze_technical_debt(output_format)
+        elif 'dependency' in lower_cmd or 'coupling' in lower_cmd:
+            return self.analyze_dependency_metrics(output_format)
+        elif 'duplication' in lower_cmd or 'duplicate' in lower_cmd or 'copy' in lower_cmd:
+            return self.analyze_code_duplication(output_format)
+        elif 'test coverage' in lower_cmd or 'coverage' in lower_cmd or 'test' in lower_cmd:
+            return self.analyze_test_coverage_estimation(output_format)
+        elif 'security' in lower_cmd or 'vulnerability' in lower_cmd or 'secure' in lower_cmd:
+            return self.analyze_security_patterns(output_format)
         elif 'loc' in lower_cmd or 'lines of code' in lower_cmd:
             return self.analyze_loc(output_format)
         elif 'complexity' in lower_cmd:
@@ -1274,9 +1312,670 @@ class LLMGitAnalyzer:
                     return "✅ Repository cloned and set! Ready for analysis."
             else:
                 return "❌ Failed to clone repository"
+        
+        elif analysis_type == 'halstead_metrics':
+            output_format = parameters.get('output_format', 'excel')
+            return self.analyze_halstead_metrics(output_format)
             
+        elif analysis_type == 'maintainability_index':
+            output_format = parameters.get('output_format', 'excel')
+            return self.analyze_maintainability_index(output_format)
+            
+        elif analysis_type == 'technical_debt':
+            output_format = parameters.get('output_format', 'excel')
+            return self.analyze_technical_debt(output_format)
+            
+        elif analysis_type == 'dependency_analysis':
+            output_format = parameters.get('output_format', 'excel')
+            return self.analyze_dependency_metrics(output_format)
+        
         else:
             return f"❌ Unknown analysis type: {analysis_type}"
+
+    def analyze_code_duplication(self, output_format: str = 'excel') -> str:
+        """Detect code duplication patterns"""
+        if not self.current_repo_path:
+            return "❌ No repository set. Use set_repository() first."
+        
+        print("🔍 Analyzing code duplication...")
+        
+        duplication_data = []
+        
+        try:
+            file_contents = {}
+            
+            # First pass: collect all file contents
+            for root, dirs, files in os.walk(self.current_repo_path):
+                for file in files:
+                    if file.endswith('.java'):
+                        file_path = os.path.join(root, file)
+                        rel_path = os.path.relpath(file_path, self.current_repo_path)
+                        
+                        try:
+                            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                                content = f.read()
+                                file_contents[rel_path] = content
+                        except Exception as e:
+                            print(f"  Warning: Could not read {file}: {e}")
+            
+            # Second pass: find duplications
+            for file1_path, content1 in file_contents.items():
+                lines1 = content1.split('\n')
+                duplicated_lines = 0
+                
+                for file2_path, content2 in file_contents.items():
+                    if file1_path >= file2_path:  # Avoid duplicate comparisons
+                        continue
+                    
+                    lines2 = content2.split('\n')
+                    
+                    # Find common consecutive lines (minimum 5 lines)
+                    for i in range(len(lines1) - 4):
+                        for j in range(len(lines2) - 4):
+                            common_lines = 0
+                            k = 0
+                            
+                            while (i + k < len(lines1) and j + k < len(lines2) and 
+                                   lines1[i + k].strip() == lines2[j + k].strip() and 
+                                   lines1[i + k].strip() != ''):
+                                common_lines += 1
+                                k += 1
+                            
+                            if common_lines >= 5:  # At least 5 consecutive lines
+                                duplicated_lines += common_lines
+                
+                pkg = self.package_from_filepath(file1_path)
+                
+                duplication_data.append({
+                    'file_path': file1_path,
+                    'package': pkg,
+                    'total_lines': len(lines1),
+                    'duplicated_lines': duplicated_lines,
+                    'duplication_ratio': (duplicated_lines / max(len(lines1), 1)) * 100
+                })
+            
+            if duplication_data:
+                df = pd.DataFrame(duplication_data)
+                
+                # Package-level summary
+                package_summary = df.groupby('package').agg({
+                    'total_lines': 'sum',
+                    'duplicated_lines': 'sum',
+                    'duplication_ratio': 'mean',
+                    'file_path': 'count'
+                }).rename(columns={'file_path': 'file_count'}).reset_index()
+                
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                
+                if output_format.lower() == 'excel':
+                    filename = f"code_duplication_{timestamp}.xlsx"
+                    with pd.ExcelWriter(filename, engine='openpyxl') as writer:
+                        package_summary.to_excel(writer, sheet_name='Package Summary', index=False)
+                        df.to_excel(writer, sheet_name='File Details', index=False)
+                else:
+                    filename = f"code_duplication_{timestamp}.csv"
+                    package_summary.to_csv(filename, index=False, encoding='utf-8')
+                
+                return f"✅ Code duplication analysis complete! Report saved: {filename}"
+            else:
+                return "❌ No Java files found for analysis"
+                
+        except Exception as e:
+            return f"❌ Code duplication analysis failed: {str(e)}"
+
+    def analyze_test_coverage_estimation(self, output_format: str = 'excel') -> str:
+        """Estimate test coverage based on test files and source files"""
+        if not self.current_repo_path:
+            return "❌ No repository set. Use set_repository() first."
+        
+        print("🔍 Analyzing test coverage estimation...")
+        
+        coverage_data = []
+        test_files = []
+        source_files = []
+        
+        try:
+            # Separate test files and source files
+            for root, dirs, files in os.walk(self.current_repo_path):
+                for file in files:
+                    if file.endswith('.java'):
+                        file_path = os.path.join(root, file)
+                        rel_path = os.path.relpath(file_path, self.current_repo_path)
+                        
+                        # Detect test files
+                        if ('test' in rel_path.lower() or 
+                            file.lower().endswith('test.java') or 
+                            file.lower().endswith('tests.java')):
+                            test_files.append(rel_path)
+                        else:
+                            source_files.append(rel_path)
+            
+            # Calculate coverage estimation by package
+            packages = {}
+            
+            for source_file in source_files:
+                pkg = self.package_from_filepath(source_file)
+                if pkg not in packages:
+                    packages[pkg] = {'source_files': 0, 'test_files': 0}
+                packages[pkg]['source_files'] += 1
+            
+            for test_file in test_files:
+                pkg = self.package_from_filepath(test_file)
+                if pkg not in packages:
+                    packages[pkg] = {'source_files': 0, 'test_files': 0}
+                packages[pkg]['test_files'] += 1
+            
+            for pkg, counts in packages.items():
+                test_ratio = (counts['test_files'] / max(counts['source_files'], 1)) * 100
+                estimated_coverage = min(test_ratio * 0.7, 95)  # Rough estimation
+                
+                coverage_data.append({
+                    'package': pkg,
+                    'source_files': counts['source_files'],
+                    'test_files': counts['test_files'],
+                    'test_ratio': test_ratio,
+                    'estimated_coverage': estimated_coverage,
+                    'coverage_level': 'High' if estimated_coverage > 80 else 'Medium' if estimated_coverage > 50 else 'Low'
+                })
+            
+            if coverage_data:
+                df = pd.DataFrame(coverage_data)
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                
+                if output_format.lower() == 'excel':
+                    filename = f"test_coverage_estimation_{timestamp}.xlsx"
+                    with pd.ExcelWriter(filename, engine='openpyxl') as writer:
+                        df.to_excel(writer, sheet_name='Coverage Estimation', index=False)
+                        # Add summary statistics
+                        summary = pd.DataFrame([
+                            {'Metric': 'Total Source Files', 'Value': len(source_files)},
+                            {'Metric': 'Total Test Files', 'Value': len(test_files)},
+                            {'Metric': 'Overall Test Ratio', 'Value': f"{(len(test_files) / max(len(source_files), 1)) * 100:.1f}%"},
+                            {'Metric': 'High Coverage Packages', 'Value': len([p for p in coverage_data if p['estimated_coverage'] > 80])},
+                            {'Metric': 'Low Coverage Packages', 'Value': len([p for p in coverage_data if p['estimated_coverage'] < 50])}
+                        ])
+                        summary.to_excel(writer, sheet_name='Summary', index=False)
+                else:
+                    filename = f"test_coverage_estimation_{timestamp}.csv"
+                    df.to_csv(filename, index=False, encoding='utf-8')
+                
+                return f"✅ Test coverage estimation complete! Report saved: {filename}"
+            else:
+                return "❌ No packages found for analysis"
+                
+        except Exception as e:
+            return f"❌ Test coverage estimation failed: {str(e)}"
+
+    def analyze_security_patterns(self, output_format: str = 'excel') -> str:
+        """Analyze basic security patterns and potential vulnerabilities"""
+        if not self.current_repo_path:
+            return "❌ No repository set. Use set_repository() first."
+        
+        print("🔍 Analyzing security patterns...")
+        
+        security_data = []
+        
+        try:
+            # Security pattern definitions
+            security_patterns = {
+                'sql_injection': [r'Statement.*executeQuery\(.*\+', r'prepareStatement\(.*\+'],
+                'hardcoded_secrets': [r'password\s*=\s*["\'][^"\']+["\']', r'apikey\s*=\s*["\'][^"\']+["\']', r'token\s*=\s*["\'][^"\']+["\']'],
+                'insecure_random': [r'Math\.random\(\)', r'new Random\(\)'],
+                'weak_crypto': [r'MD5', r'SHA1(?!\\d)', r'DES'],
+                'unsafe_deserialization': [r'ObjectInputStream', r'readObject'],
+                'path_traversal': [r'new File\(.*\+', r'FileInputStream\(.*\+'],
+                'xxe_vulnerability': [r'DocumentBuilderFactory', r'SAXParserFactory'],
+                'improper_validation': [r'request\.getParameter\([^)]+\)', r'request\.getHeader\([^)]+\)']
+            }
+            
+            for root, dirs, files in os.walk(self.current_repo_path):
+                for file in files:
+                    if file.endswith('.java'):
+                        file_path = os.path.join(root, file)
+                        rel_path = os.path.relpath(file_path, self.current_repo_path)
+                        
+                        try:
+                            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                                content = f.read()
+                            
+                            pkg = self.detect_package_from_source(content)
+                            if not pkg:
+                                pkg = self.package_from_filepath(rel_path)
+                            
+                            # Check for security patterns
+                            security_issues = {}
+                            total_issues = 0
+                            
+                            for pattern_name, patterns in security_patterns.items():
+                                count = 0
+                                for pattern in patterns:
+                                    matches = re.findall(pattern, content, re.IGNORECASE)
+                                    count += len(matches)
+                                security_issues[pattern_name] = count
+                                total_issues += count
+                            
+                            # Calculate risk level
+                            risk_level = 'High' if total_issues > 10 else 'Medium' if total_issues > 3 else 'Low'
+                            
+                            security_data.append({
+                                'file_path': rel_path,
+                                'package': pkg,
+                                'sql_injection_risks': security_issues['sql_injection'],
+                                'hardcoded_secrets': security_issues['hardcoded_secrets'],
+                                'insecure_random': security_issues['insecure_random'],
+                                'weak_crypto': security_issues['weak_crypto'],
+                                'unsafe_deserialization': security_issues['unsafe_deserialization'],
+                                'path_traversal': security_issues['path_traversal'],
+                                'xxe_vulnerability': security_issues['xxe_vulnerability'],
+                                'improper_validation': security_issues['improper_validation'],
+                                'total_security_issues': total_issues,
+                                'risk_level': risk_level
+                            })
+                            
+                        except Exception as e:
+                            print(f"  Warning: Could not analyze {file}: {e}")
+            
+            if security_data:
+                df = pd.DataFrame(security_data)
+                
+                # Package-level summary
+                numeric_columns = ['sql_injection_risks', 'hardcoded_secrets', 'insecure_random', 
+                                 'weak_crypto', 'unsafe_deserialization', 'path_traversal', 
+                                 'xxe_vulnerability', 'improper_validation', 'total_security_issues']
+                
+                package_summary = df.groupby('package')[numeric_columns].sum().reset_index()
+                package_summary['file_count'] = df.groupby('package').size().values
+                package_summary['avg_risk_score'] = package_summary['total_security_issues'] / package_summary['file_count']
+                
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                
+                if output_format.lower() == 'excel':
+                    filename = f"security_analysis_{timestamp}.xlsx"
+                    with pd.ExcelWriter(filename, engine='openpyxl') as writer:
+                        package_summary.to_excel(writer, sheet_name='Package Summary', index=False)
+                        df.to_excel(writer, sheet_name='File Details', index=False)
+                        
+                        # Add security guidelines
+                        guidelines = pd.DataFrame([
+                            {'Issue Type': 'SQL Injection', 'Risk': 'High', 'Recommendation': 'Use parameterized queries and prepared statements'},
+                            {'Issue Type': 'Hardcoded Secrets', 'Risk': 'High', 'Recommendation': 'Store secrets in environment variables or secure vaults'},
+                            {'Issue Type': 'Weak Cryptography', 'Risk': 'Medium', 'Recommendation': 'Use strong algorithms like AES-256, SHA-256+'},
+                            {'Issue Type': 'Insecure Random', 'Risk': 'Medium', 'Recommendation': 'Use SecureRandom for cryptographic purposes'},
+                            {'Issue Type': 'Path Traversal', 'Risk': 'High', 'Recommendation': 'Validate and sanitize file paths'},
+                            {'Issue Type': 'XXE Vulnerability', 'Risk': 'High', 'Recommendation': 'Disable external entity processing'},
+                            {'Issue Type': 'Unsafe Deserialization', 'Risk': 'High', 'Recommendation': 'Validate input and use safe serialization'},
+                            {'Issue Type': 'Improper Validation', 'Risk': 'Medium', 'Recommendation': 'Always validate and sanitize user input'}
+                        ])
+                        guidelines.to_excel(writer, sheet_name='Security Guidelines', index=False)
+                else:
+                    filename = f"security_analysis_{timestamp}.csv"
+                    package_summary.to_csv(filename, index=False, encoding='utf-8')
+                
+                return f"✅ Security analysis complete! Report saved: {filename}"
+            else:
+                return "❌ No Java files found for analysis"
+                
+        except Exception as e:
+            return f"❌ Security analysis failed: {str(e)}"
+
+    def analyze_halstead_metrics(self, output_format: str = 'excel') -> str:
+        """Analyze Halstead complexity metrics for Java files"""
+        if not self.current_repo_path:
+            return "❌ No repository set. Use set_repository() first."
+        
+        print("🔍 Analyzing Halstead metrics...")
+        
+        halstead_data = []
+        
+        try:
+            for root, dirs, files in os.walk(self.current_repo_path):
+                for file in files:
+                    if file.endswith('.java'):
+                        file_path = os.path.join(root, file)
+                        rel_path = os.path.relpath(file_path, self.current_repo_path)
+                        
+                        try:
+                            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                                content = f.read()
+                            
+                            # Calculate Halstead metrics (simplified for Java)
+                            operators = len(re.findall(r'[+\-*/%=<>!&|^~]|==|!=|<=|>=|&&|\|\||<<|>>|\+\+|--|instanceof', content))
+                            operands = len(re.findall(r'\b[a-zA-Z_][a-zA-Z0-9_]*\b', content))
+                            unique_operators = len(set(re.findall(r'[+\-*/%=<>!&|^~]|==|!=|<=|>=|&&|\|\||<<|>>|\+\+|--|instanceof', content)))
+                            unique_operands = len(set(re.findall(r'\b[a-zA-Z_][a-zA-Z0-9_]*\b', content)))
+                            
+                            if unique_operators > 0 and unique_operands > 0:
+                                vocabulary = unique_operators + unique_operands
+                                length = operators + operands
+                                calculated_length = unique_operators * (operators / unique_operators).bit_length() + unique_operands * (operands / unique_operands).bit_length() if unique_operators > 0 and unique_operands > 0 else 0
+                                volume = length * (vocabulary.bit_length() if vocabulary > 0 else 0)
+                                difficulty = (unique_operators / 2) * (operands / unique_operands) if unique_operands > 0 else 0
+                                effort = difficulty * volume
+                                
+                                pkg = self.detect_package_from_source(content)
+                                if not pkg:
+                                    pkg = self.package_from_filepath(rel_path)
+                                
+                                halstead_data.append({
+                                    'file_path': rel_path,
+                                    'package': pkg,
+                                    'unique_operators': unique_operators,
+                                    'unique_operands': unique_operands,
+                                    'total_operators': operators,
+                                    'total_operands': operands,
+                                    'vocabulary': vocabulary,
+                                    'length': length,
+                                    'calculated_length': calculated_length,
+                                    'volume': volume,
+                                    'difficulty': difficulty,
+                                    'effort': effort
+                                })
+                                
+                        except Exception as e:
+                            print(f"  Warning: Could not analyze {file}: {e}")
+            
+            if halstead_data:
+                df = pd.DataFrame(halstead_data)
+                
+                # Package-level summary
+                package_summary = df.groupby('package').agg({
+                    'unique_operators': 'mean',
+                    'unique_operands': 'mean',
+                    'vocabulary': 'mean',
+                    'volume': 'mean',
+                    'difficulty': 'mean',
+                    'effort': 'mean',
+                    'file_path': 'count'
+                }).rename(columns={'file_path': 'file_count'}).reset_index()
+                
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                
+                if output_format.lower() == 'excel':
+                    filename = f"halstead_metrics_{timestamp}.xlsx"
+                    with pd.ExcelWriter(filename, engine='openpyxl') as writer:
+                        package_summary.to_excel(writer, sheet_name='Package Summary', index=False)
+                        df.to_excel(writer, sheet_name='File Details', index=False)
+                else:
+                    filename = f"halstead_metrics_{timestamp}.csv"
+                    package_summary.to_csv(filename, index=False, encoding='utf-8')
+                
+                return f"✅ Halstead metrics analysis complete! Report saved: {filename}"
+            else:
+                return "❌ No Java files found for analysis"
+                
+        except Exception as e:
+            return f"❌ Halstead metrics analysis failed: {str(e)}"
+
+    def analyze_maintainability_index(self, output_format: str = 'excel') -> str:
+        """Calculate maintainability index for code quality assessment"""
+        if not self.current_repo_path:
+            return "❌ No repository set. Use set_repository() first."
+        
+        print("🔍 Analyzing maintainability index...")
+        
+        maintainability_data = []
+        
+        try:
+            for root, dirs, files in os.walk(self.current_repo_path):
+                for file in files:
+                    if file.endswith('.java'):
+                        file_path = os.path.join(root, file)
+                        rel_path = os.path.relpath(file_path, self.current_repo_path)
+                        
+                        try:
+                            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                                content = f.read()
+                            
+                            # Calculate basic metrics for maintainability index
+                            lines = content.split('\n')
+                            loc = len([line for line in lines if line.strip() and not line.strip().startswith('//')])
+                            complexity = len(re.findall(r'\b(if|while|for|switch|catch|&&|\|\|)\b', content))
+                            halstead_volume = len(content.split()) * 10  # Simplified
+                            comment_lines = len([line for line in lines if line.strip().startswith('//')])
+                            comment_ratio = comment_lines / max(loc, 1) * 100
+                            
+                            # Simplified maintainability index calculation
+                            # MI = 171 - 5.2 * ln(V) - 0.23 * CC - 16.2 * ln(LOC) + 50 * sin(sqrt(2.4 * CM))
+                            import math
+                            mi = 171 - 5.2 * math.log(max(halstead_volume, 1)) - 0.23 * complexity - 16.2 * math.log(max(loc, 1)) + 50 * math.sin(math.sqrt(2.4 * comment_ratio / 100))
+                            
+                            pkg = self.detect_package_from_source(content)
+                            if not pkg:
+                                pkg = self.package_from_filepath(rel_path)
+                            
+                            maintainability_data.append({
+                                'file_path': rel_path,
+                                'package': pkg,
+                                'lines_of_code': loc,
+                                'cyclomatic_complexity': complexity,
+                                'halstead_volume': halstead_volume,
+                                'comment_ratio': comment_ratio,
+                                'maintainability_index': max(0, min(100, mi))
+                            })
+                            
+                        except Exception as e:
+                            print(f"  Warning: Could not analyze {file}: {e}")
+            
+            if maintainability_data:
+                df = pd.DataFrame(maintainability_data)
+                
+                # Package-level summary
+                package_summary = df.groupby('package').agg({
+                    'lines_of_code': 'sum',
+                    'cyclomatic_complexity': 'mean',
+                    'maintainability_index': 'mean',
+                    'comment_ratio': 'mean',
+                    'file_path': 'count'
+                }).rename(columns={'file_path': 'file_count'}).reset_index()
+                
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                
+                if output_format.lower() == 'excel':
+                    filename = f"maintainability_index_{timestamp}.xlsx"
+                    with pd.ExcelWriter(filename, engine='openpyxl') as writer:
+                        package_summary.to_excel(writer, sheet_name='Package Summary', index=False)
+                        df.to_excel(writer, sheet_name='File Details', index=False)
+                else:
+                    filename = f"maintainability_index_{timestamp}.csv"
+                    package_summary.to_csv(filename, index=False, encoding='utf-8')
+                
+                return f"✅ Maintainability index analysis complete! Report saved: {filename}"
+            else:
+                return "❌ No Java files found for analysis"
+                
+        except Exception as e:
+            return f"❌ Maintainability index analysis failed: {str(e)}"
+
+    def analyze_technical_debt(self, output_format: str = 'excel') -> str:
+        """Estimate technical debt and code smells"""
+        if not self.current_repo_path:
+            return "❌ No repository set. Use set_repository() first."
+        
+        print("🔍 Analyzing technical debt...")
+        
+        debt_data = []
+        
+        try:
+            for root, dirs, files in os.walk(self.current_repo_path):
+                for file in files:
+                    if file.endswith('.java'):
+                        file_path = os.path.join(root, file)
+                        rel_path = os.path.relpath(file_path, self.current_repo_path)
+                        
+                        try:
+                            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                                content = f.read()
+                            
+                            # Detect various code smells and technical debt indicators
+                            lines = content.split('\n')
+                            loc = len([line for line in lines if line.strip() and not line.strip().startswith('//')])
+                            
+                            # Code smells detection
+                            long_methods = len(re.findall(r'(public|private|protected).*?\{[\s\S]*?\}', content, re.MULTILINE))
+                            magic_numbers = len(re.findall(r'\b\d{2,}\b', content))  # Numbers with 2+ digits
+                            duplicated_code = len(re.findall(r'(.{50,})\1', content))  # Repeated patterns
+                            todo_comments = len(re.findall(r'//.*?(TODO|FIXME|HACK)', content, re.IGNORECASE))
+                            deprecated_usage = len(re.findall(r'@Deprecated', content))
+                            empty_catch_blocks = len(re.findall(r'catch\s*\([^)]+\)\s*\{\s*\}', content))
+                            
+                            # Calculate debt score
+                            debt_score = (
+                                long_methods * 2 +
+                                magic_numbers * 0.5 +
+                                duplicated_code * 3 +
+                                todo_comments * 1 +
+                                deprecated_usage * 2 +
+                                empty_catch_blocks * 4
+                            )
+                            
+                            pkg = self.detect_package_from_source(content)
+                            if not pkg:
+                                pkg = self.package_from_filepath(rel_path)
+                            
+                            debt_data.append({
+                                'file_path': rel_path,
+                                'package': pkg,
+                                'lines_of_code': loc,
+                                'long_methods': long_methods,
+                                'magic_numbers': magic_numbers,
+                                'duplicated_code': duplicated_code,
+                                'todo_comments': todo_comments,
+                                'deprecated_usage': deprecated_usage,
+                                'empty_catch_blocks': empty_catch_blocks,
+                                'debt_score': debt_score,
+                                'debt_ratio': debt_score / max(loc, 1) * 100
+                            })
+                            
+                        except Exception as e:
+                            print(f"  Warning: Could not analyze {file}: {e}")
+            
+            if debt_data:
+                df = pd.DataFrame(debt_data)
+                
+                # Package-level summary
+                package_summary = df.groupby('package').agg({
+                    'lines_of_code': 'sum',
+                    'debt_score': 'sum',
+                    'debt_ratio': 'mean',
+                    'todo_comments': 'sum',
+                    'deprecated_usage': 'sum',
+                    'file_path': 'count'
+                }).rename(columns={'file_path': 'file_count'}).reset_index()
+                
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                
+                if output_format.lower() == 'excel':
+                    filename = f"technical_debt_{timestamp}.xlsx"
+                    with pd.ExcelWriter(filename, engine='openpyxl') as writer:
+                        package_summary.to_excel(writer, sheet_name='Package Summary', index=False)
+                        df.to_excel(writer, sheet_name='File Details', index=False)
+                        # Add recommendations sheet
+                        recommendations = pd.DataFrame([
+                            {'Metric': 'Long Methods', 'Threshold': '> 50 lines', 'Recommendation': 'Break into smaller methods'},
+                            {'Metric': 'Magic Numbers', 'Threshold': '> 5 per file', 'Recommendation': 'Use named constants'},
+                            {'Metric': 'TODO Comments', 'Threshold': '> 3 per file', 'Recommendation': 'Plan technical debt reduction'},
+                            {'Metric': 'Empty Catch Blocks', 'Threshold': '> 0', 'Recommendation': 'Add proper error handling'},
+                            {'Metric': 'Debt Ratio', 'Threshold': '> 20%', 'Recommendation': 'Priority refactoring needed'}
+                        ])
+                        recommendations.to_excel(writer, sheet_name='Recommendations', index=False)
+                else:
+                    filename = f"technical_debt_{timestamp}.csv"
+                    package_summary.to_csv(filename, index=False, encoding='utf-8')
+                
+                return f"✅ Technical debt analysis complete! Report saved: {filename}"
+            else:
+                return "❌ No Java files found for analysis"
+                
+        except Exception as e:
+            return f"❌ Technical debt analysis failed: {str(e)}"
+
+    def analyze_dependency_metrics(self, output_format: str = 'excel') -> str:
+        """Analyze package dependencies and coupling metrics"""
+        if not self.current_repo_path:
+            return "❌ No repository set. Use set_repository() first."
+        
+        print("🔍 Analyzing dependency metrics...")
+        
+        dependency_data = []
+        package_imports = {}
+        
+        try:
+            # First pass: collect all imports
+            for root, dirs, files in os.walk(self.current_repo_path):
+                for file in files:
+                    if file.endswith('.java'):
+                        file_path = os.path.join(root, file)
+                        rel_path = os.path.relpath(file_path, self.current_repo_path)
+                        
+                        try:
+                            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                                content = f.read()
+                            
+                            pkg = self.detect_package_from_source(content)
+                            if not pkg:
+                                pkg = self.package_from_filepath(rel_path)
+                            
+                            # Extract imports
+                            imports = re.findall(r'import\s+([a-zA-Z_][a-zA-Z0-9_.]*);', content)
+                            internal_imports = [imp for imp in imports if not any(imp.startswith(ext) for ext in ['java.', 'javax.', 'org.', 'com.'])]
+                            external_imports = [imp for imp in imports if any(imp.startswith(ext) for ext in ['java.', 'javax.', 'org.', 'com.'])]
+                            
+                            if pkg not in package_imports:
+                                package_imports[pkg] = {'internal': set(), 'external': set(), 'files': 0}
+                            
+                            package_imports[pkg]['internal'].update(internal_imports)
+                            package_imports[pkg]['external'].update(external_imports)
+                            package_imports[pkg]['files'] += 1
+                            
+                        except Exception as e:
+                            print(f"  Warning: Could not analyze {file}: {e}")
+            
+            # Calculate coupling metrics
+            for pkg, imports in package_imports.items():
+                afferent_coupling = sum(1 for other_pkg, other_imports in package_imports.items() 
+                                      if other_pkg != pkg and any(imp.startswith(pkg) for imp in other_imports['internal']))
+                efferent_coupling = len(imports['internal'])
+                instability = efferent_coupling / (afferent_coupling + efferent_coupling) if (afferent_coupling + efferent_coupling) > 0 else 0
+                
+                dependency_data.append({
+                    'package': pkg,
+                    'file_count': imports['files'],
+                    'internal_imports': len(imports['internal']),
+                    'external_imports': len(imports['external']),
+                    'afferent_coupling': afferent_coupling,
+                    'efferent_coupling': efferent_coupling,
+                    'instability': instability,
+                    'total_dependencies': len(imports['internal']) + len(imports['external'])
+                })
+            
+            if dependency_data:
+                df = pd.DataFrame(dependency_data)
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                
+                if output_format.lower() == 'excel':
+                    filename = f"dependency_metrics_{timestamp}.xlsx"
+                    with pd.ExcelWriter(filename, engine='openpyxl') as writer:
+                        df.to_excel(writer, sheet_name='Dependency Metrics', index=False)
+                        # Add metrics explanation
+                        explanations = pd.DataFrame([
+                            {'Metric': 'Afferent Coupling (Ca)', 'Description': 'Number of packages that depend on this package'},
+                            {'Metric': 'Efferent Coupling (Ce)', 'Description': 'Number of packages this package depends on'},
+                            {'Metric': 'Instability (I)', 'Description': 'Ce / (Ca + Ce). 0 = stable, 1 = unstable'},
+                            {'Metric': 'Internal Imports', 'Description': 'Dependencies on internal packages'},
+                            {'Metric': 'External Imports', 'Description': 'Dependencies on external libraries'}
+                        ])
+                        explanations.to_excel(writer, sheet_name='Metrics Explanation', index=False)
+                else:
+                    filename = f"dependency_metrics_{timestamp}.csv"
+                    df.to_csv(filename, index=False, encoding='utf-8')
+                
+                return f"✅ Dependency metrics analysis complete! Report saved: {filename}"
+            else:
+                return "❌ No packages found for analysis"
+                
+        except Exception as e:
+            return f"❌ Dependency metrics analysis failed: {str(e)}"
+
 
 def main():
     """Interactive CLI for LLM-powered Git analysis"""
