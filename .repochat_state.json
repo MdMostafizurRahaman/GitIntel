@@ -1,14 +1,14 @@
 {
-  "current_repo_path": "D:\\GitIntel\\GitIntelProject",
+  "current_repo_path": "d:\\GitIntel\\kafka",
   "repo_metadata": {
-    "path": "D:\\GitIntel\\GitIntelProject",
-    "name": "GitIntelProject",
-    "active_branch": "rag-model",
-    "total_commits": 7,
+    "path": "d:\\GitIntel\\kafka",
+    "name": "kafka",
+    "active_branch": "trunk",
+    "total_commits": 16511,
     "remotes": [
-      "https://github.com/MdMostafizurRahaman/GitIntel.git"
+      "https://github.com/apache/kafka"
     ],
-    "last_updated": "2025-11-01T04:04:56.356467"
+    "last_updated": "2025-11-01T14:43:36.337802"
   },
-  "last_updated": "2025-11-01T04:04:56.356477"
+  "last_updated": "2025-11-01T14:43:36.337824"
 }

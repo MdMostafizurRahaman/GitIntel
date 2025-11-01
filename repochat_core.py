@@ -59,8 +59,8 @@ class RepoChatCore:
             api_key = os.getenv('GEMINI_API_KEY')
             if api_key:
                 genai.configure(api_key=api_key)
-                self.gemini_model = genai.GenerativeModel('gemini-1.5-flash-latest')  # Latest flash model
-                print("✅ Gemini AI configured (flash model)")
+                self.gemini_model = genai.GenerativeModel('gemini-1.5-pro-latest')  # Use Pro model
+                print("✅ Gemini AI configured (pro model)")
             else:
                 print("⚠️ GEMINI_API_KEY not found in environment")
         
@@ -266,7 +266,7 @@ class RepoChatCore:
             self.logger.error(f"Failed to extract repository info: {e}")
             return {}
     
-    def _extract_commit_info(self, limit: int = 1000) -> List[Dict[str, Any]]:
+    def _extract_commit_info(self, limit: int = 1000, progress_callback=None) -> List[Dict[str, Any]]:
         """Extract commit information using PyDriller"""
         try:
             commits = []
@@ -274,17 +274,47 @@ class RepoChatCore:
             
             self.logger.info(f"Extracting commit information (limit: {limit})...")
             
+            # Handle None limit (process all commits)
+            if limit is None:
+                actual_limit = float('inf')  # No limit
+                limit_desc = "all commits"
+            else:
+                actual_limit = limit
+                limit_desc = f"{limit} commits"
+            
+            # Count total commits for progress reporting if we have a callback
+            total_commits = 0
+            if progress_callback:
+                try:
+                    self.logger.info("Counting total commits for progress tracking...")
+                    for _ in Repository(self.current_repo_path).traverse_commits():
+                        total_commits += 1
+                        # For very large repos, limit counting to avoid long delays
+                        if total_commits >= 50000:  # Reasonable upper limit for counting
+                            break
+                    self.logger.info(f"Found {total_commits} total commits")
+                except Exception as e:
+                    self.logger.warning(f"Could not count total commits: {e}")
+                    total_commits = 0
+            
+            # Now extract commits with proper progress tracking
+            commit_start_time = datetime.now()
+            print(f"⏱️ Starting commit extraction at {commit_start_time.strftime('%H:%M:%S')}")
+            
             for commit in Repository(self.current_repo_path).traverse_commits():
-                if commit_count >= limit:
+                if commit_count >= actual_limit:
                     break
+                
+                commit_start = datetime.now()
                 
                 # Determine if it's a bug fix
                 is_bug_fix = any(keyword in commit.msg.lower() 
                                for keyword in ['fix', 'bug', 'error', 'issue', 'patch'])
                 
-                # Calculate changes
-                total_additions = sum(m.added_lines for m in commit.modified_files if m.added_lines)
-                total_deletions = sum(m.deleted_lines for m in commit.modified_files if m.deleted_lines)
+                # Calculate changes (limit to first 100 files per commit for speed)
+                modified_files = list(commit.modified_files)[:100]  # Limit files per commit
+                total_additions = sum(m.added_lines for m in modified_files if m.added_lines)
+                total_deletions = sum(m.deleted_lines for m in modified_files if m.deleted_lines)
                 
                 commit_info = {
                     'hash': commit.hash,
@@ -293,7 +323,7 @@ class RepoChatCore:
                     'author_email': commit.author.email,
                     'date': commit.author_date.strftime('%Y-%m-%d %H:%M:%S'),
                     'is_bug_fix': is_bug_fix,
-                    'modified_files_count': len(commit.modified_files),
+                    'modified_files_count': len(modified_files),
                     'additions': total_additions,
                     'deletions': total_deletions,
                     'net_changes': total_additions - total_deletions
@@ -302,10 +332,32 @@ class RepoChatCore:
                 commits.append(commit_info)
                 commit_count += 1
                 
-                if commit_count % 100 == 0:
-                    self.logger.info(f"Processed {commit_count} commits...")
+                commit_end = datetime.now()
+                commit_duration = (commit_end - commit_start).total_seconds()
+                
+                # Provide progress updates
+                if progress_callback and commit_count % 10 == 0:  # More frequent updates
+                    if total_commits > 0 and total_commits < 50000:
+                        # We have accurate count
+                        progress_percent = min(100, int((commit_count / min(actual_limit, total_commits)) * 100))
+                        progress_callback(40 + int(progress_percent * 0.2), 
+                                        f"Analyzing commits... ({commit_count}/{min(actual_limit, total_commits)} processed, {commit_duration:.2f}s per commit)")
+                    else:
+                        # No accurate count, show incremental progress
+                        progress_callback(40 + min(20, int((commit_count / max(actual_limit, 1000)) * 20)), 
+                                        f"Analyzing commits... ({commit_count} processed, {commit_duration:.2f}s per commit)")
+                
+                if commit_count % 50 == 0:
+                    batch_time = (datetime.now() - commit_start_time).total_seconds()
+                    avg_time_per_commit = batch_time / commit_count
+                    estimated_total = avg_time_per_commit * actual_limit
+                    remaining = estimated_total - batch_time
+                    print(f"📊 Processed {commit_count}/{actual_limit} commits in {batch_time:.1f}s (avg: {avg_time_per_commit:.2f}s/commit, est. remaining: {remaining:.1f}s)")
             
-            self.logger.info(f"Extracted {len(commits)} commits")
+            total_commit_time = (datetime.now() - commit_start_time).total_seconds()
+            print(f"✅ Commit extraction completed in {total_commit_time:.1f}s ({commit_count} commits, avg: {total_commit_time/commit_count:.2f}s per commit)")
+            
+            self.logger.info(f"Extracted {len(commits)} commits (limit: {limit_desc})")
             return commits
             
         except Exception as e:
@@ -350,7 +402,7 @@ class RepoChatCore:
                             'path': relative_path,
                             'extension': extension,
                             'language': language,
-                            'size_bytes': stat.st_size,
+                            'size': stat.st_size,
                             'lines_of_code': lines_of_code,
                             'last_modified': datetime.fromtimestamp(stat.st_mtime).strftime('%Y-%m-%d %H:%M:%S')
                         }
@@ -780,35 +832,48 @@ class RepoChatCore:
                "• Give me an overview\n" + \
                "• কে সবচেয়ে বেশি অবদান রেখেছে? (Bengali)"
 
-    def _extract_commit_info_fast(self) -> List[Dict]:
-        """Extract commit information (optimized - limit to last 100 commits)"""
+    def _extract_commit_info_fast(self, limit: int = 100) -> List[Dict]:
+        """Extract commit information quickly (minimal data for speed)"""
         try:
-            self.logger.info("Extracting commit info (fast)...")
+            self.logger.info(f"Extracting commit info (fast mode, limit: {limit})...")
             
             commits = []
             repo = Repository(self.current_repo_path)
             
-            # Only get last 100 commits for speed
             commit_count = 0
+            start_time = datetime.now()
+            
             for commit in repo.traverse_commits():
-                commit_count += 1
-                if commit_count > 100:
+                if commit_count >= limit:
                     break
                 
-                commits.append({
+                # Minimal data extraction for speed
+                commit_info = {
                     'hash': commit.hash,
-                    'author': commit.author.name,
+                    'author_name': commit.author.name,
                     'author_email': commit.author.email,
-                    'date': commit.author_date.isoformat(),
+                    'date': commit.author_date.strftime('%Y-%m-%d %H:%M:%S'),
                     'message': commit.msg.strip()[:200],  # Truncate long messages
-                    'modified_files': len(commit.modified_files)
-                })
+                    'modified_files_count': len(list(commit.modified_files)[:10]),  # Quick count, limit to 10
+                    'additions': 0,  # Skip expensive calculation
+                    'deletions': 0,
+                    'net_changes': 0,
+                    'is_bug_fix': 'fix' in commit.msg.lower() or 'bug' in commit.msg.lower()
+                }
+                
+                commits.append(commit_info)
+                commit_count += 1
+                
+                if commit_count % 25 == 0:
+                    elapsed = (datetime.now() - start_time).total_seconds()
+                    print(f"🚀 Fast mode: {commit_count}/{limit} commits in {elapsed:.1f}s (avg: {elapsed/commit_count:.2f}s/commit)")
             
-            self.logger.info(f"Extracted {len(commits)} commits (fast mode)")
+            total_time = (datetime.now() - start_time).total_seconds()
+            print(f"✅ Fast commit extraction: {len(commits)} commits in {total_time:.1f}s")
             return commits
             
         except Exception as e:
-            self.logger.error(f"Failed to extract commit info: {e}")
+            self.logger.error(f"Failed to extract commit info (fast): {e}")
             return []
 
     def _extract_contributor_info_fast(self) -> List[Dict]:
@@ -919,65 +984,66 @@ class RepoChatCore:
             self.logger.error(f"Failed to extract file info: {e}")
             return []
 
-    def _extract_contributor_info_fast(self) -> List[Dict]:
-        """Extract contributor information (optimized - sample commits)"""
+    def _extract_contributor_info_from_commits(self, commits: List[Dict]) -> List[Dict]:
+        """Extract contributor information from a list of commits (efficient)"""
         try:
-            self.logger.info("Extracting contributor info (fast)...")
+            self.logger.info("Extracting contributor info from commits...")
             
             contributors = {}
-            repo = Repository(self.current_repo_path)
             
-            # Only analyze last 200 commits for speed
-            commit_count = 0
-            for commit in repo.traverse_commits():
-                commit_count += 1
-                if commit_count > 200:
-                    break
+            for commit in commits:
+                author_email = commit.get('author_email', '')
+                author_name = commit.get('author_name', 'Unknown')
                 
-                author_email = commit.author.email
-                author_name = commit.author.name
-                commit_date = commit.author_date
+                if not author_email:
+                    continue
                 
+                # Use email as unique identifier
                 if author_email not in contributors:
                     contributors[author_email] = {
                         'name': author_name,
                         'email': author_email,
                         'commits': 0,
-                        'first_commit': commit_date,
-                        'last_commit': commit_date,
+                        'first_commit': commit.get('date', datetime.now().isoformat()),
+                        'last_commit': commit.get('date', datetime.now().isoformat()),
                         'total_additions': 0,
                         'total_deletions': 0
                     }
                 
+                # Update contributor stats
                 contributors[author_email]['commits'] += 1
                 
+                # Update date range
+                commit_date = commit.get('date', datetime.now().isoformat())
                 if commit_date < contributors[author_email]['first_commit']:
                     contributors[author_email]['first_commit'] = commit_date
                 if commit_date > contributors[author_email]['last_commit']:
                     contributors[author_email]['last_commit'] = commit_date
                 
-                # Simple estimation for additions/deletions
-                total_additions = sum(m.added_lines or 0 for m in commit.modified_files if m.added_lines)
-                total_deletions = sum(m.deleted_lines or 0 for m in commit.modified_files if m.deleted_lines)
+                # Add line count changes (use commit data if available, otherwise estimate)
+                additions = commit.get('additions', 0)
+                deletions = commit.get('deletions', 0)
                 
-                contributors[author_email]['total_additions'] += total_additions
-                contributors[author_email]['total_deletions'] += total_deletions
+                # If no detailed data, make a rough estimate based on modified files
+                if additions == 0 and deletions == 0 and commit.get('modified_files_count', 0) > 0:
+                    # Rough estimate: assume 10 lines per modified file
+                    additions = commit['modified_files_count'] * 10
+                    deletions = commit['modified_files_count'] * 5
+                
+                contributors[author_email]['total_additions'] += additions
+                contributors[author_email]['total_deletions'] += deletions
             
-            # Convert to list and format dates
-            contributor_list = []
-            for contributor in contributors.values():
-                contributor['first_commit'] = contributor['first_commit'].strftime('%Y-%m-%d %H:%M:%S')
-                contributor['last_commit'] = contributor['last_commit'].strftime('%Y-%m-%d %H:%M:%S')
-                contributor_list.append(contributor)
+            # Convert to list
+            contributor_list = list(contributors.values())
             
             # Sort by commit count
             contributor_list.sort(key=lambda x: x['commits'], reverse=True)
             
-            self.logger.info(f"Extracted {len(contributor_list)} contributors (fast mode)")
+            self.logger.info(f"Extracted {len(contributor_list)} contributors from {len(commits)} commits")
             return contributor_list
             
         except Exception as e:
-            self.logger.error(f"Failed to extract contributor info: {e}")
+            self.logger.error(f"Failed to extract contributor info from commits: {e}")
             return []
 
     def ask_question_neo4j_only(self, question: str) -> str:
@@ -1173,36 +1239,123 @@ Total Files: {result['total_files'] or 0}
             print(f"⚠️ Neo4j RAG query failed: {e}")
             return ""
 
-    def _get_neo4j_context(self) -> str:
-        """Get general repository context from Neo4j"""
+    def _check_existing_data(self, repo_name: str) -> bool:
+        """Check if repository data already exists in Neo4j"""
         try:
             if not self.neo4j_driver:
-                return ""
+                return False
             
             with self.neo4j_driver.session() as session:
-                # Get basic stats
-                stats_query = """
-                MATCH (r:Repository)
-                OPTIONAL MATCH (r)-[:CONTAINS]->(c:Commit)
-                OPTIONAL MATCH (r)-[:HAS_CONTRIBUTOR]->(u:Contributor)
-                OPTIONAL MATCH (r)-[:CONTAINS_FILE]->(f:File)
-                RETURN r.name as repo_name,
-                       count(DISTINCT c) as total_commits,
-                       count(DISTINCT u) as total_contributors,
-                       count(DISTINCT f) as total_files
+                # Check if repository node exists with data
+                query = """
+                MATCH (r:Repository {name: $repo_name})
+                OPTIONAL MATCH (r)-->(c:Commit)
+                OPTIONAL MATCH (r)-->(f:File) 
+                OPTIONAL MATCH (r)-->(u:Contributor)
+                RETURN count(DISTINCT c) as commit_count,
+                       count(DISTINCT f) as file_count,
+                       count(DISTINCT u) as contributor_count
                 """
                 
-                result = session.run(stats_query).single()
-                if result:
-                    return f"""Repository: {result['repo_name'] or 'Unknown'}
-Total Commits: {result['total_commits'] or 0}
-Total Contributors: {result['total_contributors'] or 0}
-Total Files: {result['total_files'] or 0}"""
-                
+                result = session.run(query, repo_name=repo_name).single()
+                if result and (result['commit_count'] > 0 or result['file_count'] > 0 or result['contributor_count'] > 0):
+                    print(f"📊 Found existing data for {repo_name}: {result['commit_count']} commits, {result['file_count']} files, {result['contributor_count']} contributors")
+                    return True
+                    
         except Exception as e:
-            print(f"⚠️ Failed to get Neo4j context: {e}")
+            print(f"⚠️ Error checking existing data: {e}")
             
-        return ""
+        return False
+
+    def ingest_repository_to_neo4j(self, commit_limit: int = 100, progress_callback=None, force_reprocess: bool = False) -> bool:
+        """
+        Ingest repository data to Neo4j with commit limit and progress tracking
+        Returns True if successful, False otherwise
+        """
+        try:
+            if not self.neo4j_ready:
+                print("⚠️ Neo4j not ready")
+                return False
+            
+            if not self.current_repo_path:
+                print("⚠️ No repository set")
+                return False
+            
+            print(f"🔍 Ingesting repository data (limit: {commit_limit} commits)...")
+            if progress_callback:
+                progress_callback(5, "Starting ingestion...")
+            
+            # Check if data already exists for this repository (unless force reprocess)
+            repo_name = os.path.basename(self.current_repo_path)
+            if not force_reprocess and self._check_existing_data(repo_name):
+                if progress_callback:
+                    progress_callback(100, f"Data already exists for {repo_name} - skipping ingestion")
+                print(f"ℹ️ Repository {repo_name} data already exists in Neo4j - skipping ingestion")
+                return True
+            
+            # Extract metadata with limited commits
+            if progress_callback:
+                progress_callback(10, "Extracting basic metadata...")
+            metadata = self._extract_basic_metadata()
+            
+            # Initialize data lists
+            metadata['commits'] = []
+            metadata['files'] = []
+            metadata['contributors'] = []
+            
+            # Get limited commits with dynamic progress (15% - 45%)
+            if progress_callback:
+                progress_callback(15, "Analyzing commits...")
+            
+            def commit_progress_callback(progress, message):
+                # Map commit progress (0-100) to 15-45 range
+                mapped_progress = 15 + (progress * 0.3)
+                if progress_callback:
+                    progress_callback(mapped_progress, message)
+            
+            # Choose extraction method based on commit limit
+            if commit_limit and commit_limit <= 100:
+                # Use detailed extraction for small limits
+                commits = self._extract_commit_info(limit=commit_limit, progress_callback=commit_progress_callback)
+            else:
+                # Use fast extraction for large limits to avoid slow processing
+                print(f"🚀 Using fast commit extraction for limit {commit_limit}")
+                commits = self._extract_commit_info_fast(limit=commit_limit or 500)
+            
+            metadata['commits'] = commits
+            
+            # Get other data with dynamic progress
+            if progress_callback:
+                progress_callback(50, "Processing files...")
+            try:
+                metadata['files'] = self._extract_file_info()
+            except Exception as e:
+                print(f"⚠️ File extraction failed: {e}")
+                metadata['files'] = []
+            
+            if progress_callback:
+                progress_callback(70, "Processing contributors...")
+            try:
+                # Extract contributors from the already processed commits to avoid re-traversing
+                metadata['contributors'] = self._extract_contributor_info_from_commits(commits)
+            except Exception as e:
+                print(f"⚠️ Contributor extraction failed: {e}")
+                metadata['contributors'] = []
+            
+            # Store in Neo4j with progress updates
+            if progress_callback:
+                progress_callback(85, "Storing data in Neo4j...")
+            self._store_metadata_in_neo4j(metadata)
+            
+            if progress_callback:
+                progress_callback(100, f"Ingestion completed! Processed {len(commits)} commits, {len(metadata['files'])} files, {len(metadata['contributors'])} contributors")
+            
+            print(f"✅ Repository ingested: {len(commits)} commits, {len(metadata['files'])} files, {len(metadata['contributors'])} contributors")
+            return True
+            
+        except Exception as e:
+            print(f"❌ Failed to ingest repository: {e}")
+            return False
 
     def ask_question(self, question: str) -> str:
         """Main question answering method - redirects to Neo4j-only approach"""
