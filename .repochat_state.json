@@ -1,14 +1,14 @@
 {
-  "current_repo_path": "d:\\GitIntel\\kafka",
+  "current_repo_path": "D:\\GitIntel\\test",
   "repo_metadata": {
-    "path": "d:\\GitIntel\\kafka",
-    "name": "kafka",
+    "path": "D:\\GitIntel\\test",
+    "name": "test",
     "active_branch": "trunk",
-    "total_commits": 16511,
+    "total_commits": 16517,
     "remotes": [
-      "https://github.com/apache/kafka"
+      "https://github.com/apache/kafka.git"
     ],
-    "last_updated": "2025-11-01T14:43:36.337802"
+    "last_updated": "2025-11-03T09:38:56.211076"
   },
-  "last_updated": "2025-11-01T14:43:36.337824"
+  "last_updated": "2025-11-03T09:38:56.211089"
 }
