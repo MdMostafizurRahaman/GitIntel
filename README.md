@@ -1,7 +1,73 @@
-# LLM-Powered Git Analysis Tool for Java Repositories
+# GitIntel: Conversational Intelligence for Comprehensive GitHub Repository Analysis
 
-## Overview
-This tool uses Google Gemini LLM and PyDriller to analyze Java Git repositories using natural language commands. It generates automated Excel reports for package churn, LOC, complexity, and release analysis with support for Git cloning and commit limits.
+## Project Description
+GitIntel is a desktop-based tool that extracts data from software repositories (like GitHub), builds a Knowledge Graph, and answers user questions in natural language. It uses Neo4j graph database to accurately handle relationship-based data (e.g., commit-issue links). The SZZ algorithm identifies bug-fixing and bug-introducing commits during data extraction. It adds analysis for LOC (Lines of Code), complexity, technical debt, and tries graph visualization (Neo4j graphs viewable from the system). Goal: Easy repository insights for non-technical users (e.g., project managers).
+
+### High-Level Architecture Diagram
+```mermaid
+graph TB
+    subgraph "User Interface"
+        UI[Desktop GUI / CLI<br/>Natural Language Input]
+    end
+    
+    subgraph "Data Ingestion"
+        Clone[Git Clone<br/>Repository Download]
+        Extract[PyDriller Extraction<br/>Commits, Issues, Files]
+        SZZ[SZZ Algorithm<br/>Bug Commit Detection]
+    end
+    
+    subgraph "Knowledge Graph"
+        Neo4j[(Neo4j Database<br/>Nodes: Commit, Issue, File<br/>Relationships: Fixes, Introduces)]
+        LOC[LOC & Metrics<br/>Complexity, Debt]
+    end
+    
+    subgraph "Query & Response"
+        LLM[LLM Gemini<br/>Translate to Cypher]
+        Cypher[Cypher Query<br/>Graph Search]
+        Response[Response Generation<br/>Natural Language]
+        Viz[Graph Visualization<br/>Interactive View]
+    end
+    
+    UI --> Clone
+    Clone --> Extract
+    Extract --> SZZ
+    SZZ --> Neo4j
+    Neo4j --> LOC
+    UI --> LLM
+    LLM --> Cypher
+    Cypher --> Neo4j
+    Neo4j --> Response
+    Response --> Viz
+    Viz --> UI
+```
+
+This diagram shows the flow: User inputs → Data extraction with SZZ → Graph storage → Query processing → Response with visualization.
+
+## Project Description
+Analyzing large GitHub repositories can be challenging due to thousands of commits, hundreds of files, and contributions from multiple developers. It's often difficult to know which parts of the project are changing most, who is contributing what, and how the codebase is evolving over time. GitIntel is a smart, chat-based tool that simplifies this process. It extracts structured data like code churn, package-level activity, and developer contributions, and provides clear, human-readable explanations that help users quickly explore and understand even the largest repositories.
+
+## Problem Statement & Objectives
+Understanding the evolution of large software projects is challenging and time-consuming. Developers, researchers, and project managers often struggle to track changes, identify key contributors, and assess module complexity. Existing tools either provide raw data or require deep technical expertise to interpret.
+
+The main objective of GitIntel is to provide an easy-to-use, AI-powered platform that automatically analyzes GitHub repositories and delivers actionable insights in natural language. It aims to help users monitor project activity, understand code evolution, and make informed decisions without manually sifting through commits and files.
+
+## Proposed Solution
+- **Commit History Analysis**: Use Python tools like PyDriller and GitPython to extract structured data from GitHub repositories.
+- **Code Metrics Extraction**: Track code churn (added, deleted, modified lines), package-level activity, and developer contributions.
+- **AI-Powered Chat Interface**: Provide human-readable explanations and allow users to ask questions in natural language (Which module changed the most?).
+- **Actionable Insights**: Deliver clear, concise summaries that help users understand project evolution without manually browsing commits.
+- **Visualization**: Use Neo4j or similar tools to create knowledge graphs for collaboration patterns and module dependencies.
+- **Efficient Exploration**: Enable developers, researchers, and project managers to explore large repositories quickly and make informed decisions.
+
+## Key Technologies & Tools
+- **Language**: Python
+- **Repository Analysis**: PyDriller, GitPython
+- **Data Processing & Reporting**: Pandas, OpenPyXL
+- **Conversational & AI Integration**: Google Generative AI (Gemini)
+- **Knowledge Graph & Visualization**: Neo4j
+- **CLI & Utilities**: argparse, logging, pathlib, json, datetime
+- **GUI Framework**: Tkinter
+- **Version Control**: Git, GitHub
 
 ## Features
 - **Natural Language Commands**: Bengali/English commands for analysis
@@ -115,10 +181,365 @@ All reports are timestamped Excel files:
 
 ### Architecture Overview
 ```
-User Command → CLI Interface → LLM/Simple Parser → Analysis Engine → Excel Generator
-     ↓              ↓              ↓                    ↓              ↓
-  Natural Lang   llm_cli.py    Gemini AI/Regex    PyDriller       openpyxl
-  (Bengali/Eng)              Processing          + pandas +     .xlsx files
+User Input (CLI/Desktop) → GitIntelEngine → Command Routing
+                                      ↓
+                    ┌─────────────────┼─────────────────┐
+                    │                                 │
+         Traditional Analytics              Conversational Q&A
+         (LLMGitAnalyzer)                   (RepoChatCore)
+                 ↓                                 ↓
+        Gemini AI Processing            Metadata Extraction
+                 ↓                                 ↓
+        PyDriller Data Mining           Neo4j Knowledge Graph
+                 ↓                                 ↓
+        Metrics Calculation            Gemini AI Response
+                 ↓                                 ↓
+        Excel Report Generation         Natural Language Answer
+```
+
+### High-Level Architecture
+```mermaid
+graph TB
+    subgraph "User Interfaces"
+        CLI[Command Line Interface<br/>gitintel.py]
+        Desktop[Desktop Application<br/>gitintel_desktop.py]
+    end
+    
+    subgraph "GitIntelEngine (Main Controller)"
+        Engine[GitIntelEngine<br/>Smart Command Router]
+        Router[Command Type Detection<br/>Traditional vs Q&A]
+    end
+    
+    subgraph "Traditional Analytics Path"
+        LLM_Analyzer[LLMGitAnalyzer<br/>Natural Language Processing]
+        Gemini_Trad[Gemini AI<br/>Command Understanding]
+        PyDriller[PyDriller<br/>Repository Mining]
+        Metrics[Metrics Calculator<br/>LOC, Complexity, Churn]
+        Excel[Excel Generator<br/>OpenPyXL Reports]
+    end
+    
+    subgraph "Conversational Q&A Path"
+        RepoChat[RepoChatCore<br/>Q&A Processor]
+        Metadata[Metadata Extractor<br/>PyDriller + GitPython]
+        Neo4j[(Neo4j Graph DB<br/>Knowledge Storage)]
+        Query[Graph Query Engine<br/>Cypher Queries]
+        Gemini_QA[Gemini AI<br/>Response Generation]
+    end
+    
+    CLI --> Engine
+    Desktop --> Engine
+    
+    Engine --> Router
+    Router --> LLM_Analyzer
+    Router --> RepoChat
+    
+    LLM_Analyzer --> Gemini_Trad
+    Gemini_Trad --> PyDriller
+    PyDriller --> Metrics
+    Metrics --> Excel
+    
+    RepoChat --> Metadata
+    Metadata --> Neo4j
+    Neo4j --> Query
+    Query --> Gemini_QA
+```
+
+### Component Architecture
+```mermaid
+graph TB
+    subgraph "LLMGitAnalyzer Components"
+        CommandParser[Command Parser<br/>Natural Language]
+        ToolRegistry[Tool Registry<br/>Available Analyses]
+        DataExtractor[Data Extractor<br/>PyDriller Integration]
+        MetricCalculator[Metric Calculator<br/>Radon, Custom Logic]
+        ReportGenerator[Report Generator<br/>Pandas + OpenPyXL]
+    end
+    
+    subgraph "RepoChatCore Components"
+        MetadataExtractor[Metadata Extractor<br/>Repository Data]
+        GraphBuilder[Graph Builder<br/>Neo4j Schema]
+        QueryProcessor[Query Processor<br/>Cypher Generation]
+        ResponseFormatter[Response Formatter<br/>Natural Language]
+    end
+    
+    subgraph "Shared Components"
+        GeminiClient[Gemini AI Client<br/>API Integration]
+        ConfigManager[Config Manager<br/>.env + Settings]
+        ErrorHandler[Error Handler<br/>Fallback Logic]
+    end
+    
+    CommandParser --> ToolRegistry
+    ToolRegistry --> DataExtractor
+    DataExtractor --> MetricCalculator
+    MetricCalculator --> ReportGenerator
+    
+    MetadataExtractor --> GraphBuilder
+    GraphBuilder --> QueryProcessor
+    QueryProcessor --> ResponseFormatter
+    
+    CommandParser --> GeminiClient
+    QueryProcessor --> GeminiClient
+    GeminiClient --> ConfigManager
+    ConfigManager --> ErrorHandler
+```
+
+### Analysis Workflow
+```mermaid
+graph TD
+    A[User Command Input] --> B{GitIntelEngine<br/>Command Analysis}
+    
+    B -->|Traditional Command| C[Route to LLMGitAnalyzer]
+    B -->|Question/Command| D[Route to RepoChatCore]
+    
+    C --> E[Gemini AI<br/>Parse Command Intent]
+    E --> F[Select Analysis Tool<br/>From Registry]
+    F --> G[PyDriller<br/>Extract Repository Data]
+    G --> H[Calculate Metrics<br/>LOC, Complexity, etc.]
+    H --> I[Generate Excel Report<br/>With Charts]
+    I --> J[Return Results]
+    
+    D --> K[Extract Repository Metadata<br/>If not cached]
+    K --> L[Build/Update Knowledge Graph<br/>Neo4j Storage]
+    L --> M[Generate Cypher Query<br/>Based on Question]
+    M --> N[Execute Graph Query<br/>Retrieve Context]
+    N --> O[Gemini AI<br/>Generate Response]
+    O --> P[Format Natural Language Answer]
+    P --> J
+    
+    J --> Q[Display to User<br/>CLI/Desktop Output]
+```
+
+### Complete System Flow
+```mermaid
+graph TD
+    Start([User Starts GitIntel]) --> Interface{Choose Interface}
+    
+    Interface -->|CLI| CLI_Init[Parse CLI Arguments<br/>--repo, --command, --ask]
+    Interface -->|Desktop| GUI_Init[Launch Tkinter App<br/>Repository Selection]
+    
+    CLI_Init --> Engine_Init[Initialize GitIntelEngine<br/>Setup Components]
+    GUI_Init --> Engine_Init
+    
+    Engine_Init --> Repo_Check{Repository Set?}
+    Repo_Check -->|No| Repo_Setup[Auto-detect or Prompt<br/>Repository Path]
+    Repo_Check -->|Yes| Command_Ready[Ready for Commands]
+    
+    Repo_Setup --> Command_Ready
+    
+    Command_Ready --> Input_Loop{Wait for Input}
+    
+    Input_Loop -->|Traditional Command| Trad_Path[LLMGitAnalyzer Path<br/>"package churn analysis"]
+    Input_Loop -->|Question| QA_Path[RepoChatCore Path<br/>"Who contributed most?"]
+    Input_Loop -->|System Command| Sys_Path[Handle Special Commands<br/>help, status, quit]
+    
+    Trad_Path --> Gemini_Parse[Gemini AI Processing<br/>Understand Intent]
+    Gemini_Parse --> Tool_Select[Select Analysis Tool<br/>From Available Tools]
+    Tool_Select --> Data_Mine[PyDriller Data Mining<br/>Commits, Files, Changes]
+    Data_Mine --> Metric_Calc[Calculate Metrics<br/>Pandas Processing]
+    Metric_Calc --> Excel_Gen[Generate Excel Report<br/>Charts & Tables]
+    Excel_Gen --> Output_Result[Display Results<br/>File Paths & Summary]
+    
+    QA_Path --> Metadata_Check{Metadata Available?}
+    Metadata_Check -->|No| Extract_Meta[Extract Repository Metadata<br/>Contributors, Commits, Files]
+    Metadata_Check -->|Yes| Graph_Query[Query Knowledge Graph<br/>Neo4j Cypher]
+    
+    Extract_Meta --> Graph_Store[Store in Neo4j Graph<br/>Nodes & Relationships]
+    Graph_Store --> Graph_Query
+    
+    Graph_Query --> Context_Retrieve[Retrieve Relevant Context<br/>Graph Traversal]
+    Context_Retrieve --> AI_Response[Gemini AI Response<br/>Natural Language Generation]
+    AI_Response --> Format_Output[Format Answer<br/>User-Friendly Text]
+    Format_Output --> Output_Result
+    
+    Sys_Path --> Handle_Sys[Execute System Command<br/>Status, Help, etc.]
+    Handle_Sys --> Output_Result
+    
+    Output_Result --> Input_Loop
+    
+    Input_Loop -->|Exit Command| End([End Session])
+```
+
+### Repository Analysis Workflow
+```mermaid
+graph TD
+    A[Repository Input] --> B[PyDriller Extraction]
+    B --> C[Metadata Processing]
+    C --> D[Neo4j Storage]
+    D --> E[Knowledge Graph]
+    E --> F[Query Interface]
+    F --> G[AI Response Generation]
+```
+
+### High-Level Architecture
+```mermaid
+graph TB
+    subgraph "User Interfaces"
+        CLI[Command Line Interface<br/>llm_cli.py]
+        Desktop[Desktop Application<br/>gitintel_desktop.py]
+        API[API Interface<br/>Future]
+    end
+    
+    subgraph "Core Engine"
+        Engine[GitIntelEngine<br/>Main Processing]
+        Traditional[Traditional Analytics<br/>llm_git_analyzer.py]
+        Conversational[Conversational Q&A<br/>repochat_core.py]
+    end
+    
+    subgraph "Data Layer"
+        Neo4j[(Neo4j Graph DB<br/>Knowledge Graph)]
+        Excel[(Excel Reports<br/>Analysis Output)]
+    end
+    
+    subgraph "External Services"
+        Gemini[Google Gemini AI<br/>LLM Processing]
+        Git[Git Repositories<br/>Data Source]
+    end
+    
+    CLI --> Engine
+    Desktop --> Engine
+    API --> Engine
+    
+    Engine --> Traditional
+    Engine --> Conversational
+    
+    Traditional --> Excel
+    Conversational --> Neo4j
+    
+    Traditional --> Git
+    Conversational --> Git
+    Engine --> Gemini
+```
+
+### Component Architecture
+```mermaid
+graph TB
+    subgraph "Traditional Analytics Engine"
+        PyDriller[PyDriller<br/>Repository Mining]
+        Pandas[Pandas<br/>Data Processing]
+        OpenPyXL[OpenPyXL<br/>Excel Generation]
+        Radon[Radon<br/>Complexity Analysis]
+    end
+    
+    subgraph "Conversational Q&A Engine"
+        Neo4jDriver[Neo4j Driver<br/>Graph Operations]
+        NLP[NLP Processing<br/>Question Parsing]
+        RAG[RAG System<br/>Context Enhancement]
+        GeminiAPI[Gemini API<br/>Response Generation]
+    end
+    
+    subgraph "Unified CLI Interface"
+        Argparse[Argparse<br/>Command Parsing]
+        Rich[Rich<br/>Enhanced CLI]
+        Click[Click<br/>CLI Framework]
+    end
+    
+    subgraph "Desktop Application"
+        Tkinter[Tkinter<br/>GUI Framework]
+        Matplotlib[Matplotlib<br/>Charts]
+        Threading[Threading<br/>Background Processing]
+    end
+    
+    PyDriller --> Pandas
+    Pandas --> OpenPyXL
+    Pandas --> Radon
+    
+    Neo4jDriver --> NLP
+    NLP --> RAG
+    RAG --> GeminiAPI
+    
+    Argparse --> Rich
+    Rich --> Click
+    
+    Tkinter --> Matplotlib
+    Matplotlib --> Threading
+```
+
+### Analysis Workflow
+```mermaid
+graph TD
+    A[User Input<br/>Command/Question] --> B{Input Type?}
+    B -->|Traditional| C[Parse Command<br/>Regex/LLM]
+    B -->|Conversational| D[Parse Question<br/>NLP Processing]
+    
+    C --> E[Extract Repository Data<br/>PyDriller]
+    D --> F[Query Knowledge Graph<br/>Neo4j Cypher]
+    
+    E --> G[Calculate Metrics<br/>LOC, Complexity, etc.]
+    F --> H[Retrieve Context<br/>Graph Traversal]
+    
+    G --> I[Generate Report<br/>Excel/JSON]
+    H --> J[Enhance with AI<br/>Gemini RAG]
+    
+    I --> K[Output Results]
+    J --> K
+```
+
+### Authentication Flow
+```mermaid
+graph TD
+    A[User Starts Application] --> B{API Keys Configured?}
+    B -->|No| C[Prompt for Setup<br/>.env File Creation]
+    B -->|Yes| D[Validate Keys<br/>Gemini API Test]
+    
+    C --> D
+    D --> E{Valid Keys?}
+    E -->|No| F[Show Error<br/>Retry Setup]
+    E -->|Yes| G{Neo4j Required?}
+    
+    F --> C
+    G -->|Yes| H[Connect to Neo4j<br/>Aura/Local]
+    G -->|No| I[Proceed to Main App]
+    
+    H --> J{Neo4j Connection?}
+    J -->|Success| I
+    J -->|Failed| K[Show Connection Error<br/>Fallback Mode]
+    
+    K --> I
+```
+
+### Complete System Flow
+```mermaid
+graph TD
+    Start([User Interaction]) --> Interface{Interface Type}
+    
+    Interface -->|CLI| CLI_Process[Parse Command Line Args]
+    Interface -->|Desktop| GUI_Process[GUI Event Handling]
+    Interface -->|API| API_Process[REST Request Processing]
+    
+    CLI_Process --> Engine[GitIntelEngine<br/>Main Controller]
+    GUI_Process --> Engine
+    API_Process --> Engine
+    
+    Engine --> Auth{Authentication<br/>Required?}
+    Auth -->|Yes| Auth_Flow[Validate API Keys<br/>Neo4j Connection]
+    Auth -->|No| Process[Process Request]
+    
+    Auth_Flow --> Process
+    Process --> Type{Request Type}
+    
+    Type -->|Traditional Analysis| Traditional_Engine[Traditional Analytics Engine]
+    Type -->|Conversational Q&A| Conversational_Engine[Conversational Q&A Engine]
+    
+    Traditional_Engine --> Data_Extract[Extract Repository Data<br/>PyDriller + GitPython]
+    Conversational_Engine --> Graph_Query[Query Knowledge Graph<br/>Neo4j Cypher]
+    
+    Data_Extract --> Metrics_Calc[Calculate Metrics<br/>LOC, Complexity, Churn]
+    Graph_Query --> Context_Retrieval[Retrieve Context<br/>Graph Traversal]
+    
+    Metrics_Calc --> Report_Gen[Generate Reports<br/>Excel/JSON]
+    Context_Retrieval --> AI_Enhance[Enhance with AI<br/>Gemini RAG]
+    
+    Report_Gen --> Output[Format Output]
+    AI_Enhance --> Output
+    
+    Output --> Response{Response Type}
+    Response -->|CLI| Terminal_Output[Terminal Display]
+    Response -->|Desktop| GUI_Update[GUI Update]
+    Response -->|API| JSON_Response[JSON Response]
+    
+    Terminal_Output --> End([End])
+    GUI_Update --> End
+    JSON_Response --> End
 ```
 
 ### New Features in Detail
