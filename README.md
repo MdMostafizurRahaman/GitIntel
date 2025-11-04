@@ -6,26 +6,26 @@ GitIntel is a desktop-based tool that extracts data from software repositories (
 ### High-Level Architecture Diagram
 ```mermaid
 graph TB
-    subgraph "User Interface"
-        UI[Desktop GUI / CLI<br/>Natural Language Input]
+    subgraph "User Layer"
+        UI[User Interface<br/>GUI/CLI + Natural Language]
     end
     
-    subgraph "Data Ingestion"
-        Clone[Git Clone<br/>Repository Download]
-        Extract[PyDriller Extraction<br/>Commits, Issues, Files]
-        SZZ[SZZ Algorithm<br/>Bug Commit Detection]
+    subgraph "Data Processing"
+        Clone[Repository Acquisition<br/>Git Clone & Download]
+        Extract[Data Mining<br/>PyDriller: Commits, Issues, Files]
+        SZZ[Bug Analysis<br/>SZZ Algorithm]
     end
     
     subgraph "Knowledge Graph"
-        Neo4j[(Neo4j Database<br/>Nodes: Commit, Issue, File<br/>Relationships: Fixes, Introduces)]
-        LOC[LOC & Metrics<br/>Complexity, Debt]
+        Neo4j[(Graph Database<br/>Neo4j: Nodes & Relationships)]
+        LOC[Metrics Engine<br/>LOC, Complexity, Technical Debt]
     end
     
-    subgraph "Query & Response"
-        LLM[LLM Gemini<br/>Translate to Cypher]
-        Cypher[Cypher Query<br/>Graph Search]
-        Response[Response Generation<br/>Natural Language]
-        Viz[Graph Visualization<br/>Interactive View]
+    subgraph "AI Query Layer"
+        LLM[Query Interpreter<br/>Gemini LLM → Cypher]
+        Cypher[Graph Query Engine<br/>Cypher Execution]
+        Response[Response Generator<br/>AI-Powered Answers]
+        Viz[Visualization<br/>Interactive Graph Views]
     end
     
     UI --> Clone
@@ -41,7 +41,9 @@ graph TB
     Viz --> UI
 ```
 
-This diagram shows the flow: User inputs → Data extraction with SZZ → Graph storage → Query processing → Response with visualization.
+**Data Flow**: User Input → Repository Processing → Data Mining → Bug Analysis → Graph Storage → Metrics → AI Query → Graph Search → Intelligent Response → Visualization
+
+---
 
 ## Project Description
 Analyzing large GitHub repositories can be challenging due to thousands of commits, hundreds of files, and contributions from multiple developers. It's often difficult to know which parts of the project are changing most, who is contributing what, and how the codebase is evolving over time. GitIntel is a smart, chat-based tool that simplifies this process. It extracts structured data like code churn, package-level activity, and developer contributions, and provides clear, human-readable explanations that help users quickly explore and understand even the largest repositories.
