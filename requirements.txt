@@ -1,4 +1,4 @@
-# Git Repository Analysis Tool with RAG Implementation
+# GitIntel Ultimate - Revolutionary Repository Intelligence Platform
 # Required dependencies
 
 # Core analysis
@@ -18,3 +18,23 @@ python-dotenv>=1.0.0
 chromadb>=0.4.0
 faiss-cpu>=1.7.0
 sentence-transformers>=2.2.0
+
+# Code Analysis (NEW - Phase 1)
+javalang>=0.13.0  # Java AST parsing for CK metrics
+radon>=5.1.0      # Python complexity analysis
+
+# Visualization (Phase 3)
+plotly>=5.0.0
+matplotlib>=3.5.0
+seaborn>=0.12.0
+networkx>=2.8.0
+
+# Web Interface (Phase 5)
+streamlit>=1.20.0
+fastapi>=0.100.0
+uvicorn>=0.22.0
+
+# Utilities
+redis>=4.5.0      # Caching for conversation history
+requests>=2.28.0
+tqdm>=4.65.0
