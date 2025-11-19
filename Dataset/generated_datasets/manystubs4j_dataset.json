@@ -1,0 +1,202 @@
+[
+  {
+    "issue_id": "druid_issue_001",
+    "project": "druid",
+    "file_path": "druid-wrapper\\src\\main\\java\\org\\logicalcobwebs\\proxool\\ProxoolConstants.java",
+    "issue_type": "Code Quality Issue",
+    "severity": "medium",
+    "description": "Synthetic issue in ProxoolConstants.java",
+    "code_snippet": "/*\n * This software is released under a licence similar to the Apache Software Licence.\n * See org.logicalcobwebs.proxool.package.html for details.\n * The latest version is available at http://proxool.sourceforge.net\n */\npackage org.logicalcobwebs.proxool;\n\npublic interface ProxoolConstants {\n    public final String PROXOOL = \"proxool\";\n\n    /**\n     * The namespace uri associated with namepace aware Proxool xml configurations.<br>\n     * Value: The latest version is available at http://proxool.",
+    "dataset_type": "manystubs4j"
+  },
+  {
+    "issue_id": "druid_issue_002",
+    "project": "druid",
+    "file_path": "druid-wrapper\\src\\main\\java\\org\\logicalcobwebs\\proxool\\ProxoolDataSource.java",
+    "issue_type": "Code Quality Issue",
+    "severity": "medium",
+    "description": "Synthetic issue in ProxoolDataSource.java",
+    "code_snippet": "package org.logicalcobwebs.proxool;\n\nimport com.alibaba.druid.pool.DruidDataSource;\n\nimport javax.naming.*;\nimport javax.naming.spi.ObjectFactory;\nimport javax.sql.DataSource;\n\nimport java.io.PrintWriter;\nimport java.sql.Connection;\nimport java.sql.SQLException;\nimport java.sql.SQLFeatureNotSupportedException;\nimport java.util.Enumeration;\nimport java.util.Hashtable;\nimport java.util.Properties;\nimport java.util.StringTokenizer;\nimport java.util.logging.Logger;\n\npublic class ProxoolDataSource im",
+    "dataset_type": "manystubs4j"
+  },
+  {
+    "issue_id": "druid_issue_003",
+    "project": "druid",
+    "file_path": "druid-wrapper\\src\\main\\java\\org\\apache\\commons\\dbcp\\BasicDataSource.java",
+    "issue_type": "Code Quality Issue",
+    "severity": "medium",
+    "description": "Synthetic issue in BasicDataSource.java",
+    "code_snippet": "package org.apache.commons.dbcp;\n\nimport com.alibaba.druid.pool.DruidDataSource;\n\npublic class BasicDataSource extends DruidDataSource implements BasicDataSourceMBean {\n    private static final long serialVersionUID = 1L;\n\n}\n",
+    "dataset_type": "manystubs4j"
+  },
+  {
+    "issue_id": "druid_issue_004",
+    "project": "druid",
+    "file_path": "druid-wrapper\\src\\main\\java\\org\\apache\\commons\\dbcp\\BasicDataSourceFactory.java",
+    "issue_type": "Code Quality Issue",
+    "severity": "medium",
+    "description": "Synthetic issue in BasicDataSourceFactory.java",
+    "code_snippet": "package org.apache.commons.dbcp;\n\nimport com.alibaba.druid.pool.DruidDataSourceFactory;\n\nimport javax.sql.DataSource;\n\nimport java.util.Properties;\n\npublic class BasicDataSourceFactory extends DruidDataSourceFactory {\n    public static DataSource createDataSource(Properties properties) throws Exception {\n        BasicDataSource dataSource = new BasicDataSource();\n        config(dataSource, properties);\n        return dataSource;\n    }\n\n    protected DataSource createDataSourceInternal(Properties",
+    "dataset_type": "manystubs4j"
+  },
+  {
+    "issue_id": "druid_issue_005",
+    "project": "druid",
+    "file_path": "druid-wrapper\\src\\main\\java\\org\\apache\\commons\\dbcp\\BasicDataSourceMBean.java",
+    "issue_type": "Code Quality Issue",
+    "severity": "medium",
+    "description": "Synthetic issue in BasicDataSourceMBean.java",
+    "code_snippet": "package org.apache.commons.dbcp;\n\nimport com.alibaba.druid.pool.DruidDataSourceMBean;\n\npublic interface BasicDataSourceMBean extends DruidDataSourceMBean {\n}\n",
+    "dataset_type": "manystubs4j"
+  },
+  {
+    "issue_id": "kafka_issue_001",
+    "project": "kafka",
+    "file_path": "trogdor\\src\\test\\java\\org\\apache\\kafka\\trogdor\\agent\\AgentTest.java",
+    "issue_type": "Code Quality Issue",
+    "severity": "medium",
+    "description": "Synthetic issue in AgentTest.java",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements. See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License. You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by appl",
+    "dataset_type": "manystubs4j"
+  },
+  {
+    "issue_id": "kafka_issue_002",
+    "project": "kafka",
+    "file_path": "trogdor\\src\\test\\java\\org\\apache\\kafka\\trogdor\\basic\\BasicPlatformTest.java",
+    "issue_type": "Code Quality Issue",
+    "severity": "medium",
+    "description": "Synthetic issue in BasicPlatformTest.java",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements. See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License. You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by appl",
+    "dataset_type": "manystubs4j"
+  },
+  {
+    "issue_id": "kafka_issue_003",
+    "project": "kafka",
+    "file_path": "trogdor\\src\\test\\java\\org\\apache\\kafka\\trogdor\\common\\CapturingCommandRunner.java",
+    "issue_type": "Code Quality Issue",
+    "severity": "medium",
+    "description": "Synthetic issue in CapturingCommandRunner.java",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements. See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License. You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by appl",
+    "dataset_type": "manystubs4j"
+  },
+  {
+    "issue_id": "kafka_issue_004",
+    "project": "kafka",
+    "file_path": "trogdor\\src\\test\\java\\org\\apache\\kafka\\trogdor\\common\\ExpectedTasks.java",
+    "issue_type": "Code Quality Issue",
+    "severity": "medium",
+    "description": "Synthetic issue in ExpectedTasks.java",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements. See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License. You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by appl",
+    "dataset_type": "manystubs4j"
+  },
+  {
+    "issue_id": "kafka_issue_005",
+    "project": "kafka",
+    "file_path": "trogdor\\src\\test\\java\\org\\apache\\kafka\\trogdor\\common\\JsonSerializationTest.java",
+    "issue_type": "Code Quality Issue",
+    "severity": "medium",
+    "description": "Synthetic issue in JsonSerializationTest.java",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements. See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License. You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by appl",
+    "dataset_type": "manystubs4j"
+  },
+  {
+    "issue_id": "maven_issue_001",
+    "project": "maven",
+    "file_path": "src\\graph\\ReactorGraph.java",
+    "issue_type": "Code Quality Issue",
+    "severity": "medium",
+    "description": "Synthetic issue in ReactorGraph.java",
+    "code_snippet": "///usr/bin/env jbang \"$0\" \"$@\" ; exit $?\n//JAVA 14+\n//DEPS guru.nidi:graphviz-java:0.18.1\n/*\n * Licensed to the Apache Software Foundation (ASF) under one\n * or more contributor license agreements.  See the NOTICE file\n * distributed with this work for additional information\n * regarding copyright ownership.  The ASF licenses this file\n * to you under the Apache License, Version 2.0 (the\n * \"License\"); you may not use this file except in compliance\n * with the License.  You may obtain a copy of ",
+    "dataset_type": "manystubs4j"
+  },
+  {
+    "issue_id": "maven_issue_002",
+    "project": "maven",
+    "file_path": "src\\mdo\\java\\ImmutableCollections.java",
+    "issue_type": "Code Quality Issue",
+    "severity": "medium",
+    "description": "Synthetic issue in ImmutableCollections.java",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one\n * or more contributor license agreements.  See the NOTICE file\n * distributed with this work for additional information\n * regarding copyright ownership.  The ASF licenses this file\n * to you under the Apache License, Version 2.0 (the\n * \"License\"); you may not use this file except in compliance\n * with the License.  You may obtain a copy of the License at\n *\n *   http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by",
+    "dataset_type": "manystubs4j"
+  },
+  {
+    "issue_id": "maven_issue_003",
+    "project": "maven",
+    "file_path": "src\\mdo\\java\\InputLocation.java",
+    "issue_type": "Code Quality Issue",
+    "severity": "medium",
+    "description": "Synthetic issue in InputLocation.java",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one\n * or more contributor license agreements.  See the NOTICE file\n * distributed with this work for additional information\n * regarding copyright ownership.  The ASF licenses this file\n * to you under the Apache License, Version 2.0 (the\n * \"License\"); you may not use this file except in compliance\n * with the License.  You may obtain a copy of the License at\n *\n *   http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by",
+    "dataset_type": "manystubs4j"
+  },
+  {
+    "issue_id": "maven_issue_004",
+    "project": "maven",
+    "file_path": "src\\mdo\\java\\InputLocationTracker.java",
+    "issue_type": "Code Quality Issue",
+    "severity": "medium",
+    "description": "Synthetic issue in InputLocationTracker.java",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one\n * or more contributor license agreements.  See the NOTICE file\n * distributed with this work for additional information\n * regarding copyright ownership.  The ASF licenses this file\n * to you under the Apache License, Version 2.0 (the\n * \"License\"); you may not use this file except in compliance\n * with the License.  You may obtain a copy of the License at\n *\n *   http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by",
+    "dataset_type": "manystubs4j"
+  },
+  {
+    "issue_id": "maven_issue_005",
+    "project": "maven",
+    "file_path": "src\\mdo\\java\\InputSource.java",
+    "issue_type": "Code Quality Issue",
+    "severity": "medium",
+    "description": "Synthetic issue in InputSource.java",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one\n * or more contributor license agreements.  See the NOTICE file\n * distributed with this work for additional information\n * regarding copyright ownership.  The ASF licenses this file\n * to you under the Apache License, Version 2.0 (the\n * \"License\"); you may not use this file except in compliance\n * with the License.  You may obtain a copy of the License at\n *\n *   http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by",
+    "dataset_type": "manystubs4j"
+  },
+  {
+    "issue_id": "test_issue_001",
+    "project": "test",
+    "file_path": "trogdor\\src\\test\\java\\org\\apache\\kafka\\trogdor\\agent\\AgentTest.java",
+    "issue_type": "Code Quality Issue",
+    "severity": "medium",
+    "description": "Synthetic issue in AgentTest.java",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements. See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License. You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by appl",
+    "dataset_type": "manystubs4j"
+  },
+  {
+    "issue_id": "test_issue_002",
+    "project": "test",
+    "file_path": "trogdor\\src\\test\\java\\org\\apache\\kafka\\trogdor\\basic\\BasicPlatformTest.java",
+    "issue_type": "Code Quality Issue",
+    "severity": "medium",
+    "description": "Synthetic issue in BasicPlatformTest.java",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements. See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License. You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by appl",
+    "dataset_type": "manystubs4j"
+  },
+  {
+    "issue_id": "test_issue_003",
+    "project": "test",
+    "file_path": "trogdor\\src\\test\\java\\org\\apache\\kafka\\trogdor\\common\\CapturingCommandRunner.java",
+    "issue_type": "Code Quality Issue",
+    "severity": "medium",
+    "description": "Synthetic issue in CapturingCommandRunner.java",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements. See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License. You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by appl",
+    "dataset_type": "manystubs4j"
+  },
+  {
+    "issue_id": "test_issue_004",
+    "project": "test",
+    "file_path": "trogdor\\src\\test\\java\\org\\apache\\kafka\\trogdor\\common\\ExpectedTasks.java",
+    "issue_type": "Code Quality Issue",
+    "severity": "medium",
+    "description": "Synthetic issue in ExpectedTasks.java",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements. See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License. You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by appl",
+    "dataset_type": "manystubs4j"
+  },
+  {
+    "issue_id": "test_issue_005",
+    "project": "test",
+    "file_path": "trogdor\\src\\test\\java\\org\\apache\\kafka\\trogdor\\common\\JsonSerializationTest.java",
+    "issue_type": "Code Quality Issue",
+    "severity": "medium",
+    "description": "Synthetic issue in JsonSerializationTest.java",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements. See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License. You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by appl",
+    "dataset_type": "manystubs4j"
+  }
+]

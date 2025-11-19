@@ -1,0 +1,875 @@
+[
+  {
+    "project": "druid",
+    "file_path": "druid-wrapper\\src\\main\\java\\org\\logicalcobwebs\\proxool\\ProxoolDataSource.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "getLogWriter()",
+    "code_snippet": "package org.logicalcobwebs.proxool;\n\nimport com.alibaba.druid.pool.DruidDataSource;\n\nimport javax.naming.*;\nimport javax.naming.spi.ObjectFactory;\nimport javax.sql.DataSource;\n\nimport java.io.PrintWriter;\nimport java.sql.Connection;\nimport java.sql.SQLException;\nimport java.sql.SQLFeatureNotSupportedException;\nimport java.util.Enumeration;\nimport java.util.Hashtable;\nimport java.util.Properties;\nimport java.util.StringTokenizer;\nimport java.util.logging.Logger;\n\npublic class ProxoolDataSource implements DataSource, ObjectFactory {\n    private DruidDataSource druid = new DruidDataSource();\n\n    private Properties delegateProperties = new Properties();\n\n    public ProxoolDataSource() {\n    }\n\n    public ProxoolDataSource(String alias) {\n        druid.setName(alias);\n    }\n\n    public PrintWriter getLogWriter() throws SQLException {\n        return druid.getLogWriter();\n    }\n\n    public void setLogWriter(PrintWriter out) throws SQLException {\n        druid.setLogWriter(out);\n    }\n\n    pu",
+    "complexity": 30
+  },
+  {
+    "project": "druid",
+    "file_path": "druid-wrapper\\src\\main\\java\\org\\logicalcobwebs\\proxool\\ProxoolDataSource.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "setLogWriter()",
+    "code_snippet": "package org.logicalcobwebs.proxool;\n\nimport com.alibaba.druid.pool.DruidDataSource;\n\nimport javax.naming.*;\nimport javax.naming.spi.ObjectFactory;\nimport javax.sql.DataSource;\n\nimport java.io.PrintWriter;\nimport java.sql.Connection;\nimport java.sql.SQLException;\nimport java.sql.SQLFeatureNotSupportedException;\nimport java.util.Enumeration;\nimport java.util.Hashtable;\nimport java.util.Properties;\nimport java.util.StringTokenizer;\nimport java.util.logging.Logger;\n\npublic class ProxoolDataSource implements DataSource, ObjectFactory {\n    private DruidDataSource druid = new DruidDataSource();\n\n    private Properties delegateProperties = new Properties();\n\n    public ProxoolDataSource() {\n    }\n\n    public ProxoolDataSource(String alias) {\n        druid.setName(alias);\n    }\n\n    public PrintWriter getLogWriter() throws SQLException {\n        return druid.getLogWriter();\n    }\n\n    public void setLogWriter(PrintWriter out) throws SQLException {\n        druid.setLogWriter(out);\n    }\n\n    pu",
+    "complexity": 30
+  },
+  {
+    "project": "druid",
+    "file_path": "druid-wrapper\\src\\main\\java\\org\\logicalcobwebs\\proxool\\ProxoolDataSource.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "getLoginTimeout()",
+    "code_snippet": "package org.logicalcobwebs.proxool;\n\nimport com.alibaba.druid.pool.DruidDataSource;\n\nimport javax.naming.*;\nimport javax.naming.spi.ObjectFactory;\nimport javax.sql.DataSource;\n\nimport java.io.PrintWriter;\nimport java.sql.Connection;\nimport java.sql.SQLException;\nimport java.sql.SQLFeatureNotSupportedException;\nimport java.util.Enumeration;\nimport java.util.Hashtable;\nimport java.util.Properties;\nimport java.util.StringTokenizer;\nimport java.util.logging.Logger;\n\npublic class ProxoolDataSource implements DataSource, ObjectFactory {\n    private DruidDataSource druid = new DruidDataSource();\n\n    private Properties delegateProperties = new Properties();\n\n    public ProxoolDataSource() {\n    }\n\n    public ProxoolDataSource(String alias) {\n        druid.setName(alias);\n    }\n\n    public PrintWriter getLogWriter() throws SQLException {\n        return druid.getLogWriter();\n    }\n\n    public void setLogWriter(PrintWriter out) throws SQLException {\n        druid.setLogWriter(out);\n    }\n\n    pu",
+    "complexity": 30
+  },
+  {
+    "project": "druid",
+    "file_path": "druid-spring-boot-starter\\src\\test\\java\\com\\alibaba\\druid\\spring\\boot\\testcase\\DruidDataSourceTestCase.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "testDataSourceExists()",
+    "code_snippet": "/*\n * Copyright 1999-2018 Alibaba Group Holding Ltd.\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n *      http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\npackage com.alibaba.druid.spring.boot.testcase;\n\nimport com.alibaba.druid.pool.DruidDataSource;\nimport com.alibaba.druid.spring.boot.demo.DemoApplication;\nimport org.junit.jupiter.api.Test;\nimport org.springframework.boot.test.context.SpringBootTest;\n\nimport javax.annotation.Resource;\n\nimport static org.assertj.core.api.Assertions.assertThat;\n\n/**\n * @author lihengming [89921218@qq",
+    "complexity": 1
+  },
+  {
+    "project": "druid",
+    "file_path": "druid-spring-boot-starter\\src\\test\\java\\com\\alibaba\\druid\\spring\\boot\\testcase\\DruidDataSourceTestCase.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "testDataSourcePropertiesOverridden()",
+    "code_snippet": "/*\n * Copyright 1999-2018 Alibaba Group Holding Ltd.\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n *      http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\npackage com.alibaba.druid.spring.boot.testcase;\n\nimport com.alibaba.druid.pool.DruidDataSource;\nimport com.alibaba.druid.spring.boot.demo.DemoApplication;\nimport org.junit.jupiter.api.Test;\nimport org.springframework.boot.test.context.SpringBootTest;\n\nimport javax.annotation.Resource;\n\nimport static org.assertj.core.api.Assertions.assertThat;\n\n/**\n * @author lihengming [89921218@qq",
+    "complexity": 1
+  },
+  {
+    "project": "kafka",
+    "file_path": "trogdor\\src\\test\\java\\org\\apache\\kafka\\trogdor\\agent\\AgentTest.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "cleanUp()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements. See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License. You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\npackage org.apache.kafka.trogdor.agent;\n\nimport org.apache.kafka.common.utils.MockScheduler;\nimport org.apache.kafka.common.utils.MockTime;\nimport org.apache.kafka.common.utils.Scheduler;\nimport org.a",
+    "complexity": 6
+  },
+  {
+    "project": "kafka",
+    "file_path": "trogdor\\src\\test\\java\\org\\apache\\kafka\\trogdor\\agent\\AgentTest.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "testAgentStartShutdown()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements. See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License. You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\npackage org.apache.kafka.trogdor.agent;\n\nimport org.apache.kafka.common.utils.MockScheduler;\nimport org.apache.kafka.common.utils.MockTime;\nimport org.apache.kafka.common.utils.Scheduler;\nimport org.a",
+    "complexity": 6
+  },
+  {
+    "project": "kafka",
+    "file_path": "trogdor\\src\\test\\java\\org\\apache\\kafka\\trogdor\\agent\\AgentTest.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "testAgentProgrammaticShutdown()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements. See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License. You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\npackage org.apache.kafka.trogdor.agent;\n\nimport org.apache.kafka.common.utils.MockScheduler;\nimport org.apache.kafka.common.utils.MockTime;\nimport org.apache.kafka.common.utils.Scheduler;\nimport org.a",
+    "complexity": 6
+  },
+  {
+    "project": "kafka",
+    "file_path": "trogdor\\src\\test\\java\\org\\apache\\kafka\\trogdor\\basic\\BasicPlatformTest.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "testCreateBasicPlatform()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements. See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License. You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\npackage org.apache.kafka.trogdor.basic;\n\nimport org.apache.kafka.test.TestUtils;\nimport org.apache.kafka.trogdor.common.Platform;\n\nimport org.junit.jupiter.api.Test;\nimport org.junit.jupiter.api.Timeo",
+    "complexity": 2
+  },
+  {
+    "project": "kafka",
+    "file_path": "trogdor\\src\\test\\java\\org\\apache\\kafka\\trogdor\\common\\CapturingCommandRunner.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "run()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements. See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License. You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\npackage org.apache.kafka.trogdor.common;\n\nimport org.apache.kafka.trogdor.basic.BasicPlatform;\n\nimport org.slf4j.Logger;\nimport org.slf4j.LoggerFactory;\n\nimport java.util.ArrayList;\nimport java.util.H",
+    "complexity": 3
+  },
+  {
+    "project": "kafka",
+    "file_path": "trogdor\\src\\test\\java\\org\\apache\\kafka\\trogdor\\common\\ExpectedTasks.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "taskSpec()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements. See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License. You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\npackage org.apache.kafka.trogdor.common;\n\nimport org.apache.kafka.test.TestUtils;\nimport org.apache.kafka.trogdor.agent.AgentClient;\nimport org.apache.kafka.trogdor.coordinator.CoordinatorClient;\nimpo",
+    "complexity": 19
+  },
+  {
+    "project": "kafka",
+    "file_path": "trogdor\\src\\test\\java\\org\\apache\\kafka\\trogdor\\common\\ExpectedTasks.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "taskState()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements. See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License. You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\npackage org.apache.kafka.trogdor.common;\n\nimport org.apache.kafka.test.TestUtils;\nimport org.apache.kafka.trogdor.agent.AgentClient;\nimport org.apache.kafka.trogdor.coordinator.CoordinatorClient;\nimpo",
+    "complexity": 19
+  },
+  {
+    "project": "kafka",
+    "file_path": "trogdor\\src\\test\\java\\org\\apache\\kafka\\trogdor\\common\\ExpectedTasks.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "workerState()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements. See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License. You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\npackage org.apache.kafka.trogdor.common;\n\nimport org.apache.kafka.test.TestUtils;\nimport org.apache.kafka.trogdor.agent.AgentClient;\nimport org.apache.kafka.trogdor.coordinator.CoordinatorClient;\nimpo",
+    "complexity": 19
+  },
+  {
+    "project": "kafka",
+    "file_path": "trogdor\\src\\test\\java\\org\\apache\\kafka\\trogdor\\common\\JsonSerializationTest.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "testDeserializationDoesNotProduceNulls()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements. See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License. You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\npackage org.apache.kafka.trogdor.common;\n\nimport org.apache.kafka.trogdor.fault.FilesUnreadableFaultSpec;\nimport org.apache.kafka.trogdor.fault.Kibosh;\nimport org.apache.kafka.trogdor.fault.NetworkPar",
+    "complexity": 4
+  },
+  {
+    "project": "kafka",
+    "file_path": "trogdor\\src\\test\\java\\org\\apache\\kafka\\trogdor\\common\\JsonUtilTest.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "testOpenBraceComesFirst()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements. See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License. You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\npackage org.apache.kafka.trogdor.common;\n\nimport org.apache.kafka.test.TestUtils;\n\nimport com.fasterxml.jackson.annotation.JsonCreator;\nimport com.fasterxml.jackson.annotation.JsonProperty;\n\nimport or",
+    "complexity": 2
+  },
+  {
+    "project": "kafka",
+    "file_path": "trogdor\\src\\test\\java\\org\\apache\\kafka\\trogdor\\common\\JsonUtilTest.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "testObjectFromCommandLineArgument()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements. See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License. You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\npackage org.apache.kafka.trogdor.common;\n\nimport org.apache.kafka.test.TestUtils;\n\nimport com.fasterxml.jackson.annotation.JsonCreator;\nimport com.fasterxml.jackson.annotation.JsonProperty;\n\nimport or",
+    "complexity": 2
+  },
+  {
+    "project": "kafka",
+    "file_path": "trogdor\\src\\test\\java\\org\\apache\\kafka\\trogdor\\common\\MiniTrogdorCluster.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "scheduler()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements. See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License. You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\npackage org.apache.kafka.trogdor.common;\n\nimport org.apache.kafka.common.utils.Scheduler;\nimport org.apache.kafka.common.utils.ThreadUtils;\nimport org.apache.kafka.trogdor.agent.Agent;\nimport org.apac",
+    "complexity": 25
+  },
+  {
+    "project": "kafka",
+    "file_path": "trogdor\\src\\test\\java\\org\\apache\\kafka\\trogdor\\common\\MiniTrogdorCluster.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "commandRunner()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements. See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License. You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\npackage org.apache.kafka.trogdor.common;\n\nimport org.apache.kafka.common.utils.Scheduler;\nimport org.apache.kafka.common.utils.ThreadUtils;\nimport org.apache.kafka.trogdor.agent.Agent;\nimport org.apac",
+    "complexity": 25
+  },
+  {
+    "project": "kafka",
+    "file_path": "trogdor\\src\\test\\java\\org\\apache\\kafka\\trogdor\\common\\MiniTrogdorCluster.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "addCoordinator()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements. See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License. You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\npackage org.apache.kafka.trogdor.common;\n\nimport org.apache.kafka.common.utils.Scheduler;\nimport org.apache.kafka.common.utils.ThreadUtils;\nimport org.apache.kafka.trogdor.agent.Agent;\nimport org.apac",
+    "complexity": 25
+  },
+  {
+    "project": "kafka",
+    "file_path": "trogdor\\src\\test\\java\\org\\apache\\kafka\\trogdor\\common\\StringExpanderTest.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "testNoExpansionNeeded()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements. See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License. You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\npackage org.apache.kafka.trogdor.common;\n\nimport org.junit.jupiter.api.Test;\nimport org.junit.jupiter.api.Timeout;\n\nimport java.util.Set;\n\nimport static org.junit.jupiter.api.Assertions.assertEquals;\n",
+    "complexity": 2
+  },
+  {
+    "project": "kafka",
+    "file_path": "trogdor\\src\\test\\java\\org\\apache\\kafka\\trogdor\\common\\StringExpanderTest.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "testExpansions()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements. See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License. You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\npackage org.apache.kafka.trogdor.common;\n\nimport org.junit.jupiter.api.Test;\nimport org.junit.jupiter.api.Timeout;\n\nimport java.util.Set;\n\nimport static org.junit.jupiter.api.Assertions.assertEquals;\n",
+    "complexity": 2
+  },
+  {
+    "project": "kafka",
+    "file_path": "trogdor\\src\\test\\java\\org\\apache\\kafka\\trogdor\\common\\StringFormatterTest.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "testDateString()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements. See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License. You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\npackage org.apache.kafka.trogdor.common;\n\nimport org.junit.jupiter.api.Test;\nimport org.junit.jupiter.api.Timeout;\n\nimport java.time.ZoneOffset;\nimport java.util.List;\n\nimport static org.apache.kafka.",
+    "complexity": 2
+  },
+  {
+    "project": "kafka",
+    "file_path": "trogdor\\src\\test\\java\\org\\apache\\kafka\\trogdor\\common\\StringFormatterTest.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "testDurationString()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements. See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License. You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\npackage org.apache.kafka.trogdor.common;\n\nimport org.junit.jupiter.api.Test;\nimport org.junit.jupiter.api.Timeout;\n\nimport java.time.ZoneOffset;\nimport java.util.List;\n\nimport static org.apache.kafka.",
+    "complexity": 2
+  },
+  {
+    "project": "kafka",
+    "file_path": "trogdor\\src\\test\\java\\org\\apache\\kafka\\trogdor\\common\\StringFormatterTest.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "testPrettyPrintGrid()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements. See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License. You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\npackage org.apache.kafka.trogdor.common;\n\nimport org.junit.jupiter.api.Test;\nimport org.junit.jupiter.api.Timeout;\n\nimport java.time.ZoneOffset;\nimport java.util.List;\n\nimport static org.apache.kafka.",
+    "complexity": 2
+  },
+  {
+    "project": "kafka",
+    "file_path": "trogdor\\src\\test\\java\\org\\apache\\kafka\\trogdor\\common\\TopologyTest.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "testAgentNodeNames()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements. See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License. You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\npackage org.apache.kafka.trogdor.common;\n\nimport org.apache.kafka.trogdor.agent.Agent;\nimport org.apache.kafka.trogdor.basic.BasicNode;\nimport org.apache.kafka.trogdor.basic.BasicTopology;\nimport org.",
+    "complexity": 5
+  },
+  {
+    "project": "kafka",
+    "file_path": "trogdor\\src\\test\\java\\org\\apache\\kafka\\trogdor\\common\\WorkerUtilsTest.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "setUp()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements. See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License. You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\npackage org.apache.kafka.trogdor.common;\n\nimport org.apache.kafka.clients.admin.MockAdminClient;\nimport org.apache.kafka.clients.admin.NewTopic;\nimport org.apache.kafka.clients.admin.TopicDescription;",
+    "complexity": 3
+  },
+  {
+    "project": "kafka",
+    "file_path": "trogdor\\src\\test\\java\\org\\apache\\kafka\\trogdor\\common\\WorkerUtilsTest.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "testCreateOneTopic()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements. See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License. You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\npackage org.apache.kafka.trogdor.common;\n\nimport org.apache.kafka.clients.admin.MockAdminClient;\nimport org.apache.kafka.clients.admin.NewTopic;\nimport org.apache.kafka.clients.admin.TopicDescription;",
+    "complexity": 3
+  },
+  {
+    "project": "kafka",
+    "file_path": "trogdor\\src\\test\\java\\org\\apache\\kafka\\trogdor\\common\\WorkerUtilsTest.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "testCreateRetriesOnTimeout()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements. See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License. You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\npackage org.apache.kafka.trogdor.common;\n\nimport org.apache.kafka.clients.admin.MockAdminClient;\nimport org.apache.kafka.clients.admin.NewTopic;\nimport org.apache.kafka.clients.admin.TopicDescription;",
+    "complexity": 3
+  },
+  {
+    "project": "kafka",
+    "file_path": "trogdor\\src\\test\\java\\org\\apache\\kafka\\trogdor\\coordinator\\CoordinatorClientTest.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "testPrettyPrintTaskInfo()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements. See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License. You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\npackage org.apache.kafka.trogdor.coordinator;\n\nimport org.apache.kafka.trogdor.rest.TaskDone;\nimport org.apache.kafka.trogdor.rest.TaskPending;\nimport org.apache.kafka.trogdor.rest.TaskRunning;\nimport",
+    "complexity": 2
+  },
+  {
+    "project": "kafka",
+    "file_path": "trogdor\\src\\test\\java\\org\\apache\\kafka\\trogdor\\coordinator\\CoordinatorTest.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "testCoordinatorStatus()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements. See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License. You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\npackage org.apache.kafka.trogdor.coordinator;\n\nimport org.apache.kafka.common.utils.MockScheduler;\nimport org.apache.kafka.common.utils.MockTime;\nimport org.apache.kafka.common.utils.Scheduler;\nimport",
+    "complexity": 9
+  },
+  {
+    "project": "kafka",
+    "file_path": "trogdor\\src\\test\\java\\org\\apache\\kafka\\trogdor\\coordinator\\CoordinatorTest.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "testCoordinatorUptime()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements. See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License. You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\npackage org.apache.kafka.trogdor.coordinator;\n\nimport org.apache.kafka.common.utils.MockScheduler;\nimport org.apache.kafka.common.utils.MockTime;\nimport org.apache.kafka.common.utils.Scheduler;\nimport",
+    "complexity": 9
+  },
+  {
+    "project": "kafka",
+    "file_path": "trogdor\\src\\test\\java\\org\\apache\\kafka\\trogdor\\coordinator\\CoordinatorTest.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "testCreateTask()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements. See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License. You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\npackage org.apache.kafka.trogdor.coordinator;\n\nimport org.apache.kafka.common.utils.MockScheduler;\nimport org.apache.kafka.common.utils.MockTime;\nimport org.apache.kafka.common.utils.Scheduler;\nimport",
+    "complexity": 9
+  },
+  {
+    "project": "kafka",
+    "file_path": "trogdor\\src\\test\\java\\org\\apache\\kafka\\trogdor\\rest\\RestExceptionMapperTest.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "testToResponseNotFound()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements. See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License. You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\npackage org.apache.kafka.trogdor.rest;\n\nimport org.apache.kafka.common.errors.InvalidRequestException;\nimport org.apache.kafka.common.errors.SerializationException;\n\nimport com.fasterxml.jackson.core.J",
+    "complexity": 2
+  },
+  {
+    "project": "kafka",
+    "file_path": "trogdor\\src\\test\\java\\org\\apache\\kafka\\trogdor\\rest\\RestExceptionMapperTest.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "testToResponseInvalidTypeIdException()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements. See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License. You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\npackage org.apache.kafka.trogdor.rest;\n\nimport org.apache.kafka.common.errors.InvalidRequestException;\nimport org.apache.kafka.common.errors.SerializationException;\n\nimport com.fasterxml.jackson.core.J",
+    "complexity": 2
+  },
+  {
+    "project": "kafka",
+    "file_path": "trogdor\\src\\test\\java\\org\\apache\\kafka\\trogdor\\rest\\RestExceptionMapperTest.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "testToResponseJsonMappingException()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements. See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License. You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\npackage org.apache.kafka.trogdor.rest;\n\nimport org.apache.kafka.common.errors.InvalidRequestException;\nimport org.apache.kafka.common.errors.SerializationException;\n\nimport com.fasterxml.jackson.core.J",
+    "complexity": 2
+  },
+  {
+    "project": "maven",
+    "file_path": "src\\mdo\\java\\ImmutableCollections.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "hasNext()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one\n * or more contributor license agreements.  See the NOTICE file\n * distributed with this work for additional information\n * regarding copyright ownership.  The ASF licenses this file\n * to you under the Apache License, Version 2.0 (the\n * \"License\"); you may not use this file except in compliance\n * with the License.  You may obtain a copy of the License at\n *\n *   http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing,\n * software distributed under the License is distributed on an\n * \"AS IS\" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY\n * KIND, either express or implied.  See the License for the\n * specific language governing permissions and limitations\n * under the License.\n */\npackage ${package};\n\nimport java.io.Serializable;\nimport java.util.AbstractMap;\nimport java.util.AbstractSet;\nimport java.util.Collection;\nimport java.util.Iterator;\nimport java.util.List;\nimp",
+    "complexity": 8
+  },
+  {
+    "project": "maven",
+    "file_path": "src\\mdo\\java\\ImmutableCollections.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "size()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one\n * or more contributor license agreements.  See the NOTICE file\n * distributed with this work for additional information\n * regarding copyright ownership.  The ASF licenses this file\n * to you under the Apache License, Version 2.0 (the\n * \"License\"); you may not use this file except in compliance\n * with the License.  You may obtain a copy of the License at\n *\n *   http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing,\n * software distributed under the License is distributed on an\n * \"AS IS\" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY\n * KIND, either express or implied.  See the License for the\n * specific language governing permissions and limitations\n * under the License.\n */\npackage ${package};\n\nimport java.io.Serializable;\nimport java.util.AbstractMap;\nimport java.util.AbstractSet;\nimport java.util.Collection;\nimport java.util.Iterator;\nimport java.util.List;\nimp",
+    "complexity": 8
+  },
+  {
+    "project": "maven",
+    "file_path": "src\\mdo\\java\\ImmutableCollections.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "hasNext()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one\n * or more contributor license agreements.  See the NOTICE file\n * distributed with this work for additional information\n * regarding copyright ownership.  The ASF licenses this file\n * to you under the Apache License, Version 2.0 (the\n * \"License\"); you may not use this file except in compliance\n * with the License.  You may obtain a copy of the License at\n *\n *   http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing,\n * software distributed under the License is distributed on an\n * \"AS IS\" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY\n * KIND, either express or implied.  See the License for the\n * specific language governing permissions and limitations\n * under the License.\n */\npackage ${package};\n\nimport java.io.Serializable;\nimport java.util.AbstractMap;\nimport java.util.AbstractSet;\nimport java.util.Collection;\nimport java.util.Iterator;\nimport java.util.List;\nimp",
+    "complexity": 8
+  },
+  {
+    "project": "maven",
+    "file_path": "src\\mdo\\java\\InputLocation.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "getLineNumber()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one\n * or more contributor license agreements.  See the NOTICE file\n * distributed with this work for additional information\n * regarding copyright ownership.  The ASF licenses this file\n * to you under the Apache License, Version 2.0 (the\n * \"License\"); you may not use this file except in compliance\n * with the License.  You may obtain a copy of the License at\n *\n *   http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing,\n * software distributed under the License is distributed on an\n * \"AS IS\" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY\n * KIND, either express or implied.  See the License for the\n * specific language governing permissions and limitations\n * under the License.\n */\npackage ${package};\n\nimport java.io.Serializable;\nimport java.util.Collection;\nimport java.util.Collections;\nimport java.util.LinkedHashMap;\nimport java.util.Map;\nimport java.util.Objects;\n\n/*",
+    "complexity": 51
+  },
+  {
+    "project": "maven",
+    "file_path": "src\\mdo\\java\\InputLocation.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "getColumnNumber()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one\n * or more contributor license agreements.  See the NOTICE file\n * distributed with this work for additional information\n * regarding copyright ownership.  The ASF licenses this file\n * to you under the Apache License, Version 2.0 (the\n * \"License\"); you may not use this file except in compliance\n * with the License.  You may obtain a copy of the License at\n *\n *   http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing,\n * software distributed under the License is distributed on an\n * \"AS IS\" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY\n * KIND, either express or implied.  See the License for the\n * specific language governing permissions and limitations\n * under the License.\n */\npackage ${package};\n\nimport java.io.Serializable;\nimport java.util.Collection;\nimport java.util.Collections;\nimport java.util.LinkedHashMap;\nimport java.util.Map;\nimport java.util.Objects;\n\n/*",
+    "complexity": 51
+  },
+  {
+    "project": "maven",
+    "file_path": "src\\mdo\\java\\InputLocation.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "getSource()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one\n * or more contributor license agreements.  See the NOTICE file\n * distributed with this work for additional information\n * regarding copyright ownership.  The ASF licenses this file\n * to you under the Apache License, Version 2.0 (the\n * \"License\"); you may not use this file except in compliance\n * with the License.  You may obtain a copy of the License at\n *\n *   http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing,\n * software distributed under the License is distributed on an\n * \"AS IS\" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY\n * KIND, either express or implied.  See the License for the\n * specific language governing permissions and limitations\n * under the License.\n */\npackage ${package};\n\nimport java.io.Serializable;\nimport java.util.Collection;\nimport java.util.Collections;\nimport java.util.LinkedHashMap;\nimport java.util.Map;\nimport java.util.Objects;\n\n/*",
+    "complexity": 51
+  },
+  {
+    "project": "maven",
+    "file_path": "src\\mdo\\java\\InputSource.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "getLocation()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one\n * or more contributor license agreements.  See the NOTICE file\n * distributed with this work for additional information\n * regarding copyright ownership.  The ASF licenses this file\n * to you under the Apache License, Version 2.0 (the\n * \"License\"); you may not use this file except in compliance\n * with the License.  You may obtain a copy of the License at\n *\n *   http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing,\n * software distributed under the License is distributed on an\n * \"AS IS\" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY\n * KIND, either express or implied.  See the License for the\n * specific language governing permissions and limitations\n * under the License.\n */\npackage ${package};\n\nimport java.io.Serializable;\nimport java.util.Collection;\nimport java.util.List;\nimport java.util.Objects;\nimport java.util.stream.Collectors;\nimport java.util.stream.Stre",
+    "complexity": 29
+  },
+  {
+    "project": "maven",
+    "file_path": "src\\mdo\\java\\InputSource.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "getModelId()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one\n * or more contributor license agreements.  See the NOTICE file\n * distributed with this work for additional information\n * regarding copyright ownership.  The ASF licenses this file\n * to you under the Apache License, Version 2.0 (the\n * \"License\"); you may not use this file except in compliance\n * with the License.  You may obtain a copy of the License at\n *\n *   http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing,\n * software distributed under the License is distributed on an\n * \"AS IS\" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY\n * KIND, either express or implied.  See the License for the\n * specific language governing permissions and limitations\n * under the License.\n */\npackage ${package};\n\nimport java.io.Serializable;\nimport java.util.Collection;\nimport java.util.List;\nimport java.util.Objects;\nimport java.util.stream.Collectors;\nimport java.util.stream.Stre",
+    "complexity": 29
+  },
+  {
+    "project": "maven",
+    "file_path": "src\\mdo\\java\\InputSource.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "getImportedFrom()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one\n * or more contributor license agreements.  See the NOTICE file\n * distributed with this work for additional information\n * regarding copyright ownership.  The ASF licenses this file\n * to you under the Apache License, Version 2.0 (the\n * \"License\"); you may not use this file except in compliance\n * with the License.  You may obtain a copy of the License at\n *\n *   http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing,\n * software distributed under the License is distributed on an\n * \"AS IS\" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY\n * KIND, either express or implied.  See the License for the\n * specific language governing permissions and limitations\n * under the License.\n */\npackage ${package};\n\nimport java.io.Serializable;\nimport java.util.Collection;\nimport java.util.List;\nimport java.util.Objects;\nimport java.util.stream.Collectors;\nimport java.util.stream.Stre",
+    "complexity": 29
+  },
+  {
+    "project": "maven",
+    "file_path": "src\\mdo\\java\\WrapperList.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "get()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one\n * or more contributor license agreements.  See the NOTICE file\n * distributed with this work for additional information\n * regarding copyright ownership.  The ASF licenses this file\n * to you under the Apache License, Version 2.0 (the\n * \"License\"); you may not use this file except in compliance\n * with the License.  You may obtain a copy of the License at\n *\n *   http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing,\n * software distributed under the License is distributed on an\n * \"AS IS\" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY\n * KIND, either express or implied.  See the License for the\n * specific language governing permissions and limitations\n * under the License.\n */\npackage ${package};\n\nimport java.io.ObjectStreamException;\nimport java.io.Serializable;\nimport java.util.AbstractList;\nimport java.util.ArrayList;\nimport java.util.List;\nimport java.util.Objec",
+    "complexity": 6
+  },
+  {
+    "project": "maven",
+    "file_path": "src\\mdo\\java\\WrapperList.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "size()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one\n * or more contributor license agreements.  See the NOTICE file\n * distributed with this work for additional information\n * regarding copyright ownership.  The ASF licenses this file\n * to you under the Apache License, Version 2.0 (the\n * \"License\"); you may not use this file except in compliance\n * with the License.  You may obtain a copy of the License at\n *\n *   http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing,\n * software distributed under the License is distributed on an\n * \"AS IS\" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY\n * KIND, either express or implied.  See the License for the\n * specific language governing permissions and limitations\n * under the License.\n */\npackage ${package};\n\nimport java.io.ObjectStreamException;\nimport java.io.Serializable;\nimport java.util.AbstractList;\nimport java.util.ArrayList;\nimport java.util.List;\nimport java.util.Objec",
+    "complexity": 6
+  },
+  {
+    "project": "maven",
+    "file_path": "src\\mdo\\java\\WrapperList.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "add()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one\n * or more contributor license agreements.  See the NOTICE file\n * distributed with this work for additional information\n * regarding copyright ownership.  The ASF licenses this file\n * to you under the Apache License, Version 2.0 (the\n * \"License\"); you may not use this file except in compliance\n * with the License.  You may obtain a copy of the License at\n *\n *   http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing,\n * software distributed under the License is distributed on an\n * \"AS IS\" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY\n * KIND, either express or implied.  See the License for the\n * specific language governing permissions and limitations\n * under the License.\n */\npackage ${package};\n\nimport java.io.ObjectStreamException;\nimport java.io.Serializable;\nimport java.util.AbstractList;\nimport java.util.ArrayList;\nimport java.util.List;\nimport java.util.Objec",
+    "complexity": 6
+  },
+  {
+    "project": "maven",
+    "file_path": "src\\mdo\\java\\WrapperProperties.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "getProperty()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one\n * or more contributor license agreements.  See the NOTICE file\n * distributed with this work for additional information\n * regarding copyright ownership.  The ASF licenses this file\n * to you under the Apache License, Version 2.0 (the\n * \"License\"); you may not use this file except in compliance\n * with the License.  You may obtain a copy of the License at\n *\n *   http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing,\n * software distributed under the License is distributed on an\n * \"AS IS\" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY\n * KIND, either express or implied.  See the License for the\n * specific language governing permissions and limitations\n * under the License.\n */\npackage ${package};\n\nimport java.io.IOError;\nimport java.io.IOException;\nimport java.io.InputStream;\nimport java.io.OutputStream;\nimport java.io.PrintStream;\nimport java.io.PrintWriter;\nimport",
+    "complexity": 7
+  },
+  {
+    "project": "maven",
+    "file_path": "src\\mdo\\java\\WrapperProperties.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "getProperty()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one\n * or more contributor license agreements.  See the NOTICE file\n * distributed with this work for additional information\n * regarding copyright ownership.  The ASF licenses this file\n * to you under the Apache License, Version 2.0 (the\n * \"License\"); you may not use this file except in compliance\n * with the License.  You may obtain a copy of the License at\n *\n *   http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing,\n * software distributed under the License is distributed on an\n * \"AS IS\" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY\n * KIND, either express or implied.  See the License for the\n * specific language governing permissions and limitations\n * under the License.\n */\npackage ${package};\n\nimport java.io.IOError;\nimport java.io.IOException;\nimport java.io.InputStream;\nimport java.io.OutputStream;\nimport java.io.PrintStream;\nimport java.io.PrintWriter;\nimport",
+    "complexity": 7
+  },
+  {
+    "project": "maven",
+    "file_path": "src\\mdo\\java\\WrapperProperties.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "list()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one\n * or more contributor license agreements.  See the NOTICE file\n * distributed with this work for additional information\n * regarding copyright ownership.  The ASF licenses this file\n * to you under the Apache License, Version 2.0 (the\n * \"License\"); you may not use this file except in compliance\n * with the License.  You may obtain a copy of the License at\n *\n *   http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing,\n * software distributed under the License is distributed on an\n * \"AS IS\" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY\n * KIND, either express or implied.  See the License for the\n * specific language governing permissions and limitations\n * under the License.\n */\npackage ${package};\n\nimport java.io.IOError;\nimport java.io.IOException;\nimport java.io.InputStream;\nimport java.io.OutputStream;\nimport java.io.PrintStream;\nimport java.io.PrintWriter;\nimport",
+    "complexity": 7
+  },
+  {
+    "project": "maven",
+    "file_path": "its\\core-it-support\\maven-it-plugin-bootstrap\\src\\main\\java\\org\\apache\\maven\\its\\bootstrap\\DownloadMojo.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "execute()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one\n * or more contributor license agreements.  See the NOTICE file\n * distributed with this work for additional information\n * regarding copyright ownership.  The ASF licenses this file\n * to you under the Apache License, Version 2.0 (the\n * \"License\"); you may not use this file except in compliance\n * with the License.  You may obtain a copy of the License at\n *\n *   http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing,\n * software distributed under the License is distributed on an\n * \"AS IS\" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY\n * KIND, either express or implied.  See the License for the\n * specific language governing permissions and limitations\n * under the License.\n */\npackage org.apache.maven.its.bootstrap;\n\nimport java.io.BufferedReader;\nimport java.io.File;\nimport java.io.FileReader;\nimport java.io.IOException;\nimport java.util.HashSet;\nimport java.util.L",
+    "complexity": 7
+  },
+  {
+    "project": "maven",
+    "file_path": "its\\core-it-support\\maven-it-helper\\src\\main\\java\\org\\apache\\maven\\it\\AbstractMavenIntegrationTestCase.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "close()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one\n * or more contributor license agreements.  See the NOTICE file\n * distributed with this work for additional information\n * regarding copyright ownership.  The ASF licenses this file\n * to you under the Apache License, Version 2.0 (the\n * \"License\"); you may not use this file except in compliance\n * with the License.  You may obtain a copy of the License at\n *\n *   http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing,\n * software distributed under the License is distributed on an\n * \"AS IS\" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY\n * KIND, either express or implied.  See the License for the\n * specific language governing permissions and limitations\n * under the License.\n */\npackage org.apache.maven.it;\n\nimport java.io.File;\nimport java.io.FilterInputStream;\nimport java.io.IOException;\nimport java.io.InputStream;\nimport java.io.PrintStream;\nimport java.util.Arrays",
+    "complexity": 10
+  },
+  {
+    "project": "maven",
+    "file_path": "its\\core-it-support\\maven-it-helper\\src\\main\\java\\org\\apache\\maven\\it\\Verifier.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "setUserHomeDirectory()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one\n * or more contributor license agreements.  See the NOTICE file\n * distributed with this work for additional information\n * regarding copyright ownership.  The ASF licenses this file\n * to you under the Apache License, Version 2.0 (the\n * \"License\"); you may not use this file except in compliance\n * with the License.  You may obtain a copy of the License at\n *\n *   http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing,\n * software distributed under the License is distributed on an\n * \"AS IS\" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY\n * KIND, either express or implied.  See the License for the\n * specific language governing permissions and limitations\n * under the License.\n */\npackage org.apache.maven.it;\n\nimport java.io.BufferedReader;\nimport java.io.ByteArrayOutputStream;\nimport java.io.File;\nimport java.io.FileInputStream;\nimport java.io.FileReader;\nimport java.i",
+    "complexity": 96
+  },
+  {
+    "project": "maven",
+    "file_path": "its\\core-it-support\\maven-it-helper\\src\\main\\java\\org\\apache\\maven\\it\\Verifier.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "getToolboxVersion()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one\n * or more contributor license agreements.  See the NOTICE file\n * distributed with this work for additional information\n * regarding copyright ownership.  The ASF licenses this file\n * to you under the Apache License, Version 2.0 (the\n * \"License\"); you may not use this file except in compliance\n * with the License.  You may obtain a copy of the License at\n *\n *   http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing,\n * software distributed under the License is distributed on an\n * \"AS IS\" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY\n * KIND, either express or implied.  See the License for the\n * specific language governing permissions and limitations\n * under the License.\n */\npackage org.apache.maven.it;\n\nimport java.io.BufferedReader;\nimport java.io.ByteArrayOutputStream;\nimport java.io.File;\nimport java.io.FileInputStream;\nimport java.io.FileReader;\nimport java.i",
+    "complexity": 96
+  },
+  {
+    "project": "maven",
+    "file_path": "its\\core-it-support\\maven-it-helper\\src\\main\\java\\org\\apache\\maven\\it\\Verifier.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "getExecutable()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one\n * or more contributor license agreements.  See the NOTICE file\n * distributed with this work for additional information\n * regarding copyright ownership.  The ASF licenses this file\n * to you under the Apache License, Version 2.0 (the\n * \"License\"); you may not use this file except in compliance\n * with the License.  You may obtain a copy of the License at\n *\n *   http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing,\n * software distributed under the License is distributed on an\n * \"AS IS\" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY\n * KIND, either express or implied.  See the License for the\n * specific language governing permissions and limitations\n * under the License.\n */\npackage org.apache.maven.it;\n\nimport java.io.BufferedReader;\nimport java.io.ByteArrayOutputStream;\nimport java.io.File;\nimport java.io.FileInputStream;\nimport java.io.FileReader;\nimport java.i",
+    "complexity": 96
+  },
+  {
+    "project": "maven",
+    "file_path": "its\\core-it-support\\core-it-wagon\\src\\main\\java\\org\\apache\\maven\\wagon\\providers\\coreit\\CoreItHttpWagon.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "get()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one\n * or more contributor license agreements.  See the NOTICE file\n * distributed with this work for additional information\n * regarding copyright ownership.  The ASF licenses this file\n * to you under the Apache License, Version 2.0 (the\n * \"License\"); you may not use this file except in compliance\n * with the License.  You may obtain a copy of the License at\n *\n *   http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing,\n * software distributed under the License is distributed on an\n * \"AS IS\" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY\n * KIND, either express or implied.  See the License for the\n * specific language governing permissions and limitations\n * under the License.\n */\npackage org.apache.maven.wagon.providers.coreit;\n\nimport java.io.ByteArrayInputStream;\nimport java.io.ByteArrayOutputStream;\nimport java.io.File;\nimport java.io.FileOutputStream;\nimport java.i",
+    "complexity": 11
+  },
+  {
+    "project": "maven",
+    "file_path": "its\\core-it-support\\core-it-wagon\\src\\main\\java\\org\\apache\\maven\\wagon\\providers\\coreit\\CoreItHttpWagon.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "getIfNewer()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one\n * or more contributor license agreements.  See the NOTICE file\n * distributed with this work for additional information\n * regarding copyright ownership.  The ASF licenses this file\n * to you under the Apache License, Version 2.0 (the\n * \"License\"); you may not use this file except in compliance\n * with the License.  You may obtain a copy of the License at\n *\n *   http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing,\n * software distributed under the License is distributed on an\n * \"AS IS\" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY\n * KIND, either express or implied.  See the License for the\n * specific language governing permissions and limitations\n * under the License.\n */\npackage org.apache.maven.wagon.providers.coreit;\n\nimport java.io.ByteArrayInputStream;\nimport java.io.ByteArrayOutputStream;\nimport java.io.File;\nimport java.io.FileOutputStream;\nimport java.i",
+    "complexity": 11
+  },
+  {
+    "project": "maven",
+    "file_path": "its\\core-it-support\\core-it-wagon\\src\\main\\java\\org\\apache\\maven\\wagon\\providers\\coreit\\CoreItHttpWagon.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "put()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one\n * or more contributor license agreements.  See the NOTICE file\n * distributed with this work for additional information\n * regarding copyright ownership.  The ASF licenses this file\n * to you under the Apache License, Version 2.0 (the\n * \"License\"); you may not use this file except in compliance\n * with the License.  You may obtain a copy of the License at\n *\n *   http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing,\n * software distributed under the License is distributed on an\n * \"AS IS\" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY\n * KIND, either express or implied.  See the License for the\n * specific language governing permissions and limitations\n * under the License.\n */\npackage org.apache.maven.wagon.providers.coreit;\n\nimport java.io.ByteArrayInputStream;\nimport java.io.ByteArrayOutputStream;\nimport java.io.File;\nimport java.io.FileOutputStream;\nimport java.i",
+    "complexity": 11
+  },
+  {
+    "project": "maven",
+    "file_path": "its\\core-it-support\\core-it-wagon\\src\\main\\java\\org\\apache\\maven\\wagon\\providers\\coreit\\CoreItWagon.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "get()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one\n * or more contributor license agreements.  See the NOTICE file\n * distributed with this work for additional information\n * regarding copyright ownership.  The ASF licenses this file\n * to you under the Apache License, Version 2.0 (the\n * \"License\"); you may not use this file except in compliance\n * with the License.  You may obtain a copy of the License at\n *\n *   http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing,\n * software distributed under the License is distributed on an\n * \"AS IS\" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY\n * KIND, either express or implied.  See the License for the\n * specific language governing permissions and limitations\n * under the License.\n */\npackage org.apache.maven.wagon.providers.coreit;\n\nimport java.io.ByteArrayInputStream;\nimport java.io.ByteArrayOutputStream;\nimport java.io.File;\nimport java.io.FileOutputStream;\nimport java.i",
+    "complexity": 11
+  },
+  {
+    "project": "maven",
+    "file_path": "its\\core-it-support\\core-it-wagon\\src\\main\\java\\org\\apache\\maven\\wagon\\providers\\coreit\\CoreItWagon.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "getIfNewer()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one\n * or more contributor license agreements.  See the NOTICE file\n * distributed with this work for additional information\n * regarding copyright ownership.  The ASF licenses this file\n * to you under the Apache License, Version 2.0 (the\n * \"License\"); you may not use this file except in compliance\n * with the License.  You may obtain a copy of the License at\n *\n *   http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing,\n * software distributed under the License is distributed on an\n * \"AS IS\" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY\n * KIND, either express or implied.  See the License for the\n * specific language governing permissions and limitations\n * under the License.\n */\npackage org.apache.maven.wagon.providers.coreit;\n\nimport java.io.ByteArrayInputStream;\nimport java.io.ByteArrayOutputStream;\nimport java.io.File;\nimport java.io.FileOutputStream;\nimport java.i",
+    "complexity": 11
+  },
+  {
+    "project": "maven",
+    "file_path": "its\\core-it-support\\core-it-wagon\\src\\main\\java\\org\\apache\\maven\\wagon\\providers\\coreit\\CoreItWagon.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "put()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one\n * or more contributor license agreements.  See the NOTICE file\n * distributed with this work for additional information\n * regarding copyright ownership.  The ASF licenses this file\n * to you under the Apache License, Version 2.0 (the\n * \"License\"); you may not use this file except in compliance\n * with the License.  You may obtain a copy of the License at\n *\n *   http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing,\n * software distributed under the License is distributed on an\n * \"AS IS\" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY\n * KIND, either express or implied.  See the License for the\n * specific language governing permissions and limitations\n * under the License.\n */\npackage org.apache.maven.wagon.providers.coreit;\n\nimport java.io.ByteArrayInputStream;\nimport java.io.ByteArrayOutputStream;\nimport java.io.File;\nimport java.io.FileOutputStream;\nimport java.i",
+    "complexity": 11
+  },
+  {
+    "project": "maven",
+    "file_path": "its\\core-it-support\\core-it-wagon\\src\\main\\java\\org\\apache\\maven\\wagon\\providers\\ssh\\external\\ScpExternalWagon.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "get()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one\n * or more contributor license agreements.  See the NOTICE file\n * distributed with this work for additional information\n * regarding copyright ownership.  The ASF licenses this file\n * to you under the Apache License, Version 2.0 (the\n * \"License\"); you may not use this file except in compliance\n * with the License.  You may obtain a copy of the License at\n *\n *   http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing,\n * software distributed under the License is distributed on an\n * \"AS IS\" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY\n * KIND, either express or implied.  See the License for the\n * specific language governing permissions and limitations\n * under the License.\n */\npackage org.apache.maven.wagon.providers.ssh.external;\n\nimport java.io.ByteArrayInputStream;\nimport java.io.ByteArrayOutputStream;\nimport java.io.File;\nimport java.io.FileOutputStream;\nimport ",
+    "complexity": 12
+  },
+  {
+    "project": "maven",
+    "file_path": "its\\core-it-support\\core-it-wagon\\src\\main\\java\\org\\apache\\maven\\wagon\\providers\\ssh\\external\\ScpExternalWagon.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "getIfNewer()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one\n * or more contributor license agreements.  See the NOTICE file\n * distributed with this work for additional information\n * regarding copyright ownership.  The ASF licenses this file\n * to you under the Apache License, Version 2.0 (the\n * \"License\"); you may not use this file except in compliance\n * with the License.  You may obtain a copy of the License at\n *\n *   http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing,\n * software distributed under the License is distributed on an\n * \"AS IS\" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY\n * KIND, either express or implied.  See the License for the\n * specific language governing permissions and limitations\n * under the License.\n */\npackage org.apache.maven.wagon.providers.ssh.external;\n\nimport java.io.ByteArrayInputStream;\nimport java.io.ByteArrayOutputStream;\nimport java.io.File;\nimport java.io.FileOutputStream;\nimport ",
+    "complexity": 12
+  },
+  {
+    "project": "maven",
+    "file_path": "its\\core-it-support\\core-it-wagon\\src\\main\\java\\org\\apache\\maven\\wagon\\providers\\ssh\\external\\ScpExternalWagon.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "put()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one\n * or more contributor license agreements.  See the NOTICE file\n * distributed with this work for additional information\n * regarding copyright ownership.  The ASF licenses this file\n * to you under the Apache License, Version 2.0 (the\n * \"License\"); you may not use this file except in compliance\n * with the License.  You may obtain a copy of the License at\n *\n *   http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing,\n * software distributed under the License is distributed on an\n * \"AS IS\" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY\n * KIND, either express or implied.  See the License for the\n * specific language governing permissions and limitations\n * under the License.\n */\npackage org.apache.maven.wagon.providers.ssh.external;\n\nimport java.io.ByteArrayInputStream;\nimport java.io.ByteArrayOutputStream;\nimport java.io.File;\nimport java.io.FileOutputStream;\nimport ",
+    "complexity": 12
+  },
+  {
+    "project": "maven",
+    "file_path": "its\\core-it-support\\core-it-toolchain\\src\\main\\java\\org\\apache\\maven\\coreit\\toolchain\\CoreItToolchain.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "getType()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one\n * or more contributor license agreements.  See the NOTICE file\n * distributed with this work for additional information\n * regarding copyright ownership.  The ASF licenses this file\n * to you under the Apache License, Version 2.0 (the\n * \"License\"); you may not use this file except in compliance\n * with the License.  You may obtain a copy of the License at\n *\n *   http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing,\n * software distributed under the License is distributed on an\n * \"AS IS\" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY\n * KIND, either express or implied.  See the License for the\n * specific language governing permissions and limitations\n * under the License.\n */\npackage org.apache.maven.coreit.toolchain;\n\nimport java.util.Map;\n\nimport org.apache.maven.toolchain.Toolchain;\nimport org.apache.maven.toolchain.ToolchainPrivate;\nimport org.apache.maven.tool",
+    "complexity": 2
+  },
+  {
+    "project": "maven",
+    "file_path": "its\\core-it-support\\core-it-toolchain\\src\\main\\java\\org\\apache\\maven\\coreit\\toolchain\\CoreItToolchain.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "findTool()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one\n * or more contributor license agreements.  See the NOTICE file\n * distributed with this work for additional information\n * regarding copyright ownership.  The ASF licenses this file\n * to you under the Apache License, Version 2.0 (the\n * \"License\"); you may not use this file except in compliance\n * with the License.  You may obtain a copy of the License at\n *\n *   http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing,\n * software distributed under the License is distributed on an\n * \"AS IS\" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY\n * KIND, either express or implied.  See the License for the\n * specific language governing permissions and limitations\n * under the License.\n */\npackage org.apache.maven.coreit.toolchain;\n\nimport java.util.Map;\n\nimport org.apache.maven.toolchain.Toolchain;\nimport org.apache.maven.toolchain.ToolchainPrivate;\nimport org.apache.maven.tool",
+    "complexity": 2
+  },
+  {
+    "project": "maven",
+    "file_path": "its\\core-it-support\\core-it-toolchain\\src\\main\\java\\org\\apache\\maven\\coreit\\toolchain\\CoreItToolchain.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "getModel()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one\n * or more contributor license agreements.  See the NOTICE file\n * distributed with this work for additional information\n * regarding copyright ownership.  The ASF licenses this file\n * to you under the Apache License, Version 2.0 (the\n * \"License\"); you may not use this file except in compliance\n * with the License.  You may obtain a copy of the License at\n *\n *   http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing,\n * software distributed under the License is distributed on an\n * \"AS IS\" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY\n * KIND, either express or implied.  See the License for the\n * specific language governing permissions and limitations\n * under the License.\n */\npackage org.apache.maven.coreit.toolchain;\n\nimport java.util.Map;\n\nimport org.apache.maven.toolchain.Toolchain;\nimport org.apache.maven.toolchain.ToolchainPrivate;\nimport org.apache.maven.tool",
+    "complexity": 2
+  },
+  {
+    "project": "test",
+    "file_path": "trogdor\\src\\test\\java\\org\\apache\\kafka\\trogdor\\agent\\AgentTest.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "cleanUp()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements. See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License. You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\npackage org.apache.kafka.trogdor.agent;\n\nimport org.apache.kafka.common.utils.MockScheduler;\nimport org.apache.kafka.common.utils.MockTime;\nimport org.apache.kafka.common.utils.Scheduler;\nimport org.a",
+    "complexity": 6
+  },
+  {
+    "project": "test",
+    "file_path": "trogdor\\src\\test\\java\\org\\apache\\kafka\\trogdor\\agent\\AgentTest.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "testAgentStartShutdown()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements. See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License. You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\npackage org.apache.kafka.trogdor.agent;\n\nimport org.apache.kafka.common.utils.MockScheduler;\nimport org.apache.kafka.common.utils.MockTime;\nimport org.apache.kafka.common.utils.Scheduler;\nimport org.a",
+    "complexity": 6
+  },
+  {
+    "project": "test",
+    "file_path": "trogdor\\src\\test\\java\\org\\apache\\kafka\\trogdor\\agent\\AgentTest.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "testAgentProgrammaticShutdown()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements. See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License. You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\npackage org.apache.kafka.trogdor.agent;\n\nimport org.apache.kafka.common.utils.MockScheduler;\nimport org.apache.kafka.common.utils.MockTime;\nimport org.apache.kafka.common.utils.Scheduler;\nimport org.a",
+    "complexity": 6
+  },
+  {
+    "project": "test",
+    "file_path": "trogdor\\src\\test\\java\\org\\apache\\kafka\\trogdor\\basic\\BasicPlatformTest.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "testCreateBasicPlatform()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements. See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License. You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\npackage org.apache.kafka.trogdor.basic;\n\nimport org.apache.kafka.test.TestUtils;\nimport org.apache.kafka.trogdor.common.Platform;\n\nimport org.junit.jupiter.api.Test;\nimport org.junit.jupiter.api.Timeo",
+    "complexity": 2
+  },
+  {
+    "project": "test",
+    "file_path": "trogdor\\src\\test\\java\\org\\apache\\kafka\\trogdor\\common\\CapturingCommandRunner.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "run()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements. See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License. You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\npackage org.apache.kafka.trogdor.common;\n\nimport org.apache.kafka.trogdor.basic.BasicPlatform;\n\nimport org.slf4j.Logger;\nimport org.slf4j.LoggerFactory;\n\nimport java.util.ArrayList;\nimport java.util.H",
+    "complexity": 3
+  },
+  {
+    "project": "test",
+    "file_path": "trogdor\\src\\test\\java\\org\\apache\\kafka\\trogdor\\common\\ExpectedTasks.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "taskSpec()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements. See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License. You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\npackage org.apache.kafka.trogdor.common;\n\nimport org.apache.kafka.test.TestUtils;\nimport org.apache.kafka.trogdor.agent.AgentClient;\nimport org.apache.kafka.trogdor.coordinator.CoordinatorClient;\nimpo",
+    "complexity": 19
+  },
+  {
+    "project": "test",
+    "file_path": "trogdor\\src\\test\\java\\org\\apache\\kafka\\trogdor\\common\\ExpectedTasks.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "taskState()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements. See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License. You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\npackage org.apache.kafka.trogdor.common;\n\nimport org.apache.kafka.test.TestUtils;\nimport org.apache.kafka.trogdor.agent.AgentClient;\nimport org.apache.kafka.trogdor.coordinator.CoordinatorClient;\nimpo",
+    "complexity": 19
+  },
+  {
+    "project": "test",
+    "file_path": "trogdor\\src\\test\\java\\org\\apache\\kafka\\trogdor\\common\\ExpectedTasks.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "workerState()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements. See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License. You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\npackage org.apache.kafka.trogdor.common;\n\nimport org.apache.kafka.test.TestUtils;\nimport org.apache.kafka.trogdor.agent.AgentClient;\nimport org.apache.kafka.trogdor.coordinator.CoordinatorClient;\nimpo",
+    "complexity": 19
+  },
+  {
+    "project": "test",
+    "file_path": "trogdor\\src\\test\\java\\org\\apache\\kafka\\trogdor\\common\\JsonSerializationTest.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "testDeserializationDoesNotProduceNulls()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements. See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License. You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\npackage org.apache.kafka.trogdor.common;\n\nimport org.apache.kafka.trogdor.fault.FilesUnreadableFaultSpec;\nimport org.apache.kafka.trogdor.fault.Kibosh;\nimport org.apache.kafka.trogdor.fault.NetworkPar",
+    "complexity": 4
+  },
+  {
+    "project": "test",
+    "file_path": "trogdor\\src\\test\\java\\org\\apache\\kafka\\trogdor\\common\\JsonUtilTest.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "testOpenBraceComesFirst()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements. See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License. You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\npackage org.apache.kafka.trogdor.common;\n\nimport org.apache.kafka.test.TestUtils;\n\nimport com.fasterxml.jackson.annotation.JsonCreator;\nimport com.fasterxml.jackson.annotation.JsonProperty;\n\nimport or",
+    "complexity": 2
+  },
+  {
+    "project": "test",
+    "file_path": "trogdor\\src\\test\\java\\org\\apache\\kafka\\trogdor\\common\\JsonUtilTest.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "testObjectFromCommandLineArgument()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements. See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License. You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\npackage org.apache.kafka.trogdor.common;\n\nimport org.apache.kafka.test.TestUtils;\n\nimport com.fasterxml.jackson.annotation.JsonCreator;\nimport com.fasterxml.jackson.annotation.JsonProperty;\n\nimport or",
+    "complexity": 2
+  },
+  {
+    "project": "test",
+    "file_path": "trogdor\\src\\test\\java\\org\\apache\\kafka\\trogdor\\common\\MiniTrogdorCluster.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "scheduler()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements. See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License. You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\npackage org.apache.kafka.trogdor.common;\n\nimport org.apache.kafka.common.utils.Scheduler;\nimport org.apache.kafka.common.utils.ThreadUtils;\nimport org.apache.kafka.trogdor.agent.Agent;\nimport org.apac",
+    "complexity": 25
+  },
+  {
+    "project": "test",
+    "file_path": "trogdor\\src\\test\\java\\org\\apache\\kafka\\trogdor\\common\\MiniTrogdorCluster.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "commandRunner()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements. See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License. You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\npackage org.apache.kafka.trogdor.common;\n\nimport org.apache.kafka.common.utils.Scheduler;\nimport org.apache.kafka.common.utils.ThreadUtils;\nimport org.apache.kafka.trogdor.agent.Agent;\nimport org.apac",
+    "complexity": 25
+  },
+  {
+    "project": "test",
+    "file_path": "trogdor\\src\\test\\java\\org\\apache\\kafka\\trogdor\\common\\MiniTrogdorCluster.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "addCoordinator()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements. See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License. You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\npackage org.apache.kafka.trogdor.common;\n\nimport org.apache.kafka.common.utils.Scheduler;\nimport org.apache.kafka.common.utils.ThreadUtils;\nimport org.apache.kafka.trogdor.agent.Agent;\nimport org.apac",
+    "complexity": 25
+  },
+  {
+    "project": "test",
+    "file_path": "trogdor\\src\\test\\java\\org\\apache\\kafka\\trogdor\\common\\StringExpanderTest.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "testNoExpansionNeeded()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements. See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License. You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\npackage org.apache.kafka.trogdor.common;\n\nimport org.junit.jupiter.api.Test;\nimport org.junit.jupiter.api.Timeout;\n\nimport java.util.Set;\n\nimport static org.junit.jupiter.api.Assertions.assertEquals;\n",
+    "complexity": 2
+  },
+  {
+    "project": "test",
+    "file_path": "trogdor\\src\\test\\java\\org\\apache\\kafka\\trogdor\\common\\StringExpanderTest.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "testExpansions()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements. See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License. You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\npackage org.apache.kafka.trogdor.common;\n\nimport org.junit.jupiter.api.Test;\nimport org.junit.jupiter.api.Timeout;\n\nimport java.util.Set;\n\nimport static org.junit.jupiter.api.Assertions.assertEquals;\n",
+    "complexity": 2
+  },
+  {
+    "project": "test",
+    "file_path": "trogdor\\src\\test\\java\\org\\apache\\kafka\\trogdor\\common\\StringFormatterTest.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "testDateString()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements. See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License. You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\npackage org.apache.kafka.trogdor.common;\n\nimport org.junit.jupiter.api.Test;\nimport org.junit.jupiter.api.Timeout;\n\nimport java.time.ZoneOffset;\nimport java.util.List;\n\nimport static org.apache.kafka.",
+    "complexity": 2
+  },
+  {
+    "project": "test",
+    "file_path": "trogdor\\src\\test\\java\\org\\apache\\kafka\\trogdor\\common\\StringFormatterTest.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "testDurationString()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements. See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License. You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\npackage org.apache.kafka.trogdor.common;\n\nimport org.junit.jupiter.api.Test;\nimport org.junit.jupiter.api.Timeout;\n\nimport java.time.ZoneOffset;\nimport java.util.List;\n\nimport static org.apache.kafka.",
+    "complexity": 2
+  },
+  {
+    "project": "test",
+    "file_path": "trogdor\\src\\test\\java\\org\\apache\\kafka\\trogdor\\common\\StringFormatterTest.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "testPrettyPrintGrid()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements. See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License. You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\npackage org.apache.kafka.trogdor.common;\n\nimport org.junit.jupiter.api.Test;\nimport org.junit.jupiter.api.Timeout;\n\nimport java.time.ZoneOffset;\nimport java.util.List;\n\nimport static org.apache.kafka.",
+    "complexity": 2
+  },
+  {
+    "project": "test",
+    "file_path": "trogdor\\src\\test\\java\\org\\apache\\kafka\\trogdor\\common\\TopologyTest.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "testAgentNodeNames()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements. See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License. You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\npackage org.apache.kafka.trogdor.common;\n\nimport org.apache.kafka.trogdor.agent.Agent;\nimport org.apache.kafka.trogdor.basic.BasicNode;\nimport org.apache.kafka.trogdor.basic.BasicTopology;\nimport org.",
+    "complexity": 5
+  },
+  {
+    "project": "test",
+    "file_path": "trogdor\\src\\test\\java\\org\\apache\\kafka\\trogdor\\common\\WorkerUtilsTest.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "setUp()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements. See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License. You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\npackage org.apache.kafka.trogdor.common;\n\nimport org.apache.kafka.clients.admin.MockAdminClient;\nimport org.apache.kafka.clients.admin.NewTopic;\nimport org.apache.kafka.clients.admin.TopicDescription;",
+    "complexity": 3
+  },
+  {
+    "project": "test",
+    "file_path": "trogdor\\src\\test\\java\\org\\apache\\kafka\\trogdor\\common\\WorkerUtilsTest.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "testCreateOneTopic()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements. See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License. You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\npackage org.apache.kafka.trogdor.common;\n\nimport org.apache.kafka.clients.admin.MockAdminClient;\nimport org.apache.kafka.clients.admin.NewTopic;\nimport org.apache.kafka.clients.admin.TopicDescription;",
+    "complexity": 3
+  },
+  {
+    "project": "test",
+    "file_path": "trogdor\\src\\test\\java\\org\\apache\\kafka\\trogdor\\common\\WorkerUtilsTest.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "testCreateRetriesOnTimeout()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements. See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License. You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\npackage org.apache.kafka.trogdor.common;\n\nimport org.apache.kafka.clients.admin.MockAdminClient;\nimport org.apache.kafka.clients.admin.NewTopic;\nimport org.apache.kafka.clients.admin.TopicDescription;",
+    "complexity": 3
+  },
+  {
+    "project": "test",
+    "file_path": "trogdor\\src\\test\\java\\org\\apache\\kafka\\trogdor\\coordinator\\CoordinatorClientTest.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "testPrettyPrintTaskInfo()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements. See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License. You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\npackage org.apache.kafka.trogdor.coordinator;\n\nimport org.apache.kafka.trogdor.rest.TaskDone;\nimport org.apache.kafka.trogdor.rest.TaskPending;\nimport org.apache.kafka.trogdor.rest.TaskRunning;\nimport",
+    "complexity": 2
+  },
+  {
+    "project": "test",
+    "file_path": "trogdor\\src\\test\\java\\org\\apache\\kafka\\trogdor\\coordinator\\CoordinatorTest.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "testCoordinatorStatus()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements. See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License. You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\npackage org.apache.kafka.trogdor.coordinator;\n\nimport org.apache.kafka.common.utils.MockScheduler;\nimport org.apache.kafka.common.utils.MockTime;\nimport org.apache.kafka.common.utils.Scheduler;\nimport",
+    "complexity": 9
+  },
+  {
+    "project": "test",
+    "file_path": "trogdor\\src\\test\\java\\org\\apache\\kafka\\trogdor\\coordinator\\CoordinatorTest.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "testCoordinatorUptime()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements. See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License. You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\npackage org.apache.kafka.trogdor.coordinator;\n\nimport org.apache.kafka.common.utils.MockScheduler;\nimport org.apache.kafka.common.utils.MockTime;\nimport org.apache.kafka.common.utils.Scheduler;\nimport",
+    "complexity": 9
+  },
+  {
+    "project": "test",
+    "file_path": "trogdor\\src\\test\\java\\org\\apache\\kafka\\trogdor\\coordinator\\CoordinatorTest.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "testCreateTask()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements. See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License. You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\npackage org.apache.kafka.trogdor.coordinator;\n\nimport org.apache.kafka.common.utils.MockScheduler;\nimport org.apache.kafka.common.utils.MockTime;\nimport org.apache.kafka.common.utils.Scheduler;\nimport",
+    "complexity": 9
+  },
+  {
+    "project": "test",
+    "file_path": "trogdor\\src\\test\\java\\org\\apache\\kafka\\trogdor\\rest\\RestExceptionMapperTest.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "testToResponseNotFound()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements. See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License. You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\npackage org.apache.kafka.trogdor.rest;\n\nimport org.apache.kafka.common.errors.InvalidRequestException;\nimport org.apache.kafka.common.errors.SerializationException;\n\nimport com.fasterxml.jackson.core.J",
+    "complexity": 2
+  },
+  {
+    "project": "test",
+    "file_path": "trogdor\\src\\test\\java\\org\\apache\\kafka\\trogdor\\rest\\RestExceptionMapperTest.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "testToResponseInvalidTypeIdException()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements. See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License. You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\npackage org.apache.kafka.trogdor.rest;\n\nimport org.apache.kafka.common.errors.InvalidRequestException;\nimport org.apache.kafka.common.errors.SerializationException;\n\nimport com.fasterxml.jackson.core.J",
+    "complexity": 2
+  },
+  {
+    "project": "test",
+    "file_path": "trogdor\\src\\test\\java\\org\\apache\\kafka\\trogdor\\rest\\RestExceptionMapperTest.java",
+    "language": "java",
+    "dataset_type": "codexglue",
+    "signature": "testToResponseJsonMappingException()",
+    "code_snippet": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements. See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License. You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\npackage org.apache.kafka.trogdor.rest;\n\nimport org.apache.kafka.common.errors.InvalidRequestException;\nimport org.apache.kafka.common.errors.SerializationException;\n\nimport com.fasterxml.jackson.core.J",
+    "complexity": 2
+  }
+]

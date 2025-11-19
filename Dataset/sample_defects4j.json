@@ -1,0 +1,11 @@
+[
+  {
+    "bug_id": "bug_001",
+    "buggy_code": "public class Calculator { public int add(int a, int b) { return a - b; } }\n",
+    "fixed_code": "public class Calculator { public int add(int a, int b) { return a + b; } }\n",
+    "buggy_hash": "c767cccffec97406bd6510ea1e8554b4cea0a96cce446510bf492a0bb59eec0f",
+    "fixed_hash": "d4ae40892a06aef1040af637cfb6d2806d94e91746c47ab55820e1f097fbbe45",
+    "language": "java",
+    "type": "defects4j_bug_pair"
+  }
+]
