@@ -1,0 +1,19 @@
+Natural Language Commands (Bengali/English)
+Git Repository Cloning
+Commit Limit Control
+Progress Tracking
+Automated Analysis (Package churn, LOC, complexity, release-wise changes)
+Excel Report Generation
+Fallback System (when LLM quota exceeded)
+Knowledge Graph with Neo4j
+Desktop GUI and CLI interfaces
+Bug Analysis with SZZ Algorithm
+AI-powered Chat Interface (Gemini LLM)
+Visualization (Neo4j graphs)
+Metrics Calculation (LOC, complexity, technical debt)
+Repository Management
+Error Handling and Performance Optimizations
+
+
+
+Defects4J, Bugs.jar, ManySStuBs4J, CodeXGLUE, CodeSearchNet, Sourcerer Dataset, PROMISE Repository
