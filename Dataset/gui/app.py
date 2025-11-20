@@ -18,9 +18,13 @@ from PyQt5.QtGui import QFont
 import logging
 logger = logging.getLogger(__name__)
 
+# Add parent directory to path for imports
+sys.path.append(str(Path(__file__).parent.parent))
+
 from extractors.factory import create_extractor, SUPPORTED_DATASETS
 from processors.base_processor import ProcessingPipeline, CodeNormalizer, TextCleaner, DuplicateRemover
 from labelers.labeler import BugSeverityLabeler, CodeComplexityLabeler, FeatureLabelClassifier
+from agentic_dataset_maker import AgenticDatasetMaker
 
 class DatasetManagerGUI(QMainWindow):
     """Main GUI Application"""
@@ -40,6 +44,7 @@ class DatasetManagerGUI(QMainWindow):
         
         # Create tabs
         tabs = QTabWidget()
+        tabs.addTab(self.create_agentic_tab(), "🤖 AI Agent")
         tabs.addTab(self.create_extract_tab(), "Extract")
         tabs.addTab(self.create_process_tab(), "Process")
         tabs.addTab(self.create_label_tab(), "Label")
@@ -70,14 +75,14 @@ class DatasetManagerGUI(QMainWindow):
         
         # Source path
         layout.addWidget(QLabel("Source Path or URL:"))
-        layout.addWidget(QHBoxLayout())
+        h_layout = QHBoxLayout()
         self.source_input = QLineEdit()
         self.source_input.setPlaceholderText("Enter local path or URL (https://github.com/user/repo.git)")
         browse_btn = QPushButton("Browse...")
         browse_btn.clicked.connect(self.browse_source)
-        h_layout = layout.itemAt(layout.count() - 1).widget().layout()
         h_layout.addWidget(self.source_input)
         h_layout.addWidget(browse_btn)
+        layout.addLayout(h_layout)
         
         # Output path
         layout.addWidget(QLabel("Output File:"))
@@ -254,6 +259,125 @@ class DatasetManagerGUI(QMainWindow):
         self.export_log = QTextEdit()
         self.export_log.setReadOnly(True)
         layout.addWidget(self.export_log)
+        
+        layout.addStretch()
+        widget.setLayout(layout)
+        return widget
+    
+    def create_agentic_tab(self):
+        """Create AI agentic dataset maker tab"""
+        widget = QWidget()
+        layout = QVBoxLayout()
+        
+        # Title
+        title = QLabel("🤖 AI Agentic Dataset Maker")
+        title.setFont(QFont("Arial", 14, QFont.Bold))
+        layout.addWidget(title)
+        
+        # Step 1: Repository Setup
+        step1_label = QLabel("Step 1: Setup Repository")
+        step1_label.setFont(QFont("Arial", 12, QFont.Bold))
+        layout.addWidget(step1_label)
+        
+        repo_group = QWidget()
+        repo_layout = QVBoxLayout()
+        
+        # Repository input
+        repo_layout.addWidget(QLabel("Repository (local path or Git URL):"))
+        repo_h_layout = QHBoxLayout()
+        self.repo_input = QLineEdit()
+        self.repo_input.setPlaceholderText("e.g., /path/to/project or https://github.com/user/repo.git")
+        repo_browse_btn = QPushButton("Browse Local...")
+        repo_browse_btn.clicked.connect(self.browse_repo)
+        repo_clone_btn = QPushButton("Clone Git Repo")
+        repo_clone_btn.clicked.connect(self.on_clone_repo)
+        repo_h_layout.addWidget(self.repo_input)
+        repo_h_layout.addWidget(repo_browse_btn)
+        repo_h_layout.addWidget(repo_clone_btn)
+        repo_layout.addLayout(repo_h_layout)
+        
+        # Setup button
+        self.setup_repo_btn = QPushButton("✅ Setup Repository")
+        self.setup_repo_btn.clicked.connect(self.on_setup_repo)
+        repo_layout.addWidget(self.setup_repo_btn)
+        
+        repo_group.setLayout(repo_layout)
+        layout.addWidget(repo_group)
+        
+        # Separator
+        separator1 = QLabel("-" * 50)
+        separator1.setAlignment(Qt.AlignCenter)
+        layout.addWidget(separator1)
+        
+        # Step 2: Dataset Request
+        step2_label = QLabel("Step 2: Describe Your Dataset")
+        step2_label.setFont(QFont("Arial", 12, QFont.Bold))
+        layout.addWidget(step2_label)
+        
+        # User prompt input
+        layout.addWidget(QLabel("Your Dataset Request:"))
+        self.agentic_prompt = QTextEdit()
+        self.agentic_prompt.setPlaceholderText("Example: Create a dataset with bug severity metrics from Java projects, including code complexity and feature classification...")
+        self.agentic_prompt.setMaximumHeight(100)
+        self.agentic_prompt.setEnabled(False)  # Disabled until repo is set up
+        layout.addWidget(self.agentic_prompt)
+        
+        # Analyze button
+        self.analyze_btn = QPushButton("🔍 Analyze Request")
+        self.analyze_btn.clicked.connect(self.on_analyze_prompt)
+        self.analyze_btn.setEnabled(False)  # Disabled until repo is set up
+        layout.addWidget(self.analyze_btn)
+        
+        # Analysis results display
+        layout.addWidget(QLabel("AI Analysis Results:"))
+        self.analysis_results = QTextEdit()
+        self.analysis_results.setReadOnly(True)
+        self.analysis_results.setMaximumHeight(150)
+        layout.addWidget(self.analysis_results)
+        
+        # Clarification section
+        self.clarification_widget = QWidget()
+        clarification_layout = QVBoxLayout()
+        clarification_layout.addWidget(QLabel("🤔 Need Clarification:"))
+        self.clarification_question = QLabel()
+        clarification_layout.addWidget(self.clarification_question)
+        self.clarification_input = QLineEdit()
+        self.clarification_input.setPlaceholderText("Your clarification...")
+        clarification_layout.addWidget(self.clarification_input)
+        clarify_btn = QPushButton("Submit Clarification")
+        clarify_btn.clicked.connect(self.on_submit_clarification)
+        clarification_layout.addWidget(clarify_btn)
+        self.clarification_widget.setLayout(clarification_layout)
+        self.clarification_widget.hide()
+        layout.addWidget(self.clarification_widget)
+        
+        # Separator
+        separator2 = QLabel("-" * 50)
+        separator2.setAlignment(Qt.AlignCenter)
+        layout.addWidget(separator2)
+        
+        # Step 3: Generate Dataset
+        step3_label = QLabel("Step 3: Generate Dataset")
+        step3_label.setFont(QFont("Arial", 12, QFont.Bold))
+        layout.addWidget(step3_label)
+        
+        # Generate button
+        self.generate_btn = QPushButton("🚀 Generate Dataset")
+        self.generate_btn.clicked.connect(self.on_generate_dataset)
+        self.generate_btn.setEnabled(False)  # Disabled until analysis is complete
+        layout.addWidget(self.generate_btn)
+        
+        # Progress and log
+        self.agentic_progress = QProgressBar()
+        layout.addWidget(self.agentic_progress)
+        
+        self.agentic_log = QTextEdit()
+        self.agentic_log.setReadOnly(True)
+        layout.addWidget(self.agentic_log)
+        
+        # Initialize agentic maker
+        self.agentic_maker = AgenticDatasetMaker()
+        self.current_repo_path = None
         
         layout.addStretch()
         widget.setLayout(layout)
@@ -459,6 +583,237 @@ class DatasetManagerGUI(QMainWindow):
         except Exception as e:
             self.export_log.setText(f"✗ Error: {e}")
             QMessageBox.critical(self, "Error", str(e))
+    
+    def browse_repo(self):
+        """Browse for local repository"""
+        path = QFileDialog.getExistingDirectory(self, "Select Repository Directory")
+        if path:
+            self.repo_input.setText(path)
+    
+    def on_clone_repo(self):
+        """Handle git repository cloning"""
+        repo_url = self.repo_input.text().strip()
+        if not repo_url:
+            QMessageBox.warning(self, "Error", "Please enter a Git repository URL")
+            return
+        
+        try:
+            self.agentic_log.clear()
+            self.agentic_log.append(f"📥 Cloning repository: {repo_url}")
+            
+            # Determine clone directory name from URL
+            import os
+            from urllib.parse import urlparse
+            
+            parsed = urlparse(repo_url)
+            repo_name = os.path.basename(parsed.path)
+            if repo_name.endswith('.git'):
+                repo_name = repo_name[:-4]
+            
+            clone_path = os.path.join(os.getcwd(), repo_name)
+            
+            # Clone the repository
+            import subprocess
+            result = subprocess.run(['git', 'clone', repo_url, clone_path], 
+                                  capture_output=True, text=True, cwd=os.getcwd())
+            
+            if result.returncode == 0:
+                self.repo_input.setText(clone_path)
+                self.agentic_log.append(f"✅ Repository cloned to: {clone_path}")
+                QMessageBox.information(self, "Success", f"Repository cloned successfully to {clone_path}")
+            else:
+                self.agentic_log.append(f"✗ Clone failed: {result.stderr}")
+                QMessageBox.critical(self, "Error", f"Failed to clone repository: {result.stderr}")
+        
+        except Exception as e:
+            self.agentic_log.append(f"✗ Clone error: {e}")
+            QMessageBox.critical(self, "Error", str(e))
+    
+    def on_setup_repo(self):
+        """Handle repository setup"""
+        repo_path = self.repo_input.text().strip()
+        if not repo_path:
+            QMessageBox.warning(self, "Error", "Please specify repository path")
+            return
+        
+        try:
+            import os
+            if not os.path.exists(repo_path):
+                QMessageBox.warning(self, "Error", "Repository path does not exist")
+                return
+            
+            self.agentic_log.clear()
+            self.agentic_log.append(f"🔧 Setting up repository: {repo_path}")
+            
+            # Validate it's a git repository
+            git_dir = os.path.join(repo_path, '.git')
+            if not os.path.exists(git_dir):
+                self.agentic_log.append("⚠️  Warning: Not a Git repository")
+            
+            # Set current repo path
+            self.current_repo_path = repo_path
+            
+            # Enable next steps
+            self.agentic_prompt.setEnabled(True)
+            self.analyze_btn.setEnabled(True)
+            
+            self.agentic_log.append("✅ Repository setup complete!")
+            self.agentic_log.append("📝 You can now describe your dataset request")
+            
+            QMessageBox.information(self, "Success", "Repository setup complete! You can now proceed to Step 2.")
+            
+        except Exception as e:
+            self.agentic_log.append(f"✗ Setup error: {e}")
+            QMessageBox.critical(self, "Error", str(e))
+    
+    def on_analyze_prompt(self):
+        """Handle prompt analysis"""
+        prompt = self.agentic_prompt.toPlainText().strip()
+        if not prompt:
+            QMessageBox.warning(self, "Error", "Please enter a dataset request")
+            return
+        
+        if not self.current_repo_path:
+            QMessageBox.warning(self, "Error", "Please setup repository first (Step 1)")
+            return
+        
+        try:
+            self.analysis_results.clear()
+            self.agentic_log.clear()
+            self.agentic_log.append("🤖 Analyzing your request...")
+            
+            # Analyze the prompt
+            analysis = self.agentic_maker.analyze_prompt(prompt)
+            
+            # Display analysis results
+            self.analysis_results.setText(json.dumps(analysis, indent=2))
+            
+            # Check if clarification is needed
+            if analysis.get('needs_clarification', False):
+                self.clarification_question.setText(analysis.get('clarification_question', ''))
+                self.clarification_widget.show()
+                self.agentic_log.append("🤔 Need clarification from user")
+                self.generate_btn.setEnabled(False)
+            else:
+                self.clarification_widget.hide()
+                self.agentic_log.append("✅ Analysis complete - ready to generate dataset")
+                self.generate_btn.setEnabled(True)
+            
+        except Exception as e:
+            self.agentic_log.append(f"✗ Analysis error: {e}")
+            QMessageBox.critical(self, "Error", str(e))
+    
+    def on_submit_clarification(self):
+        """Handle clarification submission"""
+        clarification = self.clarification_input.text().strip()
+        if not clarification:
+            QMessageBox.warning(self, "Error", "Please provide clarification")
+            return
+        
+        try:
+            self.agentic_log.append("📝 Processing clarification...")
+            
+            # Re-analyze with clarification
+            prompt = self.agentic_prompt.toPlainText().strip()
+            analysis = self.agentic_maker.analyze_prompt_with_clarification(prompt, clarification)
+            
+            # Update analysis results
+            self.analysis_results.setText(json.dumps(analysis, indent=2))
+            
+            # Hide clarification widget
+            self.clarification_widget.hide()
+            self.clarification_input.clear()
+            
+            self.agentic_log.append("✅ Clarification processed - ready to generate dataset")
+            self.generate_btn.setEnabled(True)
+            
+        except Exception as e:
+            self.agentic_log.append(f"✗ Clarification error: {e}")
+            QMessageBox.critical(self, "Error", str(e))
+    
+    def on_generate_dataset(self):
+        """Handle dataset generation with threading"""
+        if not self.current_repo_path:
+            QMessageBox.warning(self, "Error", "Please setup repository first")
+            return
+
+        # Disable the generate button to prevent multiple clicks
+        self.generate_btn.setEnabled(False)
+        self.agentic_log.clear()
+        self.agentic_log.append("🚀 Starting dataset generation...")
+        self.agentic_progress.setRange(0, 0)  # Indeterminate progress
+
+        # Create worker thread
+        self.worker = DatasetGenerationWorker(
+            self.agentic_maker,
+            self.agentic_prompt.toPlainText().strip(),
+            self.current_repo_path
+        )
+        self.worker.progress.connect(self.update_progress)
+        self.worker.finished.connect(self.on_generation_finished)
+        self.worker.error.connect(self.on_generation_error)
+        
+        # Start the worker thread
+        self.worker.start()
+
+    def update_progress(self, message):
+        """Update progress display"""
+        self.agentic_log.append(message)
+
+    def on_generation_finished(self, result):
+        """Handle successful dataset generation"""
+        self.agentic_progress.setRange(0, 100)
+        self.agentic_progress.setValue(100)
+        self.generate_btn.setEnabled(True)
+        
+        self.agentic_log.append(f"✅ Dataset generated successfully!")
+        self.agentic_log.append(f"📊 Records: {result.get('total_records', 0)}")
+        self.agentic_log.append(f"📁 Output: {result.get('output_path', 'N/A')}")
+        
+        # Update current data for viewing
+        if result.get('data'):
+            self.current_data = result['data']
+        
+        QMessageBox.information(self, "Success", "Dataset generated successfully!")
+
+    def on_generation_error(self, error_msg):
+        """Handle dataset generation error"""
+        self.agentic_progress.setRange(0, 100)
+        self.agentic_progress.setValue(0)
+        self.generate_btn.setEnabled(True)
+        
+        self.agentic_log.append(f"✗ Generation error: {error_msg}")
+        QMessageBox.critical(self, "Error", str(error_msg))
+
+
+class DatasetGenerationWorker(QThread):
+    """Worker thread for dataset generation to prevent GUI blocking"""
+    
+    progress = pyqtSignal(str)
+    finished = pyqtSignal(dict)
+    error = pyqtSignal(str)
+    
+    def __init__(self, agentic_maker, prompt, source_path):
+        super().__init__()
+        self.agentic_maker = agentic_maker
+        self.prompt = prompt
+        self.source_path = source_path
+    
+    def run(self):
+        """Run dataset generation in background thread"""
+        try:
+            self.progress.emit("🤖 Starting AI analysis...")
+            
+            # Generate dataset
+            result = self.agentic_maker.create_dataset(
+                user_query=self.prompt,
+                source_path=self.source_path
+            )
+            
+            self.finished.emit(result)
+            
+        except Exception as e:
+            self.error.emit(str(e))
 
 def main():
     """Main entry point"""

@@ -19,7 +19,7 @@ class ProfessionalDatasetGenerator:
 
     def __init__(self, workspace_path: str):
         self.workspace = Path(workspace_path)
-        self.output_dir = self.workspace / "Dataset" / "generated_datasets"
+        self.output_dir = Path("d:\\GitIntel\\GitIntelProject\\Dataset\\generated_datasets")
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.repositories = self._find_repositories()
 
@@ -269,22 +269,23 @@ class ProfessionalDatasetGenerator:
         logger.info("Generating PROMISE-style dataset...")
 
         dataset = []
+        from extractors.metrics_extractors import PROMISEExtractor
 
         for repo in self.repositories:
             if repo["type"] in ["maven", "gradle", "java"]:
                 java_files = list(repo["path"].rglob("*.java"))[:30]
                 for java_file in java_files:
                     try:
-                        with open(java_file, 'r', encoding='utf-8', errors='ignore') as f:
-                            code = f.read()
-
-                        lines = code.split('\n')
+                        # Use PROMISEExtractor to get comprehensive metrics
+                        extractor = PROMISEExtractor(str(java_file), {})
+                        metrics = extractor._analyze_java_file(str(java_file))
+                        
                         record = {
                             "project": repo['name'],
                             "file": str(java_file.relative_to(repo["path"])),
                             "language": "java",
                             "dataset_type": "promise",
-                            "loc": len(lines),
+                            **metrics,  # Include all calculated metrics
                             "defects": 0
                         }
                         dataset.append(record)
@@ -299,6 +300,11 @@ class ProfessionalDatasetGenerator:
                 writer = csv.DictWriter(f, fieldnames=dataset[0].keys())
                 writer.writeheader()
                 writer.writerows(dataset)
+
+        # Also save as JSON with full metrics
+        json_file = self.output_dir / "promise_dataset.json"
+        with open(json_file, 'w', encoding='utf-8') as f:
+            json.dump(dataset, f, indent=2, ensure_ascii=False)
 
         logger.info(f"PROMISE dataset saved: {len(dataset)} records")
 
