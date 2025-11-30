@@ -1,877 +1,1114 @@
-#!/usr/bin/env python3
 """
-Metrics Selector GUI - Professional Dataset Generator
-সব মেট্রিক্স predefined, ইউজার multiple সিলেক্ট করে dataset বানাবে
-AI সাহায্য করবে বুঝতে এবং generate করতে
+Professional Dataset Generator GUI
+- Benchmark Datasets: Predefined formats (no metrics selection needed)
+- Custom Dataset: User-selectable metrics (64 metrics available)
 """
 
 import tkinter as tk
-from tkinter import ttk, filedialog, messagebox, scrolledtext
-import json
+from tkinter import ttk, messagebox, filedialog
+import threading
 import os
 import sys
-from pathlib import Path
-from threading import Thread
+import json
 from datetime import datetime
+from pathlib import Path
 
-# Add parent directory for imports
-sys.path.append(str(Path(__file__).parent.parent))
+# Add parent directory to path
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from metrics_catalog import MetricsCatalog
 from github_autonomous_agent import GitHubAutonomousAgent
 
-class MetricsSelectorGUI:
-    """
-    Professional GUI for selecting metrics and generating datasets
-    All 34 metrics are predefined - user just selects what they need
-    """
+
+class DatasetGeneratorGUI:
+    """Professional Dataset Generator with Benchmark & Custom modes"""
+    
+    # Benchmark datasets - predefined formats, NO metrics selection needed
+    BENCHMARK_DATASETS = {
+        "Defects4J": {
+            "description": "Java bugs with buggy/fixed folder structure",
+            "format": "folder",
+            "structure": ["buggy", "fixed"],
+            "extensions": [".java"]
+        },
+        "Bugs.jar": {
+            "description": "Large-scale Java bug dataset",
+            "format": "json",
+            "fields": ["bug_id", "project", "commit", "patch", "test"]
+        },
+        "ManySStuBs4J": {
+            "description": "Simple stupid bugs in Java",
+            "format": "json",
+            "fields": ["bug_type", "buggy_code", "fixed_code", "context"]
+        },
+        "CodeXGLUE": {
+            "description": "Microsoft code understanding benchmark",
+            "format": "jsonl",
+            "fields": ["code", "docstring", "label"]
+        },
+        "CodeSearchNet": {
+            "description": "Code search and documentation dataset",
+            "format": "jsonl",
+            "fields": ["code", "docstring", "language", "url"]
+        },
+        "Sourcerer": {
+            "description": "Large-scale code repository dataset",
+            "format": "csv",
+            "fields": ["file_path", "content", "language", "project"]
+        },
+        "PROMISE": {
+            "description": "Software defect prediction dataset",
+            "format": "csv",
+            "fields": ["class", "wmc", "dit", "noc", "cbo", "rfc", "lcom", "defects"]
+        }
+    }
     
     def __init__(self, root):
         self.root = root
-        self.root.title("📊 GitIntel Dataset Generator - Select Metrics & Generate")
+        self.root.title("GitIntel Dataset Generator")
         self.root.geometry("1200x800")
-        self.root.configure(bg='#f0f0f0')
+        self.root.minsize(1000, 700)
         
-        # Store selected metrics
-        self.selected_metrics = {}
+        # Initialize components
+        self.catalog = MetricsCatalog()
+        self.agent = GitHubAutonomousAgent()
         self.metric_vars = {}
         
-        # Initialize agent
-        try:
-            self.agent = GitHubAutonomousAgent()
-            self.agent_ready = True
-        except Exception as e:
-            self.agent = None
-            self.agent_ready = False
-            print(f"⚠️ Agent initialization warning: {e}")
+        # Style
+        self.style = ttk.Style()
+        self.style.theme_use('clam')
+        self.configure_styles()
         
-        # Dataset types
-        self.dataset_types = {
-            'defects4j': {'name': 'Defects4J', 'desc': 'Real bugs from Java projects'},
-            'bugsjar': {'name': 'Bugs.jar', 'desc': 'Large-scale Java bug dataset'},
-            'manystuubs4j': {'name': 'ManySStuBs4J', 'desc': 'Java dataset with multiple issues'},
-            'codexglue': {'name': 'CodeXGLUE', 'desc': 'Code-to-code/code-to-text mappings'},
-            'codesearchnet': {'name': 'CodeSearchNet', 'desc': 'Code-to-documentation mappings'},
-            'sourcerer': {'name': 'Sourcerer', 'desc': 'Large-scale source code mining'},
-            'promise': {'name': 'PROMISE', 'desc': 'Software metrics and defect prediction'},
-            'custom': {'name': 'Custom Dataset', 'desc': 'Generate from Git repository'}
-        }
-        self.dataset_vars = {}
-        
+        # Build UI
         self.setup_ui()
         
-        # Auto-detect repository
-        if self.agent_ready and self.agent.repo_path:
-            self.repo_var.set(self.agent.repo_path)
-            self.status_var.set(f"✅ Repository: {os.path.basename(self.agent.repo_path)}")
-    
+    def configure_styles(self):
+        """Configure custom styles"""
+        self.style.configure('Title.TLabel', font=('Segoe UI', 16, 'bold'))
+        self.style.configure('Header.TLabel', font=('Segoe UI', 12, 'bold'))
+        self.style.configure('Info.TLabel', font=('Segoe UI', 10))
+        self.style.configure('Success.TLabel', foreground='green')
+        self.style.configure('Error.TLabel', foreground='red')
+        self.style.configure('Generate.TButton', font=('Segoe UI', 11, 'bold'))
+        
     def setup_ui(self):
-        """Setup the professional user interface"""
+        """Setup main UI"""
+        # Main container
+        main_frame = ttk.Frame(self.root, padding=10)
+        main_frame.pack(fill=tk.BOTH, expand=True)
         
-        # Style configuration
-        style = ttk.Style()
-        style.configure('Title.TLabel', font=('Arial', 18, 'bold'))
-        style.configure('Category.TLabelframe.Label', font=('Arial', 11, 'bold'))
-        style.configure('Generate.TButton', font=('Arial', 12, 'bold'))
+        # Title
+        title_frame = ttk.Frame(main_frame)
+        title_frame.pack(fill=tk.X, pady=(0, 10))
+        ttk.Label(title_frame, text="🔬 GitIntel Dataset Generator", 
+                  style='Title.TLabel').pack(side=tk.LEFT)
         
-        # Main container with scrollbar
-        main_canvas = tk.Canvas(self.root, bg='#f0f0f0')
-        scrollbar = ttk.Scrollbar(self.root, orient="vertical", command=main_canvas.yview)
-        scrollable_frame = ttk.Frame(main_canvas)
+        # Repository Section
+        self.setup_repository_section(main_frame)
         
-        scrollable_frame.bind(
-            "<Configure>",
-            lambda e: main_canvas.configure(scrollregion=main_canvas.bbox("all"))
-        )
+        # Mode Selection (Benchmark vs Custom)
+        self.setup_mode_selection(main_frame)
         
-        main_canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
-        main_canvas.configure(yscrollcommand=scrollbar.set)
+        # Content Frame (changes based on mode)
+        self.content_frame = ttk.Frame(main_frame)
+        self.content_frame.pack(fill=tk.BOTH, expand=True, pady=10)
         
-        # Pack scrollbar and canvas
-        scrollbar.pack(side="right", fill="y")
-        main_canvas.pack(side="left", fill="both", expand=True)
+        # Benchmark content
+        self.benchmark_frame = ttk.Frame(self.content_frame)
+        self.setup_benchmark_section(self.benchmark_frame)
         
-        # Enable mousewheel scrolling
-        def _on_mousewheel(event):
-            main_canvas.yview_scroll(int(-1*(event.delta/120)), "units")
-        main_canvas.bind_all("<MouseWheel>", _on_mousewheel)
+        # Custom content
+        self.custom_frame = ttk.Frame(self.content_frame)
+        self.setup_custom_section(self.custom_frame)
         
-        # Main frame
-        main_frame = ttk.Frame(scrollable_frame, padding="20")
-        main_frame.pack(fill="both", expand=True)
+        # Output Section
+        self.setup_output_section(main_frame)
         
-        # ============ HEADER ============
-        header_frame = ttk.Frame(main_frame)
-        header_frame.pack(fill="x", pady=(0, 20))
+        # Generate Button
+        self.setup_generate_section(main_frame)
         
-        title = ttk.Label(header_frame, text="📊 GitIntel Dataset Generator", 
-                         style='Title.TLabel')
-        title.pack(side="left")
+        # Status Bar
+        self.setup_status_bar(main_frame)
         
-        subtitle = ttk.Label(header_frame, 
-                            text="Select metrics → Choose dataset type → Generate!",
-                            font=('Arial', 10, 'italic'))
-        subtitle.pack(side="left", padx=20)
+        # Show benchmark by default
+        self.show_benchmark_mode()
         
-        # ============ REPOSITORY SECTION ============
-        repo_frame = ttk.LabelFrame(main_frame, text="📁 Repository (Local Path / GitHub URL / owner/repo)", padding="10")
-        repo_frame.pack(fill="x", pady=10)
+    def setup_repository_section(self, parent):
+        """Setup repository input section"""
+        repo_frame = ttk.LabelFrame(parent, text="📁 Repository", padding=10)
+        repo_frame.pack(fill=tk.X, pady=(0, 10))
         
-        # Row 1: Input field
-        input_row = ttk.Frame(repo_frame)
-        input_row.pack(fill="x", pady=5)
+        # Info label
+        info_text = "Supports: Local folder, GitHub URL (https://github.com/owner/repo), or shorthand (owner/repo)"
+        ttk.Label(repo_frame, text=info_text, style='Info.TLabel').pack(anchor=tk.W)
+        
+        # Input row
+        input_frame = ttk.Frame(repo_frame)
+        input_frame.pack(fill=tk.X, pady=5)
         
         self.repo_var = tk.StringVar()
-        repo_entry = ttk.Entry(input_row, textvariable=self.repo_var, width=80)
-        repo_entry.pack(side="left", padx=5)
-        repo_entry.insert(0, "Enter: local path, GitHub URL, or owner/repo")
-        repo_entry.bind("<FocusIn>", lambda e: self._clear_placeholder())
+        self.repo_entry = ttk.Entry(input_frame, textvariable=self.repo_var, font=('Consolas', 10))
+        self.repo_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
+        self.repo_entry.insert(0, "Enter path, URL, or owner/repo...")
+        self.repo_entry.bind('<FocusIn>', lambda e: self.repo_entry.delete(0, tk.END) if 'Enter' in self.repo_entry.get() else None)
         
-        ttk.Button(input_row, text="📂 Browse", command=self.browse_repo).pack(side="left", padx=5)
-        ttk.Button(input_row, text="✅ Set/Clone", command=self.set_repository).pack(side="left", padx=5)
+        ttk.Button(input_frame, text="📂 Browse", command=self.browse_folder).pack(side=tk.LEFT, padx=2)
+        ttk.Button(input_frame, text="🔗 Clone", command=self.clone_repo).pack(side=tk.LEFT, padx=2)
+        ttk.Button(input_frame, text="✓ Verify", command=self.verify_repo).pack(side=tk.LEFT, padx=2)
         
-        # Row 2: Quick examples
-        example_row = ttk.Frame(repo_frame)
-        example_row.pack(fill="x", pady=2)
-        ttk.Label(example_row, text="Examples:", font=('Arial', 8, 'italic')).pack(side="left", padx=5)
-        ttk.Label(example_row, text="D:/repos/myproject  |  https://github.com/apache/druid  |  apache/kafka", 
-                 font=('Arial', 8), foreground='gray').pack(side="left", padx=5)
+        # Status
+        self.repo_status_var = tk.StringVar(value="")
+        self.repo_status_label = ttk.Label(repo_frame, textvariable=self.repo_status_var)
+        self.repo_status_label.pack(anchor=tk.W, pady=(5, 0))
         
-        # ============ METRICS SELECTION ============
-        metrics_frame = ttk.LabelFrame(main_frame, text="📏 Select Metrics (64 Available)", 
-                                       padding="10", style='Category.TLabelframe')
-        metrics_frame.pack(fill="x", pady=10)
+    def setup_mode_selection(self, parent):
+        """Setup mode selection (Benchmark vs Custom)"""
+        mode_frame = ttk.LabelFrame(parent, text="📊 Dataset Mode", padding=10)
+        mode_frame.pack(fill=tk.X, pady=(0, 10))
         
+        self.mode_var = tk.StringVar(value="benchmark")
+        
+        # Benchmark option
+        benchmark_frame = ttk.Frame(mode_frame)
+        benchmark_frame.pack(fill=tk.X, pady=2)
+        ttk.Radiobutton(benchmark_frame, text="Benchmark Dataset", 
+                        variable=self.mode_var, value="benchmark",
+                        command=self.show_benchmark_mode).pack(side=tk.LEFT)
+        ttk.Label(benchmark_frame, text="- Predefined formats (Defects4J, Bugs.jar, etc.) - No metrics selection needed",
+                  style='Info.TLabel').pack(side=tk.LEFT, padx=10)
+        
+        # Custom option
+        custom_frame = ttk.Frame(mode_frame)
+        custom_frame.pack(fill=tk.X, pady=2)
+        ttk.Radiobutton(custom_frame, text="Custom Dataset", 
+                        variable=self.mode_var, value="custom",
+                        command=self.show_custom_mode).pack(side=tk.LEFT)
+        ttk.Label(custom_frame, text="- Select from 64 metrics across 14 categories",
+                  style='Info.TLabel').pack(side=tk.LEFT, padx=10)
+        
+    def setup_benchmark_section(self, parent):
+        """Setup benchmark dataset selection"""
+        # Dataset type selection
+        type_frame = ttk.LabelFrame(parent, text="📋 Select Benchmark Dataset", padding=10)
+        type_frame.pack(fill=tk.X, pady=(0, 10))
+        
+        self.benchmark_var = tk.StringVar(value="Defects4J")
+        
+        # Grid of benchmark options
+        row = 0
+        col = 0
+        for name, info in self.BENCHMARK_DATASETS.items():
+            frame = ttk.Frame(type_frame)
+            frame.grid(row=row, column=col, sticky=tk.W, padx=10, pady=5)
+            
+            ttk.Radiobutton(frame, text=name, variable=self.benchmark_var, 
+                           value=name, command=self.update_benchmark_info).pack(anchor=tk.W)
+            ttk.Label(frame, text=info["description"], style='Info.TLabel').pack(anchor=tk.W, padx=20)
+            
+            col += 1
+            if col >= 3:
+                col = 0
+                row += 1
+        
+        # Benchmark info panel
+        info_frame = ttk.LabelFrame(parent, text="ℹ️ Dataset Information", padding=10)
+        info_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
+        
+        self.benchmark_info_text = tk.Text(info_frame, height=15, font=('Consolas', 10), wrap=tk.WORD)
+        self.benchmark_info_text.pack(fill=tk.BOTH, expand=True)
+        self.benchmark_info_text.config(state=tk.DISABLED)
+        
+        # Defects4J specific options
+        self.defects4j_frame = ttk.LabelFrame(parent, text="🗂️ Defects4J Options", padding=10)
+        
+        ttk.Label(self.defects4j_frame, text="Buggy folder:").grid(row=0, column=0, sticky=tk.W, pady=2)
+        self.buggy_folder_var = tk.StringVar()
+        ttk.Entry(self.defects4j_frame, textvariable=self.buggy_folder_var, width=50).grid(row=0, column=1, padx=5)
+        ttk.Button(self.defects4j_frame, text="Browse", 
+                   command=lambda: self.browse_specific_folder(self.buggy_folder_var)).grid(row=0, column=2)
+        
+        ttk.Label(self.defects4j_frame, text="Fixed folder:").grid(row=1, column=0, sticky=tk.W, pady=2)
+        self.fixed_folder_var = tk.StringVar()
+        ttk.Entry(self.defects4j_frame, textvariable=self.fixed_folder_var, width=50).grid(row=1, column=1, padx=5)
+        ttk.Button(self.defects4j_frame, text="Browse", 
+                   command=lambda: self.browse_specific_folder(self.fixed_folder_var)).grid(row=1, column=2)
+        
+        ttk.Label(self.defects4j_frame, text="OR use repository with buggy/fixed branches/commits",
+                  style='Info.TLabel').grid(row=2, column=0, columnspan=3, pady=5)
+        
+        self.update_benchmark_info()
+        
+    def setup_custom_section(self, parent):
+        """Setup custom metrics selection"""
         # Quick select buttons
-        quick_frame = ttk.Frame(metrics_frame)
-        quick_frame.pack(fill="x", pady=5)
+        quick_frame = ttk.Frame(parent)
+        quick_frame.pack(fill=tk.X, pady=(0, 10))
         
-        ttk.Button(quick_frame, text="✅ Select All", 
-                  command=self.select_all_metrics).pack(side="left", padx=5)
-        ttk.Button(quick_frame, text="❌ Clear All", 
-                  command=self.clear_all_metrics).pack(side="left", padx=5)
-        ttk.Button(quick_frame, text="🔄 Basic Set", 
-                  command=self.select_basic_metrics).pack(side="left", padx=5)
-        ttk.Button(quick_frame, text="🎯 ML Ready", 
-                  command=self.select_ml_metrics).pack(side="left", padx=5)
-        ttk.Button(quick_frame, text="🐛 Defect Prediction", 
-                  command=self.select_defect_metrics).pack(side="left", padx=5)
-        ttk.Button(quick_frame, text="📊 All CK Metrics", 
-                  command=self.select_ck_metrics).pack(side="left", padx=5)
-        ttk.Button(quick_frame, text="📈 Halstead Metrics", 
-                  command=self.select_halstead_metrics).pack(side="left", padx=5)
+        ttk.Button(quick_frame, text="✓ Select All", command=self.select_all_metrics).pack(side=tk.LEFT, padx=2)
+        ttk.Button(quick_frame, text="✗ Deselect All", command=self.deselect_all_metrics).pack(side=tk.LEFT, padx=2)
+        ttk.Separator(quick_frame, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=10)
         
-        # Metrics by category
-        categories_frame = ttk.Frame(metrics_frame)
-        categories_frame.pack(fill="x", pady=10)
+        # Category quick selects
+        categories = self.catalog.get_categories()
+        for cat in categories[:6]:  # First 6 categories
+            ttk.Button(quick_frame, text=cat, 
+                      command=lambda c=cat: self.toggle_category(c)).pack(side=tk.LEFT, padx=2)
         
-        # Get categories and create checkboxes
-        categories = MetricsCatalog.get_categories()
+        # Scrollable metrics area
+        canvas_frame = ttk.Frame(parent)
+        canvas_frame.pack(fill=tk.BOTH, expand=True)
         
-        # Create 4-column layout for categories (more categories now)
-        col_frames = []
-        for i in range(4):
-            col = ttk.Frame(categories_frame)
-            col.pack(side="left", fill="both", expand=True, padx=5)
-            col_frames.append(col)
+        canvas = tk.Canvas(canvas_frame)
+        scrollbar_y = ttk.Scrollbar(canvas_frame, orient=tk.VERTICAL, command=canvas.yview)
+        scrollbar_x = ttk.Scrollbar(canvas_frame, orient=tk.HORIZONTAL, command=canvas.xview)
         
-        for idx, category in enumerate(categories):
-            col_idx = idx % 4
-            cat_frame = ttk.LabelFrame(col_frames[col_idx], 
-                                       text=f"[{category.upper()}]", 
-                                       padding="5")
-            cat_frame.pack(fill="x", pady=5)
+        self.metrics_frame = ttk.Frame(canvas)
+        
+        canvas.configure(yscrollcommand=scrollbar_y.set, xscrollcommand=scrollbar_x.set)
+        
+        scrollbar_y.pack(side=tk.RIGHT, fill=tk.Y)
+        scrollbar_x.pack(side=tk.BOTTOM, fill=tk.X)
+        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        
+        canvas_window = canvas.create_window((0, 0), window=self.metrics_frame, anchor=tk.NW)
+        
+        # Populate metrics by category
+        self.populate_metrics()
+        
+        # Update scroll region
+        self.metrics_frame.update_idletasks()
+        canvas.configure(scrollregion=canvas.bbox("all"))
+        
+        # Mouse wheel scrolling
+        def on_mousewheel(event):
+            canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+        canvas.bind_all("<MouseWheel>", on_mousewheel)
+        
+    def populate_metrics(self):
+        """Populate metrics checkboxes by category"""
+        categories = self.catalog.get_categories()
+        all_metrics = self.catalog.get_all_metrics()
+        
+        col = 0
+        row = 0
+        max_cols = 3
+        
+        for category in categories:
+            # Category frame
+            cat_frame = ttk.LabelFrame(self.metrics_frame, text=f"📊 {category}", padding=5)
+            cat_frame.grid(row=row, column=col, sticky=tk.NW, padx=5, pady=5)
             
-            metrics = MetricsCatalog.get_metrics_by_category(category)
-            for metric_key, metric_info in metrics.items():
+            # Get metrics for this category
+            cat_metrics = self.catalog.get_metrics_by_category(category)
+            
+            for i, metric_name in enumerate(cat_metrics):
                 var = tk.BooleanVar(value=False)
-                self.metric_vars[metric_key] = var
+                self.metric_vars[metric_name] = var
                 
-                cb = ttk.Checkbutton(cat_frame, 
-                                    text=f"{metric_info['name']}", 
-                                    variable=var)
-                cb.pack(anchor="w")
+                metric_info = all_metrics.get(metric_name, {})
+                tooltip = metric_info.get('description', '')
                 
-                # Tooltip on hover
-                self._create_tooltip(cb, metric_info['description'])
-        
-        # ============ DATASET TYPE SELECTION ============
-        dataset_frame = ttk.LabelFrame(main_frame, text="📦 Dataset Type", padding="10")
-        dataset_frame.pack(fill="x", pady=10)
-        
-        dataset_inner = ttk.Frame(dataset_frame)
-        dataset_inner.pack(fill="x")
-        
-        # Create checkboxes for dataset types (2 rows)
-        row1 = ttk.Frame(dataset_inner)
-        row1.pack(fill="x", pady=5)
-        row2 = ttk.Frame(dataset_inner)
-        row2.pack(fill="x", pady=5)
-        
-        dataset_items = list(self.dataset_types.items())
-        for idx, (key, info) in enumerate(dataset_items):
-            parent = row1 if idx < 4 else row2
-            var = tk.BooleanVar(value=(key == 'custom'))
-            self.dataset_vars[key] = var
+                cb = ttk.Checkbutton(cat_frame, text=metric_name, variable=var)
+                cb.grid(row=i, column=0, sticky=tk.W)
+                
+                # Simple tooltip via binding
+                cb.bind('<Enter>', lambda e, t=tooltip: self.show_tooltip(e, t))
+                cb.bind('<Leave>', self.hide_tooltip)
             
-            cb = ttk.Checkbutton(parent, 
-                                text=f"{info['name']} - {info['desc']}", 
-                                variable=var)
-            cb.pack(side="left", padx=10)
+            col += 1
+            if col >= max_cols:
+                col = 0
+                row += 1
         
-        # ============ OUTPUT FORMAT ============
-        output_frame = ttk.LabelFrame(main_frame, text="💾 Output Format", padding="10")
-        output_frame.pack(fill="x", pady=10)
+        # Selected count label
+        self.selected_count_var = tk.StringVar(value="Selected: 0/64")
+        ttk.Label(self.metrics_frame, textvariable=self.selected_count_var, 
+                  style='Header.TLabel').grid(row=row+1, column=0, columnspan=max_cols, pady=10)
         
-        self.output_format = tk.StringVar(value="excel")
+    def setup_output_section(self, parent):
+        """Setup output configuration"""
+        output_frame = ttk.LabelFrame(parent, text="💾 Output Configuration", padding=10)
+        output_frame.pack(fill=tk.X, pady=(0, 10))
         
-        formats = [
-            ("📊 Excel (.xlsx)", "excel"),
-            ("📄 CSV (.csv)", "csv"),
-            ("📝 JSON (.json)", "json"),
-            ("🗃️ All Formats", "all")
-        ]
+        # Output directory
+        dir_frame = ttk.Frame(output_frame)
+        dir_frame.pack(fill=tk.X, pady=2)
         
-        for text, value in formats:
-            ttk.Radiobutton(output_frame, text=text, variable=self.output_format, 
-                           value=value).pack(side="left", padx=20)
+        ttk.Label(dir_frame, text="Output Directory:").pack(side=tk.LEFT)
+        self.output_dir_var = tk.StringVar(value=os.path.join(os.path.dirname(os.path.dirname(__file__)), "generated_datasets"))
+        ttk.Entry(dir_frame, textvariable=self.output_dir_var, width=60).pack(side=tk.LEFT, padx=5)
+        ttk.Button(dir_frame, text="Browse", command=self.browse_output_dir).pack(side=tk.LEFT)
         
-        # ============ AI ASSISTANT ============
-        ai_frame = ttk.LabelFrame(main_frame, text="🤖 AI Assistant (Optional)", padding="10")
-        ai_frame.pack(fill="x", pady=10)
+        # Output format (only for custom mode)
+        format_frame = ttk.Frame(output_frame)
+        format_frame.pack(fill=tk.X, pady=2)
         
-        self.ai_query = scrolledtext.ScrolledText(ai_frame, height=3, wrap=tk.WORD)
-        self.ai_query.pack(fill="x", pady=5)
-        self.ai_query.insert('1.0', 
-            "Ask AI for help: e.g., 'Which metrics are best for bug prediction?' or "
-            "'Create custom formula: bug_density = num_bugs / loc * 1000'")
+        ttk.Label(format_frame, text="Output Format:").pack(side=tk.LEFT)
+        self.output_format_var = tk.StringVar(value="csv")
+        ttk.Radiobutton(format_frame, text="CSV", variable=self.output_format_var, value="csv").pack(side=tk.LEFT, padx=10)
+        ttk.Radiobutton(format_frame, text="JSON", variable=self.output_format_var, value="json").pack(side=tk.LEFT, padx=10)
+        ttk.Radiobutton(format_frame, text="JSONL", variable=self.output_format_var, value="jsonl").pack(side=tk.LEFT, padx=10)
         
-        ttk.Button(ai_frame, text="🧠 Ask AI", command=self.ask_ai).pack(pady=5)
+        # Dataset name
+        name_frame = ttk.Frame(output_frame)
+        name_frame.pack(fill=tk.X, pady=2)
         
-        # ============ GENERATE BUTTON ============
-        generate_frame = ttk.Frame(main_frame)
-        generate_frame.pack(fill="x", pady=20)
+        ttk.Label(name_frame, text="Dataset Name:").pack(side=tk.LEFT)
+        self.dataset_name_var = tk.StringVar(value="my_dataset")
+        ttk.Entry(name_frame, textvariable=self.dataset_name_var, width=30).pack(side=tk.LEFT, padx=5)
         
-        self.generate_btn = ttk.Button(generate_frame, 
-                                       text="🚀 GENERATE DATASET", 
-                                       command=self.generate_dataset,
-                                       style='Generate.TButton')
-        self.generate_btn.pack(pady=10)
+    def setup_generate_section(self, parent):
+        """Setup generate button"""
+        gen_frame = ttk.Frame(parent)
+        gen_frame.pack(fill=tk.X, pady=10)
+        
+        self.generate_btn = ttk.Button(gen_frame, text="🚀 Generate Dataset", 
+                                        style='Generate.TButton', command=self.generate_dataset)
+        self.generate_btn.pack(pady=5)
         
         # Progress bar
-        self.progress = ttk.Progressbar(generate_frame, mode='indeterminate', length=400)
-        self.progress.pack(pady=5)
+        self.progress_var = tk.DoubleVar(value=0)
+        self.progress_bar = ttk.Progressbar(gen_frame, variable=self.progress_var, 
+                                            mode='determinate', length=400)
+        self.progress_bar.pack(pady=5)
         
-        # ============ OUTPUT LOG ============
-        log_frame = ttk.LabelFrame(main_frame, text="📋 Output Log", padding="10")
-        log_frame.pack(fill="both", expand=True, pady=10)
+    def setup_status_bar(self, parent):
+        """Setup status bar"""
+        status_frame = ttk.Frame(parent)
+        status_frame.pack(fill=tk.X, side=tk.BOTTOM)
         
-        self.log_text = scrolledtext.ScrolledText(log_frame, height=10, wrap=tk.WORD)
-        self.log_text.pack(fill="both", expand=True)
+        self.status_var = tk.StringVar(value="Ready")
+        ttk.Label(status_frame, textvariable=self.status_var).pack(side=tk.LEFT)
         
-        # ============ STATUS BAR ============
-        self.status_var = tk.StringVar(value="Ready - Select metrics and generate dataset")
-        status_bar = ttk.Label(main_frame, textvariable=self.status_var, 
-                              relief=tk.SUNKEN, anchor=tk.W)
-        status_bar.pack(fill="x", pady=10)
+        # Tooltip label
+        self.tooltip_var = tk.StringVar(value="")
+        self.tooltip_label = ttk.Label(status_frame, textvariable=self.tooltip_var, style='Info.TLabel')
+        self.tooltip_label.pack(side=tk.RIGHT)
+        
+    # === Mode switching ===
     
-    def _create_tooltip(self, widget, text):
-        """Create tooltip for widget"""
-        def show_tooltip(event):
-            tooltip = tk.Toplevel(widget)
-            tooltip.wm_overrideredirect(True)
-            tooltip.wm_geometry(f"+{event.x_root+10}+{event.y_root+10}")
-            label = ttk.Label(tooltip, text=text, background="#ffffe0", 
-                             relief="solid", borderwidth=1, padding=5)
-            label.pack()
-            widget._tooltip = tooltip
-            widget.after(2000, lambda: tooltip.destroy() if hasattr(widget, '_tooltip') else None)
+    def show_benchmark_mode(self):
+        """Show benchmark dataset options"""
+        self.custom_frame.pack_forget()
+        self.benchmark_frame.pack(fill=tk.BOTH, expand=True)
+        self.update_benchmark_info()
         
-        def hide_tooltip(event):
-            if hasattr(widget, '_tooltip'):
-                widget._tooltip.destroy()
+    def show_custom_mode(self):
+        """Show custom metrics selection"""
+        self.benchmark_frame.pack_forget()
+        self.custom_frame.pack(fill=tk.BOTH, expand=True)
+        self.update_selected_count()
         
-        widget.bind("<Enter>", show_tooltip)
-        widget.bind("<Leave>", hide_tooltip)
-    
-    def _clear_placeholder(self):
-        """Clear placeholder text on focus"""
-        if self.repo_var.get().startswith("Enter:"):
-            self.repo_var.set("")
-    
-    def browse_repo(self):
-        """Browse for repository"""
-        directory = filedialog.askdirectory(title="Select Git Repository or Source Folder")
-        if directory:
-            self.repo_var.set(directory)
-    
-    def set_repository(self):
-        """
-        Set repository in agent - AGENTIC BEHAVIOR
-        Handles:
-        1. Local Git repositories
-        2. Local folders with source code (auto git init)
-        3. GitHub URLs (auto clone)
-        4. GitHub shorthand like "owner/repo"
-        """
-        repo_path = self.repo_var.get().strip()
-        if not repo_path:
-            messagebox.showwarning("Warning", "Please enter a repository path or GitHub URL")
-            return
+    def update_benchmark_info(self):
+        """Update benchmark info panel"""
+        selected = self.benchmark_var.get()
+        info = self.BENCHMARK_DATASETS.get(selected, {})
         
-        self.log(f"🔍 Processing: {repo_path}")
-        self.status_var.set("⏳ Setting repository...")
+        self.benchmark_info_text.config(state=tk.NORMAL)
+        self.benchmark_info_text.delete(1.0, tk.END)
         
-        if self.agent_ready:
-            # Run in thread to not block UI for cloning
-            def set_repo_thread():
-                try:
-                    success = self.agent.set_repository(repo_path)
-                    if success:
-                        repo_name = os.path.basename(self.agent.repo_path)
-                        self.root.after(0, lambda: self.status_var.set(f"✅ Repository: {repo_name}"))
-                        self.root.after(0, lambda: self.log(f"✅ Repository ready: {self.agent.repo_path}"))
-                        self.root.after(0, lambda: self.repo_var.set(self.agent.repo_path))
-                    else:
-                        self.root.after(0, lambda: self.status_var.set("❌ Failed to set repository"))
-                        self.root.after(0, lambda: self.log(f"❌ Failed: {repo_path}"))
-                        self.root.after(0, lambda: messagebox.showerror("Error", 
-                            f"Could not set repository: {repo_path}\n\n"
-                            "Supported inputs:\n"
-                            "• Local Git repository path\n"
-                            "• Local folder with source files\n"
-                            "• GitHub URL (https://github.com/owner/repo)\n"
-                            "• GitHub shorthand (owner/repo)"))
-                except Exception as e:
-                    self.root.after(0, lambda: self.status_var.set("❌ Error"))
-                    self.root.after(0, lambda: self.log(f"❌ Error: {e}"))
-            
-            from threading import Thread
-            Thread(target=set_repo_thread, daemon=True).start()
+        text = f"""Dataset: {selected}
+═══════════════════════════════════════════════════════
+
+Description: {info.get('description', 'N/A')}
+
+Format: {info.get('format', 'N/A').upper()}
+
+"""
+        
+        if 'structure' in info:
+            text += f"Folder Structure: {', '.join(info['structure'])}\n\n"
+            text += "This dataset will create separate folders for buggy and fixed code.\n"
+        
+        if 'fields' in info:
+            text += f"Fields: {', '.join(info['fields'])}\n\n"
+        
+        if selected == "Defects4J":
+            text += """
+Defects4J Style Output:
+├── buggy/
+│   ├── Bug_001/
+│   │   ├── src/
+│   │   └── metadata.json
+│   ├── Bug_002/
+│   └── ...
+└── fixed/
+    ├── Bug_001/
+    │   ├── src/
+    │   └── metadata.json
+    ├── Bug_002/
+    └── ...
+
+You can either:
+1. Specify buggy and fixed folders manually below
+2. Let the system analyze the repository for bug-fixing commits
+"""
+        elif selected == "Bugs.jar":
+            text += """
+Sample Output:
+{
+    "bug_id": "BUG-001",
+    "project": "example-project",
+    "commit_buggy": "abc123",
+    "commit_fixed": "def456",
+    "patch": "diff --git...",
+    "test": "testMethodName"
+}
+"""
+        elif selected == "PROMISE":
+            text += """
+Sample Output (CSV):
+class,wmc,dit,noc,cbo,rfc,lcom,defects
+MyClass,5,2,0,8,15,0.3,false
+OtherClass,12,3,2,15,28,0.7,true
+
+Metrics included automatically:
+- WMC: Weighted Methods per Class
+- DIT: Depth of Inheritance Tree
+- NOC: Number of Children
+- CBO: Coupling Between Objects
+- RFC: Response For Class
+- LCOM: Lack of Cohesion of Methods
+"""
+        
+        self.benchmark_info_text.insert(1.0, text)
+        self.benchmark_info_text.config(state=tk.DISABLED)
+        
+        # Show/hide Defects4J options
+        if selected == "Defects4J":
+            self.defects4j_frame.pack(fill=tk.X, pady=(0, 10))
         else:
-            messagebox.showerror("Error", "Agent not initialized")
+            self.defects4j_frame.pack_forget()
     
-    def log(self, message):
-        """Add message to log"""
-        timestamp = datetime.now().strftime("%H:%M:%S")
-        self.log_text.insert(tk.END, f"[{timestamp}] {message}\n")
-        self.log_text.see(tk.END)
+    # === Actions ===
+    
+    def browse_folder(self):
+        """Browse for local folder"""
+        folder = filedialog.askdirectory(title="Select Repository Folder")
+        if folder:
+            self.repo_var.set(folder)
+            self.verify_repo()
+            
+    def browse_specific_folder(self, var):
+        """Browse for specific folder (buggy/fixed)"""
+        folder = filedialog.askdirectory(title="Select Folder")
+        if folder:
+            var.set(folder)
+            
+    def browse_output_dir(self):
+        """Browse for output directory"""
+        folder = filedialog.askdirectory(title="Select Output Directory")
+        if folder:
+            self.output_dir_var.set(folder)
+            
+    def clone_repo(self):
+        """Clone repository from URL"""
+        repo_input = self.repo_var.get().strip()
+        if not repo_input or 'Enter' in repo_input:
+            messagebox.showwarning("Warning", "Please enter a GitHub URL or owner/repo format")
+            return
+            
+        self.status_var.set("Cloning repository...")
+        self.root.update()
+        
+        def clone_thread():
+            try:
+                success = self.agent.set_repository(repo_input)
+                if success:
+                    self.repo_var.set(self.agent.repo_path)
+                    self.repo_status_var.set(f"✓ Cloned to: {self.agent.repo_path}")
+                    self.repo_status_label.configure(style='Success.TLabel')
+                    self.status_var.set("Repository cloned successfully")
+                else:
+                    self.repo_status_var.set("✗ Clone failed")
+                    self.repo_status_label.configure(style='Error.TLabel')
+                    self.status_var.set("Clone failed")
+            except Exception as e:
+                self.repo_status_var.set(f"✗ Error: {str(e)}")
+                self.repo_status_label.configure(style='Error.TLabel')
+                self.status_var.set("Clone failed")
+                
+        threading.Thread(target=clone_thread, daemon=True).start()
+        
+    def verify_repo(self):
+        """Verify repository"""
+        repo_input = self.repo_var.get().strip()
+        if not repo_input or 'Enter' in repo_input:
+            self.repo_status_var.set("Please enter a repository path or URL")
+            return
+            
+        self.status_var.set("Verifying repository...")
+        
+        try:
+            success = self.agent.set_repository(repo_input)
+            if success:
+                self.repo_var.set(self.agent.repo_path)
+                self.repo_status_var.set(f"✓ Valid repository: {self.agent.repo_path}")
+                self.repo_status_label.configure(style='Success.TLabel')
+                self.status_var.set("Repository verified")
+            else:
+                self.repo_status_var.set("✗ Invalid repository")
+                self.repo_status_label.configure(style='Error.TLabel')
+                self.status_var.set("Repository verification failed")
+        except Exception as e:
+            self.repo_status_var.set(f"✗ Error: {str(e)}")
+            self.repo_status_label.configure(style='Error.TLabel')
+            self.status_var.set("Verification failed")
     
     def select_all_metrics(self):
         """Select all metrics"""
         for var in self.metric_vars.values():
             var.set(True)
-        self.log(f"✅ Selected all {len(self.metric_vars)} metrics")
-    
-    def clear_all_metrics(self):
-        """Clear all metrics"""
+        self.update_selected_count()
+        
+    def deselect_all_metrics(self):
+        """Deselect all metrics"""
         for var in self.metric_vars.values():
             var.set(False)
-        self.log("❌ Cleared all metrics")
-    
-    def select_basic_metrics(self):
-        """Select basic metrics set"""
-        basic = ['loc', 'kloc', 'cloc', 'bloc', 'cyclomatic_complexity', 
-                 'num_methods', 'num_classes', 'comment_ratio', 'wmc', 'dit', 'cbo']
-        for key, var in self.metric_vars.items():
-            var.set(key in basic)
-        self.log(f"🔄 Selected basic metrics: {len(basic)} metrics")
-    
-    def select_ml_metrics(self):
-        """Select ML-ready metrics"""
-        ml_metrics = ['loc', 'kloc', 'cyclomatic_complexity', 'cognitive_complexity',
-                      'wmc', 'dit', 'noc', 'cbo', 'rfc', 'lcom',
-                      'num_methods', 'num_classes', 'comment_ratio',
-                      'max_nesting_depth', 'has_defect', 'num_bugs',
-                      'churn', 'additions', 'deletions', 'num_commits',
-                      'halstead_volume', 'halstead_difficulty', 'halstead_effort']
-        for key, var in self.metric_vars.items():
-            var.set(key in ml_metrics)
-        self.log(f"🎯 Selected ML-ready metrics: {len(ml_metrics)} metrics")
-    
-    def select_defect_metrics(self):
-        """Select defect prediction metrics"""
-        defect_metrics = ['loc', 'cyclomatic_complexity', 'cognitive_complexity',
-                          'wmc', 'cbo', 'rfc', 'lcom', 'has_defect', 'num_bugs',
-                          'bug_density', 'vulnerabilities', 'code_smells', 
-                          'maintainability_index', 'technical_debt', 'severity',
-                          'pre_release_bugs', 'post_release_bugs']
-        for key, var in self.metric_vars.items():
-            var.set(key in defect_metrics)
-        self.log(f"🐛 Selected defect prediction metrics: {len(defect_metrics)} metrics")
-    
-    def select_ck_metrics(self):
-        """Select all CK (Chidamber-Kemerer) OOP metrics"""
-        ck_metrics = ['wmc', 'dit', 'noc', 'cbo', 'rfc', 'lcom']
-        for key, var in self.metric_vars.items():
-            var.set(key in ck_metrics)
-        self.log(f"📊 Selected CK metrics: {len(ck_metrics)} metrics")
-    
-    def select_halstead_metrics(self):
-        """Select all Halstead metrics"""
-        halstead = ['halstead_volume', 'halstead_difficulty', 'halstead_effort',
-                    'halstead_time', 'halstead_bugs']
-        for key, var in self.metric_vars.items():
-            var.set(key in halstead)
-        self.log(f"📈 Selected Halstead metrics: {len(halstead)} metrics")
-    
-    def get_selected_metrics(self):
-        """Get list of selected metrics"""
-        return [key for key, var in self.metric_vars.items() if var.get()]
-    
-    def get_selected_datasets(self):
-        """Get list of selected dataset types"""
-        return [key for key, var in self.dataset_vars.items() if var.get()]
-    
-    def ask_ai(self):
-        """Ask AI for help"""
-        query = self.ai_query.get('1.0', tk.END).strip()
-        if not query or query.startswith("Ask AI for help"):
-            messagebox.showinfo("Info", "Please enter a question for AI")
-            return
+        self.update_selected_count()
         
-        if not self.agent_ready:
-            messagebox.showerror("Error", "AI agent not available")
-            return
+    def toggle_category(self, category):
+        """Toggle all metrics in a category"""
+        cat_metrics = self.catalog.get_metrics_by_category(category)
+        # Check if any is selected
+        any_selected = any(self.metric_vars.get(m, tk.BooleanVar()).get() for m in cat_metrics)
         
-        self.log(f"🤖 Asking AI: {query[:50]}...")
-        self.status_var.set("🤖 AI is thinking...")
+        for metric in cat_metrics:
+            if metric in self.metric_vars:
+                self.metric_vars[metric].set(not any_selected)
         
-        def ai_thread():
-            try:
-                result = self.agent.understand_and_respond(query, execute=False)
-                
-                self.root.after(0, lambda: self.log(f"🤖 AI Response: {result.get('understanding', 'No response')}"))
-                
-                # If AI suggests metrics, auto-select them
-                if 'metrics' in result:
-                    suggested = [m.get('name', '').lower().replace(' ', '_') 
-                                for m in result.get('metrics', [])]
-                    count = 0
-                    for key, var in self.metric_vars.items():
-                        if any(s in key.lower() for s in suggested):
-                            var.set(True)
-                            count += 1
-                    if count > 0:
-                        self.root.after(0, lambda: self.log(f"🎯 AI auto-selected {count} metrics"))
-                
-                self.root.after(0, lambda: self.status_var.set("Ready"))
-            except Exception as e:
-                self.root.after(0, lambda: self.log(f"❌ AI Error: {e}"))
-                self.root.after(0, lambda: self.status_var.set("Ready"))
+        self.update_selected_count()
         
-        Thread(target=ai_thread, daemon=True).start()
+    def update_selected_count(self):
+        """Update selected metrics count"""
+        count = sum(1 for var in self.metric_vars.values() if var.get())
+        total = len(self.metric_vars)
+        self.selected_count_var.set(f"Selected: {count}/{total}")
+        
+    def show_tooltip(self, event, text):
+        """Show tooltip"""
+        self.tooltip_var.set(text)
+        
+    def hide_tooltip(self, event=None):
+        """Hide tooltip"""
+        self.tooltip_var.set("")
+    
+    # === Generation ===
     
     def generate_dataset(self):
-        """Generate dataset with selected metrics - REAL IMPLEMENTATION"""
-        selected_metrics = self.get_selected_metrics()
-        selected_datasets = self.get_selected_datasets()
-        
-        if not selected_metrics:
-            messagebox.showwarning("Warning", "Please select at least one metric")
+        """Generate dataset based on mode"""
+        # Validate repository
+        repo_path = self.repo_var.get().strip()
+        if not repo_path or 'Enter' in repo_path:
+            messagebox.showwarning("Warning", "Please specify a repository")
             return
-        
-        if not selected_datasets:
-            messagebox.showwarning("Warning", "Please select at least one dataset type")
+            
+        # Validate output directory
+        output_dir = self.output_dir_var.get().strip()
+        if not output_dir:
+            messagebox.showwarning("Warning", "Please specify an output directory")
             return
+            
+        # Create output directory
+        os.makedirs(output_dir, exist_ok=True)
         
-        # Set output directory
-        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        self.output_dir = os.path.join(base_dir, 'generated_datasets')
-        os.makedirs(self.output_dir, exist_ok=True)
-        
-        self.log(f"\n{'='*60}")
-        self.log(f"📊 STARTING DATASET GENERATION")
-        self.log(f"{'='*60}")
-        self.log(f"📏 Selected metrics ({len(selected_metrics)}): {', '.join(selected_metrics[:5])}{'...' if len(selected_metrics)>5 else ''}")
-        self.log(f"📦 Dataset types: {', '.join(selected_datasets)}")
-        self.log(f"💾 Output format: {self.output_format.get()}")
-        self.log(f"📁 Output directory: {self.output_dir}")
-        
-        if self.agent_ready and self.agent.repo_path:
-            self.log(f"🔗 Repository: {self.agent.repo_path}")
-        self.log(f"{'='*60}")
-        
-        self.progress.start()
-        self.status_var.set("🔄 Generating dataset...")
-        self.generate_btn.configure(state='disabled')
+        self.generate_btn.config(state=tk.DISABLED)
+        self.progress_var.set(0)
+        self.status_var.set("Generating dataset...")
         
         def generate_thread():
             try:
-                output_files = []
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                mode = self.mode_var.get()
                 
-                for ds_type in selected_datasets:
-                    self.root.after(0, lambda t=ds_type: self.log(f"\n📦 Generating {t.upper()} dataset..."))
+                if mode == "benchmark":
+                    self.generate_benchmark_dataset(repo_path, output_dir)
+                else:
+                    self.generate_custom_dataset(repo_path, output_dir)
                     
-                    # Generate dataset based on type
-                    if ds_type == 'custom' and self.agent_ready and self.agent.repo_path:
-                        # Extract REAL metrics from repository
-                        self.root.after(0, lambda: self.log(f"   🔍 Analyzing repository: {self.agent.repo_path}"))
-                        dataset = self._extract_real_metrics(selected_metrics)
-                    else:
-                        # Generate benchmark-style synthetic dataset
-                        self.root.after(0, lambda: self.log(f"   🎲 Generating {ds_type} style dataset..."))
-                        dataset = self._generate_benchmark_dataset(ds_type, selected_metrics)
-                    
-                    if not dataset:
-                        self.root.after(0, lambda: self.log(f"   ⚠️ No data generated for {ds_type}"))
-                        continue
-                    
-                    self.root.after(0, lambda d=len(dataset): self.log(f"   ✅ Generated {d} samples"))
-                    
-                    # Save in requested format(s)
-                    output_format = self.output_format.get()
-                    if output_format == 'all':
-                        for fmt in ['excel', 'csv', 'json']:
-                            filename = self._save_dataset(dataset, ds_type, fmt, timestamp)
-                            output_files.append(filename)
-                            self.root.after(0, lambda f=filename: self.log(f"   💾 Saved: {os.path.basename(f)}"))
-                    else:
-                        filename = self._save_dataset(dataset, ds_type, output_format, timestamp)
-                        output_files.append(filename)
-                        self.root.after(0, lambda f=filename: self.log(f"   💾 Saved: {os.path.basename(f)}"))
-                
-                self.root.after(0, lambda: self._generation_complete(output_files))
+                self.progress_var.set(100)
+                self.status_var.set("Dataset generated successfully!")
+                messagebox.showinfo("Success", f"Dataset generated in:\n{output_dir}")
                 
             except Exception as e:
-                import traceback
-                traceback.print_exc()
-                self.root.after(0, lambda: self._generation_error(str(e)))
-        
-        Thread(target=generate_thread, daemon=True).start()
-    
-    def _extract_real_metrics(self, metrics):
-        """Extract REAL metrics from the repository"""
-        import subprocess
-        
-        if not self.agent or not self.agent.repo_path:
-            return []
-        
-        repo_path = self.agent.repo_path
-        data = []
-        
-        try:
-            # Get all Java/Python files
-            result = subprocess.run(['git', 'ls-files'], 
-                                   capture_output=True, text=True, cwd=repo_path, timeout=30)
-            all_files = [f for f in result.stdout.strip().split('\n') 
-                        if f.endswith(('.java', '.py', '.js', '.ts', '.cpp', '.c'))]
-            
-            self.root.after(0, lambda: self.log(f"   📂 Found {len(all_files)} source files"))
-            
-            # Analyze each file (limit to 500 for performance)
-            for idx, filepath in enumerate(all_files[:500]):
-                if idx % 50 == 0:
-                    self.root.after(0, lambda i=idx: self.log(f"   ⏳ Processing file {i+1}/{min(len(all_files), 500)}..."))
+                self.status_var.set(f"Error: {str(e)}")
+                messagebox.showerror("Error", f"Generation failed:\n{str(e)}")
+            finally:
+                self.generate_btn.config(state=tk.NORMAL)
                 
-                full_path = os.path.join(repo_path, filepath)
-                if not os.path.exists(full_path):
-                    continue
+        threading.Thread(target=generate_thread, daemon=True).start()
+        
+    def generate_benchmark_dataset(self, repo_path, output_dir):
+        """Generate benchmark-style dataset"""
+        dataset_type = self.benchmark_var.get()
+        dataset_name = self.dataset_name_var.get() or dataset_type.lower()
+        
+        self.progress_var.set(10)
+        
+        if dataset_type == "Defects4J":
+            self.generate_defects4j(repo_path, output_dir, dataset_name)
+        elif dataset_type == "Bugs.jar":
+            self.generate_bugsjar(repo_path, output_dir, dataset_name)
+        elif dataset_type == "PROMISE":
+            self.generate_promise(repo_path, output_dir, dataset_name)
+        elif dataset_type == "CodeSearchNet":
+            self.generate_codesearchnet(repo_path, output_dir, dataset_name)
+        else:
+            self.generate_generic_benchmark(repo_path, output_dir, dataset_type, dataset_name)
+            
+    def generate_defects4j(self, repo_path, output_dir, dataset_name):
+        """Generate Defects4J style dataset with buggy/fixed folders"""
+        # Create structure
+        buggy_dir = os.path.join(output_dir, dataset_name, "buggy")
+        fixed_dir = os.path.join(output_dir, dataset_name, "fixed")
+        os.makedirs(buggy_dir, exist_ok=True)
+        os.makedirs(fixed_dir, exist_ok=True)
+        
+        self.progress_var.set(20)
+        
+        # Check if manual folders specified
+        manual_buggy = self.buggy_folder_var.get().strip()
+        manual_fixed = self.fixed_folder_var.get().strip()
+        
+        if manual_buggy and manual_fixed and os.path.isdir(manual_buggy) and os.path.isdir(manual_fixed):
+            # Copy from manual folders
+            import shutil
+            self.status_var.set("Copying buggy folder...")
+            for item in os.listdir(manual_buggy):
+                src = os.path.join(manual_buggy, item)
+                dst = os.path.join(buggy_dir, item)
+                if os.path.isdir(src):
+                    shutil.copytree(src, dst)
+                else:
+                    shutil.copy2(src, dst)
+            
+            self.progress_var.set(50)
+            self.status_var.set("Copying fixed folder...")
+            
+            for item in os.listdir(manual_fixed):
+                src = os.path.join(manual_fixed, item)
+                dst = os.path.join(fixed_dir, item)
+                if os.path.isdir(src):
+                    shutil.copytree(src, dst)
+                else:
+                    shutil.copy2(src, dst)
+        else:
+            # Analyze repository for bug-fixing commits
+            self.status_var.set("Analyzing repository for bugs...")
+            self.progress_var.set(30)
+            
+            # Find bug-fixing commits
+            bug_commits = self._find_bug_fixing_commits(repo_path)
+            
+            self.progress_var.set(50)
+            
+            # Create bug entries
+            for i, commit in enumerate(bug_commits[:50]):  # Limit to 50
+                bug_id = f"Bug_{i+1:03d}"
                 
-                sample = {
-                    'file': filepath,
-                    'filename': os.path.basename(filepath)
+                # Create buggy version
+                bug_path = os.path.join(buggy_dir, bug_id)
+                os.makedirs(bug_path, exist_ok=True)
+                
+                # Create fixed version
+                fix_path = os.path.join(fixed_dir, bug_id)
+                os.makedirs(fix_path, exist_ok=True)
+                
+                # Save metadata
+                metadata = {
+                    "bug_id": bug_id,
+                    "commit_buggy": commit.get("parent", ""),
+                    "commit_fixed": commit.get("hash", ""),
+                    "message": commit.get("message", ""),
+                    "files_changed": commit.get("files", []),
+                    "timestamp": commit.get("date", "")
                 }
                 
-                # Calculate requested metrics
-                for metric in metrics:
-                    value = self._calculate_metric(metric, full_path, repo_path, filepath)
-                    sample[metric] = value
+                with open(os.path.join(bug_path, "metadata.json"), 'w') as f:
+                    json.dump(metadata, f, indent=2)
+                with open(os.path.join(fix_path, "metadata.json"), 'w') as f:
+                    json.dump(metadata, f, indent=2)
                 
-                data.append(sample)
-            
-            return data
-            
-        except Exception as e:
-            self.root.after(0, lambda: self.log(f"   ❌ Error extracting metrics: {e}"))
-            return []
-    
-    def _calculate_metric(self, metric, full_path, repo_path, filepath):
-        """Calculate a single metric for a file"""
-        import subprocess
-        import random
+                self.progress_var.set(50 + (i / len(bug_commits)) * 40)
         
-        try:
-            # LOC metrics
-            if metric in ['loc', 'kloc', 'soc']:
-                with open(full_path, 'r', encoding='utf-8', errors='ignore') as f:
-                    lines = f.readlines()
-                code_lines = len([l for l in lines if l.strip() and not l.strip().startswith(('#', '//', '/*', '*'))])
-                if metric == 'kloc':
-                    return round(code_lines / 1000, 3)
-                return code_lines
-            
-            elif metric in ['cloc']:
-                with open(full_path, 'r', encoding='utf-8', errors='ignore') as f:
-                    lines = f.readlines()
-                return len([l for l in lines if l.strip().startswith(('#', '//', '/*', '*'))])
-            
-            elif metric == 'bloc':
-                with open(full_path, 'r', encoding='utf-8', errors='ignore') as f:
-                    lines = f.readlines()
-                return len([l for l in lines if not l.strip()])
-            
-            # Git-based metrics
-            elif metric == 'num_commits':
-                result = subprocess.run(['git', 'log', '--oneline', '--follow', '--', filepath],
-                                       capture_output=True, text=True, cwd=repo_path, timeout=10)
-                return len(result.stdout.strip().split('\n')) if result.stdout.strip() else 0
-            
-            elif metric == 'num_authors':
-                result = subprocess.run(['git', 'shortlog', '-sn', '--follow', '--', filepath],
-                                       capture_output=True, text=True, cwd=repo_path, timeout=10)
-                return len(result.stdout.strip().split('\n')) if result.stdout.strip() else 0
-            
-            elif metric == 'churn':
-                result = subprocess.run(['git', 'log', '--numstat', '--follow', '--', filepath],
-                                       capture_output=True, text=True, cwd=repo_path, timeout=10)
-                total = 0
-                for line in result.stdout.split('\n'):
-                    parts = line.split('\t')
-                    if len(parts) >= 2 and parts[0].isdigit() and parts[1].isdigit():
-                        total += int(parts[0]) + int(parts[1])
-                return total
-            
-            elif metric in ['additions', 'deletions']:
-                result = subprocess.run(['git', 'log', '--numstat', '--follow', '--', filepath],
-                                       capture_output=True, text=True, cwd=repo_path, timeout=10)
-                adds, dels = 0, 0
-                for line in result.stdout.split('\n'):
-                    parts = line.split('\t')
-                    if len(parts) >= 2 and parts[0].isdigit() and parts[1].isdigit():
-                        adds += int(parts[0])
-                        dels += int(parts[1])
-                return adds if metric == 'additions' else dels
-            
-            # Structure metrics (count-based)
-            elif metric == 'num_methods':
-                with open(full_path, 'r', encoding='utf-8', errors='ignore') as f:
-                    content = f.read()
-                # Simple pattern matching
-                import re
-                if filepath.endswith('.java'):
-                    return len(re.findall(r'(public|private|protected)\s+\w+\s+\w+\s*\(', content))
-                elif filepath.endswith('.py'):
-                    return len(re.findall(r'def\s+\w+\s*\(', content))
-                return 0
-            
-            elif metric == 'num_classes':
-                with open(full_path, 'r', encoding='utf-8', errors='ignore') as f:
-                    content = f.read()
-                import re
-                if filepath.endswith('.java'):
-                    return len(re.findall(r'class\s+\w+', content))
-                elif filepath.endswith('.py'):
-                    return len(re.findall(r'class\s+\w+', content))
-                return 0
-            
-            elif metric == 'cyclomatic_complexity':
-                with open(full_path, 'r', encoding='utf-8', errors='ignore') as f:
-                    content = f.read()
-                import re
-                # Count decision points
-                keywords = ['if', 'elif', 'else', 'for', 'while', 'case', 'catch', 'try', '&&', '||', '?']
-                cc = 1
-                for kw in keywords:
-                    cc += content.count(kw)
-                return min(cc, 100)  # Cap at 100
-            
-            elif metric == 'max_nesting_depth':
-                with open(full_path, 'r', encoding='utf-8', errors='ignore') as f:
-                    lines = f.readlines()
-                max_depth = 0
-                for line in lines:
-                    indent = len(line) - len(line.lstrip())
-                    depth = indent // 4  # Assume 4-space indent
-                    max_depth = max(max_depth, depth)
-                return min(max_depth, 20)
-            
-            # Boolean metrics
-            elif metric == 'has_defect':
-                return random.choice([True, False])
-            
-            # Default: estimate based on file size
-            else:
-                with open(full_path, 'r', encoding='utf-8', errors='ignore') as f:
-                    lines = len(f.readlines())
-                
-                metric_info = MetricsCatalog.ALL_METRICS.get(metric, {})
-                metric_type = metric_info.get('type', 'integer')
-                
-                if metric_type == 'integer':
-                    return random.randint(0, max(1, lines // 10))
-                elif metric_type == 'float':
-                    return round(random.uniform(0, min(100, lines)), 2)
-                elif metric_type == 'boolean':
-                    return random.choice([True, False])
-                elif metric_type == 'string':
-                    return random.choice(['low', 'medium', 'high'])
-                return 0
-                
-        except Exception:
-            return 0
-    
-    def _generate_benchmark_dataset(self, ds_type, metrics):
-        """Generate benchmark-style dataset (Defects4J, PROMISE, etc.)"""
-        import random
-        
-        # Dataset characteristics by type
-        dataset_configs = {
-            'defects4j': {'samples': (50, 150), 'has_defect_ratio': 0.6, 'language': 'java'},
-            'bugsjar': {'samples': (100, 300), 'has_defect_ratio': 0.5, 'language': 'java'},
-            'manystuubs4j': {'samples': (200, 500), 'has_defect_ratio': 0.4, 'language': 'java'},
-            'codexglue': {'samples': (100, 400), 'has_defect_ratio': 0.3, 'language': 'mixed'},
-            'codesearchnet': {'samples': (150, 400), 'has_defect_ratio': 0.2, 'language': 'mixed'},
-            'sourcerer': {'samples': (200, 600), 'has_defect_ratio': 0.35, 'language': 'java'},
-            'promise': {'samples': (100, 300), 'has_defect_ratio': 0.45, 'language': 'java'},
-            'custom': {'samples': (50, 200), 'has_defect_ratio': 0.3, 'language': 'mixed'},
+        # Save dataset info
+        info = {
+            "dataset_type": "Defects4J",
+            "generated": datetime.now().isoformat(),
+            "source": repo_path,
+            "structure": ["buggy", "fixed"]
         }
+        with open(os.path.join(output_dir, dataset_name, "dataset_info.json"), 'w') as f:
+            json.dump(info, f, indent=2)
+            
+    def generate_bugsjar(self, repo_path, output_dir, dataset_name):
+        """Generate Bugs.jar style dataset"""
+        output_file = os.path.join(output_dir, f"{dataset_name}.json")
         
-        config = dataset_configs.get(ds_type, dataset_configs['custom'])
-        num_samples = random.randint(*config['samples'])
+        self.status_var.set("Analyzing commits...")
+        bug_commits = self._find_bug_fixing_commits(repo_path)
+        
+        self.progress_var.set(50)
+        
+        bugs = []
+        for i, commit in enumerate(bug_commits):
+            bug = {
+                "bug_id": f"BUG-{i+1:04d}",
+                "project": os.path.basename(repo_path),
+                "commit_buggy": commit.get("parent", ""),
+                "commit_fixed": commit.get("hash", ""),
+                "message": commit.get("message", ""),
+                "files": commit.get("files", []),
+                "patch": commit.get("diff", "")
+            }
+            bugs.append(bug)
+            
+        with open(output_file, 'w') as f:
+            json.dump(bugs, f, indent=2)
+            
+    def generate_promise(self, repo_path, output_dir, dataset_name):
+        """Generate PROMISE style dataset with CK metrics"""
+        import csv
+        output_file = os.path.join(output_dir, f"{dataset_name}.csv")
+        
+        self.status_var.set("Extracting CK metrics...")
+        
+        # Find Java files
+        java_files = []
+        for root, dirs, files in os.walk(repo_path):
+            for f in files:
+                if f.endswith('.java'):
+                    java_files.append(os.path.join(root, f))
+        
+        self.progress_var.set(30)
+        
+        rows = []
+        for i, file_path in enumerate(java_files[:200]):  # Limit to 200
+            class_name = os.path.splitext(os.path.basename(file_path))[0]
+            
+            # Extract basic metrics (simplified)
+            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                content = f.read()
+                
+            row = {
+                "class": class_name,
+                "wmc": content.count('public ') + content.count('private ') + content.count('protected '),
+                "dit": 1,  # Simplified
+                "noc": 0,
+                "cbo": content.count('import '),
+                "rfc": content.count('('),
+                "lcom": 0.5,
+                "loc": len(content.splitlines()),
+                "defects": "false"
+            }
+            rows.append(row)
+            
+            self.progress_var.set(30 + (i / len(java_files)) * 60)
+        
+        # Write CSV
+        with open(output_file, 'w', newline='') as f:
+            writer = csv.DictWriter(f, fieldnames=rows[0].keys())
+            writer.writeheader()
+            writer.writerows(rows)
+            
+    def generate_codesearchnet(self, repo_path, output_dir, dataset_name):
+        """Generate CodeSearchNet style dataset"""
+        output_file = os.path.join(output_dir, f"{dataset_name}.jsonl")
+        
+        self.status_var.set("Extracting code and docstrings...")
+        
+        code_files = []
+        for root, dirs, files in os.walk(repo_path):
+            for f in files:
+                if f.endswith(('.py', '.java', '.js', '.ts', '.go', '.rb')):
+                    code_files.append(os.path.join(root, f))
+        
+        self.progress_var.set(30)
+        
+        with open(output_file, 'w') as out:
+            for i, file_path in enumerate(code_files[:500]):
+                try:
+                    with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                        content = f.read()
+                    
+                    # Extract language
+                    ext = os.path.splitext(file_path)[1]
+                    lang_map = {'.py': 'python', '.java': 'java', '.js': 'javascript', 
+                               '.ts': 'typescript', '.go': 'go', '.rb': 'ruby'}
+                    language = lang_map.get(ext, 'unknown')
+                    
+                    entry = {
+                        "code": content[:2000],  # Truncate
+                        "docstring": "",
+                        "language": language,
+                        "path": os.path.relpath(file_path, repo_path)
+                    }
+                    out.write(json.dumps(entry) + '\n')
+                    
+                except Exception:
+                    pass
+                    
+                self.progress_var.set(30 + (i / len(code_files)) * 60)
+                
+    def generate_generic_benchmark(self, repo_path, output_dir, dataset_type, dataset_name):
+        """Generate generic benchmark dataset"""
+        info = self.BENCHMARK_DATASETS.get(dataset_type, {})
+        format_type = info.get('format', 'json')
+        
+        output_file = os.path.join(output_dir, f"{dataset_name}.{format_type}")
+        
+        self.status_var.set(f"Generating {dataset_type} dataset...")
+        
+        # Collect data based on format
+        if format_type == 'jsonl':
+            self._generate_jsonl(repo_path, output_file, info.get('fields', []))
+        elif format_type == 'csv':
+            self._generate_csv(repo_path, output_file, info.get('fields', []))
+        else:
+            self._generate_json(repo_path, output_file, info.get('fields', []))
+            
+    def _generate_jsonl(self, repo_path, output_file, fields):
+        """Generate JSONL format"""
+        code_files = self._get_code_files(repo_path)
+        
+        with open(output_file, 'w') as out:
+            for file_path in code_files[:500]:
+                try:
+                    with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                        content = f.read()
+                    entry = {"code": content[:2000], "path": file_path}
+                    for field in fields:
+                        if field not in entry:
+                            entry[field] = ""
+                    out.write(json.dumps(entry) + '\n')
+                except:
+                    pass
+                    
+    def _generate_csv(self, repo_path, output_file, fields):
+        """Generate CSV format"""
+        import csv
+        code_files = self._get_code_files(repo_path)
+        
+        with open(output_file, 'w', newline='') as out:
+            writer = csv.DictWriter(out, fieldnames=fields if fields else ['file', 'content'])
+            writer.writeheader()
+            for file_path in code_files[:500]:
+                try:
+                    with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                        content = f.read()
+                    row = {'file': file_path, 'content': content[:500]}
+                    writer.writerow(row)
+                except:
+                    pass
+                    
+    def _generate_json(self, repo_path, output_file, fields):
+        """Generate JSON format"""
+        code_files = self._get_code_files(repo_path)
         
         data = []
-        for i in range(num_samples):
-            sample = {
-                'id': f'{ds_type}_{i+1:04d}',
-                'project': random.choice(['project_a', 'project_b', 'project_c', 'project_d']),
-                'version': f'v{random.randint(1,5)}.{random.randint(0,9)}'
-            }
-            
-            for metric in metrics:
-                metric_info = MetricsCatalog.ALL_METRICS.get(metric, {})
-                metric_type = metric_info.get('type', 'integer')
-                
-                # More realistic value generation based on metric
-                if metric == 'loc':
-                    sample[metric] = random.randint(10, 2000)
-                elif metric == 'kloc':
-                    sample[metric] = round(random.uniform(0.01, 5.0), 3)
-                elif metric == 'cyclomatic_complexity':
-                    sample[metric] = random.randint(1, 50)
-                elif metric == 'cognitive_complexity':
-                    sample[metric] = random.randint(1, 80)
-                elif metric in ['wmc', 'rfc']:
-                    sample[metric] = random.randint(1, 100)
-                elif metric in ['dit', 'noc']:
-                    sample[metric] = random.randint(0, 8)
-                elif metric == 'cbo':
-                    sample[metric] = random.randint(0, 30)
-                elif metric == 'lcom':
-                    sample[metric] = round(random.uniform(0, 1), 3)
-                elif metric == 'num_commits':
-                    sample[metric] = random.randint(1, 200)
-                elif metric == 'num_authors':
-                    sample[metric] = random.randint(1, 20)
-                elif metric == 'churn':
-                    sample[metric] = random.randint(0, 5000)
-                elif metric == 'has_defect':
-                    sample[metric] = random.random() < config['has_defect_ratio']
-                elif metric == 'num_bugs':
-                    sample[metric] = random.randint(0, 10) if random.random() < config['has_defect_ratio'] else 0
-                elif metric == 'bug_density':
-                    sample[metric] = round(random.uniform(0, 5), 3)
-                elif metric_type == 'integer':
-                    sample[metric] = random.randint(0, 500)
-                elif metric_type == 'float':
-                    sample[metric] = round(random.uniform(0, 100), 2)
-                elif metric_type == 'boolean':
-                    sample[metric] = random.choice([True, False])
-                elif metric_type == 'string':
-                    sample[metric] = random.choice(['low', 'medium', 'high', 'critical'])
-                else:
-                    sample[metric] = random.randint(0, 100)
-            
-            data.append(sample)
-        
-        return data
-    
-    def _save_dataset(self, data, ds_type, fmt, timestamp):
-        """Save dataset in specified format to output directory"""
-        filename = os.path.join(self.output_dir, f"{ds_type}_dataset_{timestamp}")
-        
-        if fmt == 'excel':
-            filename += '.xlsx'
+        for file_path in code_files[:500]:
             try:
-                import pandas as pd
-                df = pd.DataFrame(data)
-                df.to_excel(filename, index=False, engine='openpyxl')
-            except ImportError:
-                # Fallback to CSV if pandas not available
-                filename = filename.replace('.xlsx', '.csv')
-                import csv
-                with open(filename, 'w', newline='', encoding='utf-8') as f:
-                    writer = csv.DictWriter(f, fieldnames=data[0].keys())
-                    writer.writeheader()
-                    writer.writerows(data)
+                with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                    content = f.read()
+                entry = {"file": file_path, "content": content[:2000]}
+                data.append(entry)
+            except:
+                pass
+                
+        with open(output_file, 'w') as out:
+            json.dump(data, out, indent=2)
+            
+    def _get_code_files(self, repo_path):
+        """Get all code files"""
+        code_files = []
+        extensions = {'.py', '.java', '.js', '.ts', '.go', '.rb', '.cpp', '.c', '.h', '.cs'}
         
-        elif fmt == 'csv':
-            filename += '.csv'
+        for root, dirs, files in os.walk(repo_path):
+            # Skip hidden and common non-code directories
+            dirs[:] = [d for d in dirs if not d.startswith('.') and d not in ['node_modules', 'venv', '__pycache__']]
+            
+            for f in files:
+                if os.path.splitext(f)[1] in extensions:
+                    code_files.append(os.path.join(root, f))
+                    
+        return code_files
+        
+    def _find_bug_fixing_commits(self, repo_path):
+        """Find bug-fixing commits in repository"""
+        import subprocess
+        
+        bug_commits = []
+        try:
+            # Get commits with bug-related keywords
+            result = subprocess.run(
+                ['git', 'log', '--oneline', '--grep=fix', '--grep=bug', '--grep=error', 
+                 '--grep=issue', '--grep=patch', '-n', '100', '--all-match'],
+                cwd=repo_path, capture_output=True, text=True, timeout=60
+            )
+            
+            if result.returncode != 0:
+                # Try simpler approach
+                result = subprocess.run(
+                    ['git', 'log', '--oneline', '-n', '100'],
+                    cwd=repo_path, capture_output=True, text=True, timeout=60
+                )
+            
+            for line in result.stdout.strip().split('\n'):
+                if line:
+                    parts = line.split(' ', 1)
+                    if len(parts) >= 2:
+                        commit_hash = parts[0]
+                        message = parts[1]
+                        
+                        # Get parent
+                        parent_result = subprocess.run(
+                            ['git', 'rev-parse', f'{commit_hash}^'],
+                            cwd=repo_path, capture_output=True, text=True
+                        )
+                        parent = parent_result.stdout.strip() if parent_result.returncode == 0 else ""
+                        
+                        # Get changed files
+                        files_result = subprocess.run(
+                            ['git', 'diff-tree', '--no-commit-id', '--name-only', '-r', commit_hash],
+                            cwd=repo_path, capture_output=True, text=True
+                        )
+                        files = files_result.stdout.strip().split('\n') if files_result.returncode == 0 else []
+                        
+                        bug_commits.append({
+                            "hash": commit_hash,
+                            "parent": parent,
+                            "message": message,
+                            "files": files
+                        })
+                        
+        except Exception as e:
+            print(f"Error finding bug commits: {e}")
+            
+        return bug_commits
+        
+    def generate_custom_dataset(self, repo_path, output_dir, dataset_name=None):
+        """Generate custom dataset with selected metrics"""
+        # Get selected metrics
+        selected_metrics = [name for name, var in self.metric_vars.items() if var.get()]
+        
+        if not selected_metrics:
+            raise ValueError("Please select at least one metric")
+            
+        dataset_name = self.dataset_name_var.get() or "custom_dataset"
+        output_format = self.output_format_var.get()
+        
+        self.status_var.set(f"Extracting {len(selected_metrics)} metrics...")
+        self.progress_var.set(10)
+        
+        # Get code files
+        code_files = self._get_code_files(repo_path)
+        
+        self.progress_var.set(20)
+        
+        # Extract metrics for each file
+        rows = []
+        for i, file_path in enumerate(code_files[:500]):
+            try:
+                metrics = self._extract_metrics(file_path, selected_metrics)
+                metrics['file'] = os.path.relpath(file_path, repo_path)
+                rows.append(metrics)
+            except Exception:
+                pass
+                
+            self.progress_var.set(20 + (i / len(code_files)) * 70)
+            
+        # Save dataset
+        output_file = os.path.join(output_dir, f"{dataset_name}.{output_format}")
+        
+        if output_format == 'csv':
             import csv
-            with open(filename, 'w', newline='', encoding='utf-8') as f:
-                writer = csv.DictWriter(f, fieldnames=data[0].keys())
-                writer.writeheader()
-                writer.writerows(data)
+            with open(output_file, 'w', newline='') as f:
+                if rows:
+                    writer = csv.DictWriter(f, fieldnames=rows[0].keys())
+                    writer.writeheader()
+                    writer.writerows(rows)
+        elif output_format == 'jsonl':
+            with open(output_file, 'w') as f:
+                for row in rows:
+                    f.write(json.dumps(row) + '\n')
+        else:
+            with open(output_file, 'w') as f:
+                json.dump(rows, f, indent=2)
+                
+    def _extract_metrics(self, file_path, selected_metrics):
+        """Extract selected metrics from a file"""
+        with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+            content = f.read()
+            
+        lines = content.splitlines()
         
-        elif fmt == 'json':
-            filename += '.json'
-            with open(filename, 'w', encoding='utf-8') as f:
-                json.dump({
-                    'dataset_type': ds_type,
-                    'metrics': [k for k in data[0].keys() if k not in ['id', 'project', 'version', 'file', 'filename']],
-                    'total_samples': len(data),
-                    'generated_at': datetime.now().isoformat(),
-                    'data': data
-                }, f, indent=2, default=str)
+        metrics = {}
         
-        return filename
-    
-    def _generation_complete(self, output_files):
-        """Handle successful generation"""
-        self.progress.stop()
-        self.generate_btn.configure(state='normal')
-        self.status_var.set("✅ Dataset generation complete!")
-        
-        self.log(f"\n{'='*60}")
-        self.log(f"✅ GENERATION COMPLETE!")
-        self.log(f"{'='*60}")
-        self.log(f"📁 Output directory: {self.output_dir}")
-        self.log(f"📊 Generated {len(output_files)} file(s):")
-        for f in output_files:
-            size = os.path.getsize(f) if os.path.exists(f) else 0
-            size_str = f"{size/1024:.1f} KB" if size > 1024 else f"{size} bytes"
-            self.log(f"   📄 {os.path.basename(f)} ({size_str})")
-        self.log(f"{'='*60}\n")
-        
-        # Open output directory
-        if output_files:
-            open_dir = messagebox.askyesno("Success", 
-                f"Generated {len(output_files)} dataset file(s)!\n\n"
-                f"Output directory:\n{self.output_dir}\n\n"
-                "Open output folder?")
-            if open_dir:
-                import subprocess
-                subprocess.Popen(f'explorer "{self.output_dir}"')
-    
-    def _generation_error(self, error):
-        """Handle generation error"""
-        self.progress.stop()
-        self.generate_btn.configure(state='normal')
-        self.status_var.set("❌ Error occurred")
-        self.log(f"\n{'='*60}")
-        self.log(f"❌ GENERATION ERROR")
-        self.log(f"{'='*60}")
-        self.log(f"Error: {error}")
-        self.log(f"{'='*60}\n")
-        messagebox.showerror("Error", f"Generation failed:\n{error}")
+        # LOC metrics
+        if 'lines_of_code' in selected_metrics:
+            metrics['lines_of_code'] = len(lines)
+        if 'source_loc' in selected_metrics:
+            metrics['source_loc'] = len([l for l in lines if l.strip() and not l.strip().startswith(('#', '//', '/*', '*'))])
+        if 'comment_loc' in selected_metrics:
+            metrics['comment_loc'] = len([l for l in lines if l.strip().startswith(('#', '//', '/*', '*'))])
+        if 'blank_loc' in selected_metrics:
+            metrics['blank_loc'] = len([l for l in lines if not l.strip()])
+            
+        # Size metrics
+        if 'file_size' in selected_metrics:
+            metrics['file_size'] = os.path.getsize(file_path)
+        if 'num_functions' in selected_metrics:
+            metrics['num_functions'] = content.count('def ') + content.count('function ')
+        if 'num_classes' in selected_metrics:
+            metrics['num_classes'] = content.count('class ')
+        if 'num_methods' in selected_metrics:
+            metrics['num_methods'] = content.count('def ')
+            
+        # Complexity metrics
+        if 'cyclomatic_complexity' in selected_metrics:
+            # Simple approximation
+            cc = 1
+            cc += content.count(' if ') + content.count(' elif ')
+            cc += content.count(' for ') + content.count(' while ')
+            cc += content.count(' and ') + content.count(' or ')
+            cc += content.count(' try ') + content.count(' except ')
+            metrics['cyclomatic_complexity'] = cc
+        if 'cognitive_complexity' in selected_metrics:
+            metrics['cognitive_complexity'] = metrics.get('cyclomatic_complexity', 1) * 1.2
+        if 'max_nesting_depth' in selected_metrics:
+            max_indent = 0
+            for line in lines:
+                if line.strip():
+                    indent = len(line) - len(line.lstrip())
+                    max_indent = max(max_indent, indent // 4)
+            metrics['max_nesting_depth'] = max_indent
+            
+        # CK metrics
+        if 'wmc' in selected_metrics:
+            metrics['wmc'] = content.count('def ') + content.count('function ')
+        if 'dit' in selected_metrics:
+            metrics['dit'] = 1 if 'extends' in content or '(BaseClass)' in content else 0
+        if 'noc' in selected_metrics:
+            metrics['noc'] = 0
+        if 'cbo' in selected_metrics:
+            metrics['cbo'] = content.count('import ')
+        if 'rfc' in selected_metrics:
+            metrics['rfc'] = content.count('(')
+        if 'lcom' in selected_metrics:
+            metrics['lcom'] = 0.5
+            
+        # Other metrics with default values
+        for metric in selected_metrics:
+            if metric not in metrics:
+                metrics[metric] = 0
+                
+        return metrics
 
 
 def main():
     root = tk.Tk()
-    app = MetricsSelectorGUI(root)
+    app = DatasetGeneratorGUI(root)
     root.mainloop()
+    
 
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
