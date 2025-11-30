@@ -94,7 +94,7 @@ class CypherQueryGenerator:
                 api_key = os.getenv('GEMINI_API_KEY')
                 if api_key:
                     genai.configure(api_key=api_key)
-                    self.model = genai.GenerativeModel('gemini-pro')
+                    self.model = genai.GenerativeModel('gemini-pro-latest')
                     self.logger.info("Gemini AI initialized successfully")
                 else:
                     self.logger.warning("GEMINI_API_KEY not found in environment")

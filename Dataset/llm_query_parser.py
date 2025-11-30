@@ -41,7 +41,7 @@ class LLMQueryParser:
     def parse_query(self, query: str) -> Dict:
         """
         Parse user query using AI analysis and extract intent
-        Returns structured request object
+        Returns structured request object with automatic feedback
         """
         logger.info(f"Parsing query: {query}")
 
@@ -55,9 +55,12 @@ class LLMQueryParser:
             'filters': {},
             'confidence': 0.0,
             'needs_clarification': False,
-            'clarification_questions': [],
+            'clarification_question': '',
+            'clarification_suggestions': [],
             'raw_matches': {},
-            'intent_analysis': {}
+            'intent_analysis': {},
+            'auto_feedback': '',
+            'suggested_improvements': []
         }
 
         # 1. AI-powered intent analysis
@@ -78,18 +81,18 @@ class LLMQueryParser:
         if detected_dataset:
             result['dataset_type'] = detected_dataset
         else:
-            # Dataset type not specified - need clarification
-            result['needs_clarification'] = True
-            result['clarification_questions'].append(
-                "Which dataset would you like to use? Available: promise, defects4j, bugs_jar, codexglue, codesearchnet, sourcerer, manystubs4j, source_code"
-            )
+            # Dataset type not specified - use AI to make intelligent default choice
+            result['dataset_type'] = self._choose_default_dataset(query, intent_result)
 
         # 5. Calculate confidence based on AI analysis
         result['confidence'] = self._calculate_confidence(intent_result, result)
 
-        # 6. Check if clarification needed
-        if not result['dataset_type'] or result['confidence'] < 0.6:
-            result['needs_clarification'] = True
+        # 6. Generate automatic feedback and suggestions
+        result['auto_feedback'] = self._generate_auto_feedback(result, intent_result)
+        result['suggested_improvements'] = self._generate_suggestions(result, intent_result)
+
+        # 7. No more clarification needed - agent makes decisions directly
+        result['needs_clarification'] = False
 
         logger.info(f"Parse result: metrics={len(result['metrics'])}, dataset={result['dataset_type']}, confidence={result['confidence']:.2f}")
 
@@ -254,6 +257,48 @@ class LLMQueryParser:
         
         return None
     
+    def _choose_default_dataset(self, query: str, intent_analysis: Dict) -> str:
+        """
+        Choose a default dataset when none is specified using AI reasoning
+        """
+        query_lower = query.lower()
+        primary_intent = intent_analysis['primary_intent']
+        
+        # For bug/defect analysis, prefer defects4j for Java projects
+        if primary_intent == 'bug_analysis':
+            if 'java' in query_lower or 'spring' in query_lower or 'maven' in query_lower:
+                return 'defects4j'
+            else:
+                return 'bugs_jar'
+        
+        # For metrics analysis, use promise dataset (software metrics)
+        elif primary_intent == 'metrics_analysis':
+            return 'promise'
+        
+        # For code analysis, check for specific indicators
+        elif primary_intent == 'code_analysis':
+            if any(word in query_lower for word in ['repository', 'github', 'project', 'source']):
+                return 'source_code'
+            else:
+                return 'promise'
+        
+        # For dataset creation, default based on content
+        elif primary_intent == 'dataset_creation':
+            if any(word in query_lower for word in ['bug', 'defect', 'fix']):
+                return 'defects4j'
+            elif any(word in query_lower for word in ['metric', 'complexity', 'quality']):
+                return 'promise'
+            else:
+                return 'source_code'
+        
+        # Default fallback based on query content
+        if 'java' in query_lower:
+            return 'defects4j'
+        elif any(word in query_lower for word in ['metric', 'complexity', 'ck']):
+            return 'promise'
+        else:
+            return 'source_code'
+    
     def _calculate_confidence(self, intent_analysis: Dict, result: Dict) -> float:
         """
         Calculate overall confidence score
@@ -279,6 +324,87 @@ class LLMQueryParser:
         
         # Cap at 1.0
         return min(1.0, base_confidence)
+    
+    def _generate_auto_feedback(self, result: Dict, intent_analysis: Dict) -> str:
+        """
+        Generate automatic feedback based on parsing results
+        """
+        feedback_parts = []
+        
+        # Feedback on confidence level
+        confidence = result['confidence']
+        if confidence >= 0.8:
+            feedback_parts.append("✅ High confidence - I understand your request well!")
+        elif confidence >= 0.6:
+            feedback_parts.append("🤔 Moderate confidence - I think I understand, but please verify.")
+        else:
+            feedback_parts.append("❓ Low confidence - I need clarification to proceed accurately.")
+        
+        # Feedback on metrics found
+        metrics_count = len(result['metrics'])
+        if metrics_count == 0:
+            feedback_parts.append("📊 No specific metrics detected. I'll include basic metrics.")
+        elif metrics_count <= 5:
+            feedback_parts.append(f"📊 Found {metrics_count} specific metrics to calculate.")
+        elif metrics_count <= 15:
+            feedback_parts.append(f"📊 Found {metrics_count} metrics - quite comprehensive!")
+        else:
+            feedback_parts.append(f"📊 Found {metrics_count} metrics - this will be a detailed analysis!")
+        
+        # Feedback on dataset type
+        if result['dataset_type']:
+            dataset_descriptions = {
+                'promise': 'software metrics for defect prediction',
+                'defects4j': 'real Java bug fixes',
+                'source_code': 'source code repository analysis',
+                'bugs_jar': 'large-scale Java bug dataset'
+            }
+            desc = dataset_descriptions.get(result['dataset_type'], result['dataset_type'])
+            feedback_parts.append(f"🎯 Using {result['dataset_type']} dataset ({desc}).")
+        else:
+            feedback_parts.append("🎯 Dataset auto-selected based on your request.")
+        
+        # Feedback on output format
+        format_desc = {
+            'csv': 'spreadsheet-friendly CSV format',
+            'json': 'structured JSON format',
+            'xlsx': 'Excel spreadsheet format',
+            'jsonl': 'line-delimited JSON format'
+        }
+        format_description = format_desc.get(result['output_format'], result['output_format'])
+        feedback_parts.append(f"📄 Output will be in {format_description}.")
+        
+        return " ".join(feedback_parts)
+    
+    def _generate_suggestions(self, result: Dict, intent_analysis: Dict) -> List[str]:
+        """
+        Generate helpful suggestions to improve the user's request
+        """
+        suggestions = []
+        
+        # Suggest more specific metrics if too few
+        if len(result['metrics']) < 3:
+            suggestions.append("💡 Consider specifying more metrics for a comprehensive analysis")
+            suggestions.append("💡 Try: 'all metrics' or specific categories like 'CK metrics', 'complexity metrics'")
+        
+        # Dataset is now auto-selected, so no need to suggest it
+        
+        # Suggest output format alternatives
+        if result['output_format'] == 'csv':
+            suggestions.append("💡 For Excel compatibility, try requesting 'xlsx' format")
+        
+        # Suggest filtering if no filters specified
+        if not result.get('filters'):
+            suggestions.append("💡 Add filters like 'Java only' or 'large projects' for targeted analysis")
+        
+        # Suggest related metrics based on what's requested
+        if any(m in result['metrics'] for m in ['loc', 'cyclomatic_complexity']):
+            suggestions.append("💡 Since you're interested in size/complexity, consider adding: maintainability_index, halstead_metrics")
+        
+        if any(m in result['metrics'] for m in ['num_classes', 'num_methods']):
+            suggestions.append("💡 For structural analysis, consider adding: coupling metrics, cohesion metrics")
+        
+        return suggestions[:3]  # Limit to top 3 suggestions
     
     def _contains_any(self, text: str, patterns: List[str]) -> bool:
         """Check if text contains any of the patterns"""

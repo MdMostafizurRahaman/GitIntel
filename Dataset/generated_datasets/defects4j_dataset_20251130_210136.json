@@ -1,0 +1,442 @@
+{
+  "dataset_type": "defects4j",
+  "metrics": [
+    "churn"
+  ],
+  "total_samples": 72,
+  "generated_at": "2025-11-30T21:01:36.649785",
+  "data": [
+    {
+      "id": "defects4j_0001",
+      "project": "project_a",
+      "version": "v2.0",
+      "churn": 1424
+    },
+    {
+      "id": "defects4j_0002",
+      "project": "project_d",
+      "version": "v2.2",
+      "churn": 2927
+    },
+    {
+      "id": "defects4j_0003",
+      "project": "project_b",
+      "version": "v1.3",
+      "churn": 3810
+    },
+    {
+      "id": "defects4j_0004",
+      "project": "project_d",
+      "version": "v3.7",
+      "churn": 1824
+    },
+    {
+      "id": "defects4j_0005",
+      "project": "project_c",
+      "version": "v5.4",
+      "churn": 4412
+    },
+    {
+      "id": "defects4j_0006",
+      "project": "project_b",
+      "version": "v3.7",
+      "churn": 340
+    },
+    {
+      "id": "defects4j_0007",
+      "project": "project_b",
+      "version": "v5.3",
+      "churn": 4566
+    },
+    {
+      "id": "defects4j_0008",
+      "project": "project_c",
+      "version": "v3.0",
+      "churn": 2835
+    },
+    {
+      "id": "defects4j_0009",
+      "project": "project_c",
+      "version": "v2.9",
+      "churn": 1480
+    },
+    {
+      "id": "defects4j_0010",
+      "project": "project_d",
+      "version": "v3.2",
+      "churn": 2718
+    },
+    {
+      "id": "defects4j_0011",
+      "project": "project_a",
+      "version": "v5.2",
+      "churn": 3655
+    },
+    {
+      "id": "defects4j_0012",
+      "project": "project_d",
+      "version": "v4.3",
+      "churn": 4181
+    },
+    {
+      "id": "defects4j_0013",
+      "project": "project_b",
+      "version": "v5.8",
+      "churn": 2976
+    },
+    {
+      "id": "defects4j_0014",
+      "project": "project_a",
+      "version": "v1.0",
+      "churn": 837
+    },
+    {
+      "id": "defects4j_0015",
+      "project": "project_b",
+      "version": "v4.7",
+      "churn": 4979
+    },
+    {
+      "id": "defects4j_0016",
+      "project": "project_d",
+      "version": "v4.0",
+      "churn": 1496
+    },
+    {
+      "id": "defects4j_0017",
+      "project": "project_d",
+      "version": "v3.5",
+      "churn": 893
+    },
+    {
+      "id": "defects4j_0018",
+      "project": "project_d",
+      "version": "v5.3",
+      "churn": 3680
+    },
+    {
+      "id": "defects4j_0019",
+      "project": "project_b",
+      "version": "v4.5",
+      "churn": 3870
+    },
+    {
+      "id": "defects4j_0020",
+      "project": "project_b",
+      "version": "v5.1",
+      "churn": 1546
+    },
+    {
+      "id": "defects4j_0021",
+      "project": "project_c",
+      "version": "v5.0",
+      "churn": 396
+    },
+    {
+      "id": "defects4j_0022",
+      "project": "project_c",
+      "version": "v5.2",
+      "churn": 3725
+    },
+    {
+      "id": "defects4j_0023",
+      "project": "project_c",
+      "version": "v1.3",
+      "churn": 629
+    },
+    {
+      "id": "defects4j_0024",
+      "project": "project_c",
+      "version": "v1.8",
+      "churn": 42
+    },
+    {
+      "id": "defects4j_0025",
+      "project": "project_a",
+      "version": "v3.8",
+      "churn": 2686
+    },
+    {
+      "id": "defects4j_0026",
+      "project": "project_d",
+      "version": "v2.3",
+      "churn": 2923
+    },
+    {
+      "id": "defects4j_0027",
+      "project": "project_d",
+      "version": "v1.9",
+      "churn": 886
+    },
+    {
+      "id": "defects4j_0028",
+      "project": "project_c",
+      "version": "v2.6",
+      "churn": 1298
+    },
+    {
+      "id": "defects4j_0029",
+      "project": "project_a",
+      "version": "v3.9",
+      "churn": 2221
+    },
+    {
+      "id": "defects4j_0030",
+      "project": "project_c",
+      "version": "v3.6",
+      "churn": 2322
+    },
+    {
+      "id": "defects4j_0031",
+      "project": "project_b",
+      "version": "v1.6",
+      "churn": 4852
+    },
+    {
+      "id": "defects4j_0032",
+      "project": "project_b",
+      "version": "v2.5",
+      "churn": 354
+    },
+    {
+      "id": "defects4j_0033",
+      "project": "project_c",
+      "version": "v3.2",
+      "churn": 1728
+    },
+    {
+      "id": "defects4j_0034",
+      "project": "project_c",
+      "version": "v3.0",
+      "churn": 3244
+    },
+    {
+      "id": "defects4j_0035",
+      "project": "project_a",
+      "version": "v5.0",
+      "churn": 2786
+    },
+    {
+      "id": "defects4j_0036",
+      "project": "project_a",
+      "version": "v3.7",
+      "churn": 1681
+    },
+    {
+      "id": "defects4j_0037",
+      "project": "project_b",
+      "version": "v4.0",
+      "churn": 1471
+    },
+    {
+      "id": "defects4j_0038",
+      "project": "project_c",
+      "version": "v2.7",
+      "churn": 3557
+    },
+    {
+      "id": "defects4j_0039",
+      "project": "project_c",
+      "version": "v3.5",
+      "churn": 1892
+    },
+    {
+      "id": "defects4j_0040",
+      "project": "project_c",
+      "version": "v4.6",
+      "churn": 3459
+    },
+    {
+      "id": "defects4j_0041",
+      "project": "project_c",
+      "version": "v3.9",
+      "churn": 1672
+    },
+    {
+      "id": "defects4j_0042",
+      "project": "project_b",
+      "version": "v3.3",
+      "churn": 3183
+    },
+    {
+      "id": "defects4j_0043",
+      "project": "project_b",
+      "version": "v4.0",
+      "churn": 3174
+    },
+    {
+      "id": "defects4j_0044",
+      "project": "project_d",
+      "version": "v1.1",
+      "churn": 3801
+    },
+    {
+      "id": "defects4j_0045",
+      "project": "project_a",
+      "version": "v5.8",
+      "churn": 1389
+    },
+    {
+      "id": "defects4j_0046",
+      "project": "project_c",
+      "version": "v1.5",
+      "churn": 1564
+    },
+    {
+      "id": "defects4j_0047",
+      "project": "project_b",
+      "version": "v2.3",
+      "churn": 4566
+    },
+    {
+      "id": "defects4j_0048",
+      "project": "project_a",
+      "version": "v4.8",
+      "churn": 1824
+    },
+    {
+      "id": "defects4j_0049",
+      "project": "project_c",
+      "version": "v2.4",
+      "churn": 500
+    },
+    {
+      "id": "defects4j_0050",
+      "project": "project_b",
+      "version": "v5.2",
+      "churn": 1738
+    },
+    {
+      "id": "defects4j_0051",
+      "project": "project_a",
+      "version": "v4.6",
+      "churn": 1431
+    },
+    {
+      "id": "defects4j_0052",
+      "project": "project_b",
+      "version": "v1.8",
+      "churn": 1464
+    },
+    {
+      "id": "defects4j_0053",
+      "project": "project_b",
+      "version": "v1.6",
+      "churn": 2782
+    },
+    {
+      "id": "defects4j_0054",
+      "project": "project_b",
+      "version": "v2.7",
+      "churn": 3803
+    },
+    {
+      "id": "defects4j_0055",
+      "project": "project_c",
+      "version": "v3.2",
+      "churn": 3032
+    },
+    {
+      "id": "defects4j_0056",
+      "project": "project_b",
+      "version": "v2.5",
+      "churn": 2056
+    },
+    {
+      "id": "defects4j_0057",
+      "project": "project_b",
+      "version": "v1.9",
+      "churn": 102
+    },
+    {
+      "id": "defects4j_0058",
+      "project": "project_a",
+      "version": "v5.8",
+      "churn": 2908
+    },
+    {
+      "id": "defects4j_0059",
+      "project": "project_d",
+      "version": "v2.2",
+      "churn": 1390
+    },
+    {
+      "id": "defects4j_0060",
+      "project": "project_d",
+      "version": "v5.5",
+      "churn": 338
+    },
+    {
+      "id": "defects4j_0061",
+      "project": "project_c",
+      "version": "v2.8",
+      "churn": 1446
+    },
+    {
+      "id": "defects4j_0062",
+      "project": "project_d",
+      "version": "v4.5",
+      "churn": 2822
+    },
+    {
+      "id": "defects4j_0063",
+      "project": "project_d",
+      "version": "v1.4",
+      "churn": 4089
+    },
+    {
+      "id": "defects4j_0064",
+      "project": "project_d",
+      "version": "v3.6",
+      "churn": 3863
+    },
+    {
+      "id": "defects4j_0065",
+      "project": "project_b",
+      "version": "v4.6",
+      "churn": 2095
+    },
+    {
+      "id": "defects4j_0066",
+      "project": "project_d",
+      "version": "v1.3",
+      "churn": 179
+    },
+    {
+      "id": "defects4j_0067",
+      "project": "project_d",
+      "version": "v5.5",
+      "churn": 3974
+    },
+    {
+      "id": "defects4j_0068",
+      "project": "project_b",
+      "version": "v4.6",
+      "churn": 2373
+    },
+    {
+      "id": "defects4j_0069",
+      "project": "project_b",
+      "version": "v3.0",
+      "churn": 2868
+    },
+    {
+      "id": "defects4j_0070",
+      "project": "project_c",
+      "version": "v5.2",
+      "churn": 3283
+    },
+    {
+      "id": "defects4j_0071",
+      "project": "project_a",
+      "version": "v2.9",
+      "churn": 2272
+    },
+    {
+      "id": "defects4j_0072",
+      "project": "project_d",
+      "version": "v4.4",
+      "churn": 4284
+    }
+  ]
+}

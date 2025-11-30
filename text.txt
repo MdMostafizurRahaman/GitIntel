@@ -17,3 +17,25 @@ Error Handling and Performance Optimizations
 
 
 Defects4J, Bugs.jar, ManySStuBs4J, CodeXGLUE, CodeSearchNet, Sourcerer Dataset, PROMISE Repository
+
+📊 Supported Metrics (60+ metrics):
+Lines of Code Metrics:
+KLOC, LOC, SOC, CLOC, BLOC
+Complexity Metrics:
+Cyclomatic Complexity, Cognitive Complexity, Essential Complexity
+Change Metrics:
+Churn, Additions, Deletions, Changes
+Object-Oriented Metrics (CK Metrics):
+WMC, DIT, NOC, CBO, RFC, LCOM
+Maintainability Metrics:
+Maintainability Index, Technical Debt, Code Smells
+Halstead Metrics:
+Volume, Difficulty, Effort, Time, Bugs
+Defect Metrics:
+Bug Density, Bugs, Vulnerabilities
+Quality Metrics:
+Duplication, Test Coverage, Documentation
+Size Metrics:
+Files, Classes, Methods, Statements
+Author/Time Metrics:
+Authors, Commits, Age, Frequency
