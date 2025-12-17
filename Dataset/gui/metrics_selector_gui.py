@@ -93,25 +93,33 @@ class DatasetGeneratorGUI:
         
     def setup_ui(self):
         """Setup main UI"""
-        # Main container
+        # Main container with grid layout
         main_frame = ttk.Frame(self.root, padding=10)
         main_frame.pack(fill=tk.BOTH, expand=True)
+        main_frame.columnconfigure(0, weight=1)
+        main_frame.rowconfigure(3, weight=1)  # Make content area expandable
         
         # Title
         title_frame = ttk.Frame(main_frame)
-        title_frame.pack(fill=tk.X, pady=(0, 10))
+        title_frame.grid(row=0, column=0, sticky=tk.EW, pady=(0, 10))
         ttk.Label(title_frame, text="🔬 GitIntel Dataset Generator", 
                   style='Title.TLabel').pack(side=tk.LEFT)
         
         # Repository Section
-        self.setup_repository_section(main_frame)
+        repo_section = ttk.Frame(main_frame)
+        repo_section.grid(row=1, column=0, sticky=tk.EW, pady=(0, 10))
+        self.setup_repository_section(repo_section)
         
         # Mode Selection (Benchmark vs Custom)
-        self.setup_mode_selection(main_frame)
+        mode_section = ttk.Frame(main_frame)
+        mode_section.grid(row=2, column=0, sticky=tk.EW, pady=(0, 10))
+        self.setup_mode_selection(mode_section)
         
         # Content Frame (changes based on mode)
         self.content_frame = ttk.Frame(main_frame)
-        self.content_frame.pack(fill=tk.BOTH, expand=True, pady=10)
+        self.content_frame.grid(row=3, column=0, sticky=tk.NSEW, pady=10)
+        self.content_frame.columnconfigure(0, weight=1)
+        self.content_frame.rowconfigure(0, weight=1)
         
         # Benchmark content
         self.benchmark_frame = ttk.Frame(self.content_frame)
@@ -122,13 +130,19 @@ class DatasetGeneratorGUI:
         self.setup_custom_section(self.custom_frame)
         
         # Output Section
-        self.setup_output_section(main_frame)
+        output_section = ttk.Frame(main_frame)
+        output_section.grid(row=4, column=0, sticky=tk.EW, pady=(0, 10))
+        self.setup_output_section(output_section)
         
         # Generate Button
-        self.setup_generate_section(main_frame)
+        gen_section = ttk.Frame(main_frame)
+        gen_section.grid(row=5, column=0, sticky=tk.EW, pady=10)
+        self.setup_generate_section(gen_section)
         
         # Status Bar
-        self.setup_status_bar(main_frame)
+        status_section = ttk.Frame(main_frame)
+        status_section.grid(row=6, column=0, sticky=tk.EW)
+        self.setup_status_bar(status_section)
         
         # Show benchmark by default
         self.show_benchmark_mode()
@@ -210,12 +224,12 @@ class DatasetGeneratorGUI:
                 col = 0
                 row += 1
         
-        # Benchmark info panel
+        # Benchmark info panel with fixed height
         info_frame = ttk.LabelFrame(parent, text="ℹ️ Dataset Information", padding=10)
-        info_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
+        info_frame.pack(fill=tk.BOTH, padx=0, pady=(0, 10))
         
-        self.benchmark_info_text = tk.Text(info_frame, height=15, font=('Consolas', 10), wrap=tk.WORD)
-        self.benchmark_info_text.pack(fill=tk.BOTH, expand=True)
+        self.benchmark_info_text = tk.Text(info_frame, height=8, font=('Consolas', 10), wrap=tk.WORD)
+        self.benchmark_info_text.pack(fill=tk.BOTH)
         self.benchmark_info_text.config(state=tk.DISABLED)
         
         # Defects4J specific options
@@ -254,11 +268,12 @@ class DatasetGeneratorGUI:
             ttk.Button(quick_frame, text=cat, 
                       command=lambda c=cat: self.toggle_category(c)).pack(side=tk.LEFT, padx=2)
         
-        # Scrollable metrics area
+        # Scrollable metrics area - with fixed height
         canvas_frame = ttk.Frame(parent)
-        canvas_frame.pack(fill=tk.BOTH, expand=True)
+        canvas_frame.pack(fill=tk.BOTH, pady=(0, 10))
+        canvas_frame.configure(height=250)
         
-        canvas = tk.Canvas(canvas_frame)
+        canvas = tk.Canvas(canvas_frame, height=250, bg='white')
         scrollbar_y = ttk.Scrollbar(canvas_frame, orient=tk.VERTICAL, command=canvas.yview)
         scrollbar_x = ttk.Scrollbar(canvas_frame, orient=tk.HORIZONTAL, command=canvas.xview)
         

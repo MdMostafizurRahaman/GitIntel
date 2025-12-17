@@ -294,13 +294,13 @@ def agent():
 def create(query, interactive, output_dir):
     """Create dataset from natural language query (interactive)"""
     
-    from agentic_dataset_maker import AgenticDatasetMaker
+    from autonomous_agent import AutonomousAgent
     
     click.echo("\n" + "="*60)
     click.echo("🤖 Agentic Dataset Creation")
     click.echo("="*60)
     
-    maker = AgenticDatasetMaker()
+    maker = AutonomousAgent()
     
     try:
         Path(output_dir).mkdir(parents=True, exist_ok=True)
@@ -326,13 +326,13 @@ def create(query, interactive, output_dir):
 def create_direct(dataset_type, source, processors, format, output):
     """Create dataset directly (non-interactive)"""
     
-    from agentic_dataset_maker import AgenticDatasetMaker
+    from autonomous_agent import AutonomousAgent
     
     click.echo("\n" + "="*60)
     click.echo("🤖 Direct Dataset Creation")
     click.echo("="*60)
     
-    maker = AgenticDatasetMaker()
+    maker = AutonomousAgent()
     processing_steps = [p.strip() for p in processors.split(',')] if processors else []
     
     try:
@@ -357,35 +357,26 @@ def create_direct(dataset_type, source, processors, format, output):
 def list_all():
     """List available datasets and processors"""
     
-    from agentic_dataset_maker import AgenticDatasetMaker
-    
-    maker = AgenticDatasetMaker()
-    
     click.echo("\n" + "="*60)
     click.echo("📊 Available Datasets & Processors")
     click.echo("="*60)
     
-    click.echo("\n📦 Datasets:")
-    metrics = maker.metrics_registry.get_available_metrics()
-    for dtype, info in metrics.items():
-        click.echo(f"  {dtype}: {info.get('description', 'N/A')}")
-    
-    click.echo("\n⚙️  Processors:")
-    for proc in maker.metrics_registry.get_available_processors():
-        click.echo(f"  - {proc}")
+    click.echo("\n📦 Supported Datasets:")
+    datasets = ['defects4j', 'bugs_jar', 'codexglue', 'codesearchnet', 'sourcerer', 'promise', 'manystubs4j']
+    for dtype in datasets:
+        click.echo(f"  - {dtype}")
 
 @agent.command()
 @click.option('--query', help='Query to analyze')
 def explain(query):
     """Explain query interpretation"""
     
-    from agentic_dataset_maker import AgenticDatasetMaker
+    from autonomous_agent import AutonomousAgent
     
     if not query:
         query = click.prompt("Enter your query")
     
-    maker = AgenticDatasetMaker()
-    request = maker.planner.parse_user_request(query)
+    agent = AutonomousAgent()
     
     click.echo("\n" + "="*60)
     click.echo("🔍 Query Analysis")
