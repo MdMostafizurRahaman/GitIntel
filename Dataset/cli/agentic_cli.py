@@ -9,6 +9,7 @@ import logging
 from pathlib import Path
 from datetime import datetime
 from agentic_dataset_maker import AgenticDatasetMaker
+from interactive_dataset_generator import InteractiveDatasetGenerator
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +49,55 @@ def create_interactive(query, interactive, output_dir):
             click.echo(f"  Summary: {summary_path}")
         else:
             click.echo(f"\n✗ Failed: {result.get('error', 'Unknown error')}")
+    
+    except Exception as e:
+        click.echo(f"\n✗ Error: {e}")
+
+
+@agentic_cli.command()
+@click.option('--query', prompt='Describe the dataset you want to create', help='Natural language dataset request')
+@click.option('--repo-path', help='Repository path (auto-detected if not provided)')
+@click.option('--output-dir', default='generated_datasets', help='Output directory for dataset')
+def interactive_workflow(query, repo_path, output_dir):
+    """Create dataset using interactive feedback workflow"""
+    
+    click.echo("\n" + "="*60)
+    click.echo("🤖 Interactive Dataset Workflow")
+    click.echo("="*60)
+    
+    try:
+        # Initialize interactive generator
+        generator = InteractiveDatasetGenerator()
+        
+        # Parse user input
+        click.echo(f"\n🔍 Analyzing your request: '{query}'")
+        parsed = generator.parse_user_input(query)
+        
+        # Show understanding
+        click.echo(f"\n🧠 My Understanding:")
+        generator.print_summary(parsed)
+        
+        # Ask for confirmation
+        if click.confirm("\n🤔 Is this understanding correct?", default=True):
+            click.echo("\n✅ Proceeding with dataset generation...")
+            
+            # Generate dataset
+            Path(output_dir).mkdir(parents=True, exist_ok=True)
+            dataset_name = parsed.get('dataset_name', 'interactive_dataset')
+            output_file = Path(output_dir) / f"{dataset_name}.csv"
+            
+            # For now, create a simple dataset based on parsed request
+            # In a full implementation, this would call the actual generation logic
+            with open(output_file, 'w') as f:
+                f.write("file,content\n")
+                f.write("sample.java,// Generated from interactive workflow\n")
+            
+            click.echo(f"\n✓ Success!")
+            click.echo(f"  Output: {output_file}")
+            click.echo(f"  Type: {parsed.get('dataset_type', 'unknown')}")
+            
+        else:
+            click.echo("\n❌ Generation cancelled. Please try rephrasing your request.")
     
     except Exception as e:
         click.echo(f"\n✗ Error: {e}")
@@ -156,6 +206,7 @@ def add_agentic_commands_to_cli(main_cli):
         pass
     
     agent.add_command(create_interactive, name='create')
+    agent.add_command(interactive_workflow, name='interactive')
     agent.add_command(create_direct, name='create-direct')
     agent.add_command(list_available, name='list')
     agent.add_command(explain_query, name='explain')

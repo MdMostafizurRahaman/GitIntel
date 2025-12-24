@@ -82,8 +82,8 @@ class LLMGitAnalyzer:
             raise ValueError("GEMINI_API_KEY not found in environment variables")
         
         genai.configure(api_key=api_key)
-        # Try different model names for compatibility
-        model_names = ['gemini-pro-latest', 'gemini-flash-latest', 'gemini-1.5-flash-latest', 'gemini-1.5-pro-latest']
+        # Try different model names for compatibility (in order of preference)
+        model_names = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-pro-latest', 'gemini-flash-latest', 'gemini-1.5-flash-latest', 'gemini-1.5-pro-latest']
         self.model = None
         for model_name in model_names:
             try:
@@ -91,7 +91,7 @@ class LLMGitAnalyzer:
                 print(f"✅ Gemini model set: {model_name}")
                 break
             except Exception as e:
-                print(f"Model {model_name} not available: {e}")
+                print(f"  Model {model_name} not available: {e}")
                 continue
         if not self.model:
             print("⚠️ No Gemini model available, using fallback analysis.")

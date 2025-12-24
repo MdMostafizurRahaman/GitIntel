@@ -48,7 +48,7 @@ class AutonomousAgent:
         self.repo_path = None
         self.knowledge_base = self._load_knowledge_base()
         self.interaction_history = []
-        print("🤖 Autonomous AI Agent initialized - Ready to learn and adapt!")
+        print("[Agent] Autonomous AI Agent initialized - Ready to learn and adapt!")
     
     def _load_knowledge_base(self) -> Dict[str, Any]:
         """Load learned patterns from previous interactions"""

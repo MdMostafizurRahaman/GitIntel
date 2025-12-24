@@ -18,6 +18,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from metrics_catalog import MetricsCatalog
 from github_autonomous_agent import GitHubAutonomousAgent
+from interactive_dataset_generator import AgenticDatasetGenerator
 
 
 class DatasetGeneratorGUI:
@@ -129,6 +130,10 @@ class DatasetGeneratorGUI:
         self.custom_frame = ttk.Frame(self.content_frame)
         self.setup_custom_section(self.custom_frame)
         
+        # Interactive content
+        self.interactive_frame = ttk.Frame(self.content_frame)
+        self.setup_interactive_section(self.interactive_frame)
+        
         # Output Section
         output_section = ttk.Frame(main_frame)
         output_section.grid(row=4, column=0, sticky=tk.EW, pady=(0, 10))
@@ -198,6 +203,15 @@ class DatasetGeneratorGUI:
                         variable=self.mode_var, value="custom",
                         command=self.show_custom_mode).pack(side=tk.LEFT)
         ttk.Label(custom_frame, text="- Select from 64 metrics across 14 categories",
+                  style='Info.TLabel').pack(side=tk.LEFT, padx=10)
+        
+        # Interactive option
+        interactive_frame = ttk.Frame(mode_frame)
+        interactive_frame.pack(fill=tk.X, pady=2)
+        ttk.Radiobutton(interactive_frame, text="Interactive Dataset", 
+                        variable=self.mode_var, value="interactive",
+                        command=self.show_interactive_mode).pack(side=tk.LEFT)
+        ttk.Label(interactive_frame, text="- Conversational dataset generation with AI assistance",
                   style='Info.TLabel').pack(side=tk.LEFT, padx=10)
         
     def setup_benchmark_section(self, parent):
@@ -340,6 +354,67 @@ class DatasetGeneratorGUI:
         ttk.Label(self.metrics_frame, textvariable=self.selected_count_var, 
                   style='Header.TLabel').grid(row=row+1, column=0, columnspan=max_cols, pady=10)
         
+    def setup_interactive_section(self, parent):
+        """Setup interactive dataset generation"""
+        # Info section
+        info_frame = ttk.LabelFrame(parent, text="🤖 Interactive Dataset Generation", padding=10)
+        info_frame.pack(fill=tk.X, pady=(0, 10))
+        
+        info_text = """Conversational AI-assisted dataset generation. Describe what you want in natural language, and the system will:
+        
+• Understand your requirements through interactive dialogue
+• Ask clarifying questions to ensure accuracy
+• Generate the appropriate dataset based on your description
+• Handle complex multi-step dataset creation workflows
+        
+Example commands:
+- "Create a dataset with code complexity metrics for Java files"
+- "Generate bug prediction data from commit history"
+- "Build a dataset with LOC and coupling metrics for Python projects"
+"""
+        
+        ttk.Label(info_frame, text=info_text, style='Info.TLabel', justify=tk.LEFT).pack(anchor=tk.W)
+        
+        # Conversation area
+        conv_frame = ttk.LabelFrame(parent, text="💬 Conversation", padding=10)
+        conv_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
+        
+        # Text area for conversation
+        self.conversation_text = tk.Text(conv_frame, height=15, font=('Consolas', 10), wrap=tk.WORD)
+        scrollbar = ttk.Scrollbar(conv_frame, command=self.conversation_text.yview)
+        self.conversation_text.configure(yscrollcommand=scrollbar.set)
+        
+        self.conversation_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        # Input area
+        input_frame = ttk.Frame(conv_frame)
+        input_frame.pack(fill=tk.X, pady=(10, 0))
+        
+        ttk.Label(input_frame, text="Your request:").pack(anchor=tk.W)
+        self.interactive_input_var = tk.StringVar()
+        self.interactive_input = ttk.Entry(input_frame, textvariable=self.interactive_input_var, font=('Consolas', 10))
+        self.interactive_input.pack(fill=tk.X, pady=2)
+        self.interactive_input.bind('<Return>', lambda e: self.send_interactive_request())
+        
+        # Buttons
+        button_frame = ttk.Frame(input_frame)
+        button_frame.pack(fill=tk.X, pady=5)
+        
+        ttk.Button(button_frame, text="📤 Send Request", command=self.send_interactive_request).pack(side=tk.LEFT, padx=2)
+        ttk.Button(button_frame, text="🗑️ Clear Conversation", command=self.clear_conversation).pack(side=tk.LEFT, padx=2)
+        ttk.Button(button_frame, text="🚀 Generate Dataset", command=self.generate_interactive_dataset).pack(side=tk.LEFT, padx=2)
+        
+        # Initialize conversation
+        self.conversation_text.insert(tk.END, "🤖 Welcome to Interactive Dataset Generation!\n\n")
+        self.conversation_text.insert(tk.END, "Describe what kind of dataset you want to create. For example:\n")
+        self.conversation_text.insert(tk.END, "- 'Create a dataset with complexity metrics for Java files'\n")
+        self.conversation_text.insert(tk.END, "- 'Generate bug prediction data from git history'\n\n")
+        self.conversation_text.config(state=tk.DISABLED)
+        
+        # Interactive generator instance
+        self.interactive_generator = None
+        
     def setup_output_section(self, parent):
         """Setup output configuration"""
         output_frame = ttk.LabelFrame(parent, text="💾 Output Configuration", padding=10)
@@ -411,8 +486,144 @@ class DatasetGeneratorGUI:
     def show_custom_mode(self):
         """Show custom metrics selection"""
         self.benchmark_frame.pack_forget()
+        self.interactive_frame.pack_forget()
         self.custom_frame.pack(fill=tk.BOTH, expand=True)
         self.update_selected_count()
+        
+    def show_interactive_mode(self):
+        """Show interactive dataset generation"""
+        self.benchmark_frame.pack_forget()
+        self.custom_frame.pack_forget()
+        self.interactive_frame.pack(fill=tk.BOTH, expand=True)
+        
+    def send_interactive_request(self):
+        """Send user request to interactive generator"""
+        user_input = self.interactive_input_var.get().strip()
+        if not user_input:
+            return
+            
+        # Add user input to conversation
+        self.conversation_text.config(state=tk.NORMAL)
+        self.conversation_text.insert(tk.END, f"👤 You: {user_input}\n\n")
+        self.conversation_text.config(state=tk.DISABLED)
+        
+        # Clear input
+        self.interactive_input_var.set("")
+        
+        # Initialize generator if needed
+        if self.interactive_generator is None:
+            self.interactive_generator = AgenticDatasetGenerator()
+        
+        # Process request in background
+        def process_request():
+            try:
+                # For GUI, we'll simulate the interactive workflow
+                # Parse the user input
+                parsed = self.interactive_generator.parse_user_input(user_input)
+                
+                # Show understanding
+                self.conversation_text.config(state=tk.NORMAL)
+                self.conversation_text.insert(tk.END, "🤖 System: Let me understand your request...\n\n")
+                self.interactive_generator.print_summary(parsed)
+                
+                # For GUI, we'll capture the output
+                import io
+                import sys
+                from contextlib import redirect_stdout
+                
+                output_buffer = io.StringIO()
+                with redirect_stdout(output_buffer):
+                    self.interactive_generator.print_summary(parsed)
+                
+                summary = output_buffer.getvalue()
+                self.conversation_text.insert(tk.END, f"🤖 System: {summary}\n\n")
+                
+                # Ask for confirmation
+                self.conversation_text.insert(tk.END, "🤖 System: Is this what you want? (Type 'yes' to proceed, 'no' to modify, or describe changes)\n\n")
+                self.conversation_text.config(state=tk.DISABLED)
+                
+                # Store parsed request for later use
+                self.last_parsed_request = parsed
+                
+            except Exception as e:
+                self.conversation_text.config(state=tk.NORMAL)
+                self.conversation_text.insert(tk.END, f"🤖 System Error: {str(e)}\n\n")
+                self.conversation_text.config(state=tk.DISABLED)
+        
+        threading.Thread(target=process_request, daemon=True).start()
+        
+    def clear_conversation(self):
+        """Clear the conversation area"""
+        self.conversation_text.config(state=tk.NORMAL)
+        self.conversation_text.delete(1.0, tk.END)
+        self.conversation_text.insert(tk.END, "🤖 Welcome to Interactive Dataset Generation!\n\n")
+        self.conversation_text.insert(tk.END, "Describe what kind of dataset you want to create.\n\n")
+        self.conversation_text.config(state=tk.DISABLED)
+        self.interactive_generator = None
+        self.last_parsed_request = None
+        
+    def generate_interactive_dataset(self):
+        """Generate dataset from interactive conversation"""
+        if not hasattr(self, 'last_parsed_request') or self.last_parsed_request is None:
+            messagebox.showwarning("Warning", "Please start an interactive conversation first")
+            return
+            
+        # Validate repository
+        repo_path = self.repo_var.get().strip()
+        if not repo_path or 'Enter' in repo_path:
+            messagebox.showwarning("Warning", "Please specify a repository")
+            return
+            
+        # Validate output directory
+        output_dir = self.output_dir_var.get().strip()
+        if not output_dir:
+            messagebox.showwarning("Warning", "Please specify an output directory")
+            return
+            
+        # Create output directory
+        os.makedirs(output_dir, exist_ok=True)
+        
+        self.generate_btn.config(state=tk.DISABLED)
+        self.progress_var.set(0)
+        self.status_var.set("Generating interactive dataset...")
+        
+        def generate_thread():
+            try:
+                # Use the interactive generator to create the dataset
+                if self.interactive_generator:
+                    dataset_name = self.dataset_name_var.get() or "interactive_dataset"
+                    output_file = os.path.join(output_dir, f"{dataset_name}.csv")
+                    
+                    self.interactive_generator.generate_dataset(
+                        repo_path=repo_path,
+                        output_file=output_file,
+                        parsed_request=self.last_parsed_request
+                    )
+                    
+                    self.progress_var.set(100)
+                    self.status_var.set("Interactive dataset generated successfully!")
+                    messagebox.showinfo("Success", f"Dataset generated in:\n{output_file}")
+                    
+                    # Add to conversation
+                    self.conversation_text.config(state=tk.NORMAL)
+                    self.conversation_text.insert(tk.END, f"🤖 System: Dataset generated successfully!\n📁 Location: {output_file}\n\n")
+                    self.conversation_text.config(state=tk.DISABLED)
+                    
+                else:
+                    raise ValueError("No interactive session active")
+                    
+            except Exception as e:
+                self.status_var.set(f"Error: {str(e)}")
+                messagebox.showerror("Error", f"Generation failed:\n{str(e)}")
+                
+                # Add error to conversation
+                self.conversation_text.config(state=tk.NORMAL)
+                self.conversation_text.insert(tk.END, f"🤖 System Error: {str(e)}\n\n")
+                self.conversation_text.config(state=tk.DISABLED)
+            finally:
+                self.generate_btn.config(state=tk.NORMAL)
+                
+        threading.Thread(target=generate_thread, daemon=True).start()
         
     def update_benchmark_info(self):
         """Update benchmark info panel"""
@@ -637,8 +848,10 @@ Metrics included automatically:
                 
                 if mode == "benchmark":
                     self.generate_benchmark_dataset(repo_path, output_dir)
-                else:
+                elif mode == "custom":
                     self.generate_custom_dataset(repo_path, output_dir)
+                elif mode == "interactive":
+                    self.generate_interactive_dataset_main(repo_path, output_dir)
                     
                 self.progress_var.set(100)
                 self.status_var.set("Dataset generated successfully!")
@@ -914,6 +1127,94 @@ Metrics included automatically:
                     writer.writerow(row)
                 except:
                     pass
+                    
+    def generate_interactive_dataset_main(self, repo_path, output_dir):
+        """Generate dataset using interactive workflow from main generate button"""
+        if not hasattr(self, 'last_parsed_request') or self.last_parsed_request is None:
+            messagebox.showwarning("Warning", "Please use the Interactive mode to start a conversation first")
+            return
+            
+        dataset_name = self.dataset_name_var.get() or "interactive_dataset"
+        output_file = os.path.join(output_dir, f"{dataset_name}.csv")
+        
+        self.status_var.set("Generating interactive dataset...")
+        self.progress_var.set(10)
+        
+        # Use the parsed request to determine generation type
+        parsed = self.last_parsed_request
+        
+        if parsed.get('dataset_type') == 'benchmark':
+            # Generate benchmark dataset
+            benchmark_type = parsed.get('benchmark_type', 'Defects4J')
+            self.generate_benchmark_dataset_interactive(repo_path, output_dir, benchmark_type, dataset_name)
+        elif parsed.get('dataset_type') == 'custom':
+            # Generate custom dataset with selected metrics
+            selected_metrics = parsed.get('metrics', [])
+            self.generate_custom_dataset_interactive(repo_path, output_dir, selected_metrics, dataset_name)
+        else:
+            raise ValueError("Unknown dataset type in parsed request")
+            
+        self.progress_var.set(100)
+        self.status_var.set("Interactive dataset generated successfully!")
+        
+        # Add to conversation
+        self.conversation_text.config(state=tk.NORMAL)
+        self.conversation_text.insert(tk.END, f"🤖 System: Dataset generated successfully!\n📁 Location: {output_file}\n\n")
+        self.conversation_text.config(state=tk.DISABLED)
+        
+    def generate_benchmark_dataset_interactive(self, repo_path, output_dir, benchmark_type, dataset_name):
+        """Generate benchmark dataset based on interactive request"""
+        if benchmark_type.lower() == 'defects4j':
+            self.generate_defects4j(repo_path, output_dir, dataset_name)
+        elif benchmark_type.lower() == 'bugs.jar':
+            self.generate_bugsjar(repo_path, output_dir, dataset_name)
+        elif benchmark_type.lower() == 'promise':
+            self.generate_promise(repo_path, output_dir, dataset_name)
+        elif benchmark_type.lower() == 'codesearchnet':
+            self.generate_codesearchnet(repo_path, output_dir, dataset_name)
+        else:
+            self.generate_generic_benchmark(repo_path, output_dir, benchmark_type, dataset_name)
+            
+    def generate_custom_dataset_interactive(self, repo_path, output_dir, selected_metrics, dataset_name):
+        """Generate custom dataset with specified metrics"""
+        output_format = self.output_format_var.get()
+        output_file = os.path.join(output_dir, f"{dataset_name}.{output_format}")
+        
+        self.status_var.set(f"Extracting {len(selected_metrics)} metrics...")
+        self.progress_var.set(10)
+        
+        # Get code files
+        code_files = self._get_code_files(repo_path)
+        
+        self.progress_var.set(20)
+        
+        # Extract metrics for each file
+        rows = []
+        for i, file_path in enumerate(code_files[:500]):
+            try:
+                metrics = self._extract_metrics(file_path, selected_metrics)
+                metrics['file'] = os.path.relpath(file_path, repo_path)
+                rows.append(metrics)
+            except Exception:
+                pass
+                
+            self.progress_var.set(20 + (i / len(code_files)) * 70)
+            
+        # Save dataset
+        if output_format == 'csv':
+            import csv
+            with open(output_file, 'w', newline='') as f:
+                if rows:
+                    writer = csv.DictWriter(f, fieldnames=rows[0].keys())
+                    writer.writeheader()
+                    writer.writerows(rows)
+        elif output_format == 'jsonl':
+            with open(output_file, 'w') as f:
+                for row in rows:
+                    f.write(json.dumps(row) + '\n')
+        else:
+            with open(output_file, 'w') as f:
+                json.dump(rows, f, indent=2)
                     
     def _generate_json(self, repo_path, output_file, fields):
         """Generate JSON format"""

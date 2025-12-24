@@ -6,18 +6,18 @@
     "D:\\GitIntel\\GitIntelProject": {
       "path": "D:\\GitIntel\\GitIntelProject",
       "name": "GitIntelProject",
-      "analyzed_at": "2025-12-17T22:52:11.098919",
+      "analyzed_at": "2025-12-24T18:23:40.866059",
       "has_commits": true,
-      "total_commits": 19,
+      "total_commits": 20,
       "branches": 21,
       "total_authors": 1,
-      "total_files": 210,
+      "total_files": 212,
       "primary_language": ".py"
     },
     "D:/Test-folder/druid": {
       "path": "D:/Test-folder/druid",
       "name": "druid",
-      "analyzed_at": "2025-12-17T22:54:49.184324",
+      "analyzed_at": "2025-12-18T12:38:12.336151",
       "has_commits": true,
       "total_commits": 1,
       "branches": 1,

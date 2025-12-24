@@ -1,0 +1,2513 @@
+{
+  "generated": "20251224_182436",
+  "config": {
+    "benchmark": "Bugs.jar",
+    "metrics": [
+      "defect"
+    ],
+    "format": "json",
+    "language": "java"
+  },
+  "files": [
+    {
+      "loc": 22,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\Constants.java"
+    },
+    {
+      "loc": 166,
+      "cyclomatic_complexity": 11,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\DbType.java"
+    },
+    {
+      "loc": 37,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\DruidRuntimeException.java"
+    },
+    {
+      "loc": 10,
+      "cyclomatic_complexity": 1,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\FastsqlColumnAmbiguousException.java"
+    },
+    {
+      "loc": 37,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\FastsqlException.java"
+    },
+    {
+      "loc": 23,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\TransactionTimeoutException.java"
+    },
+    {
+      "loc": 26,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\VERSION.java"
+    },
+    {
+      "loc": 31,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\filter\\AutoLoad.java"
+    },
+    {
+      "loc": 1378,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\filter\\Filter.java"
+    },
+    {
+      "loc": 2891,
+      "cyclomatic_complexity": 6,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\filter\\FilterAdapter.java"
+    },
+    {
+      "loc": 1192,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\filter\\FilterChain.java"
+    },
+    {
+      "loc": 5287,
+      "cyclomatic_complexity": 550,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\filter\\FilterChainImpl.java"
+    },
+    {
+      "loc": 541,
+      "cyclomatic_complexity": 61,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\filter\\FilterEventAdapter.java"
+    },
+    {
+      "loc": 170,
+      "cyclomatic_complexity": 32,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\filter\\FilterManager.java"
+    },
+    {
+      "loc": 278,
+      "cyclomatic_complexity": 42,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\filter\\config\\ConfigFilter.java"
+    },
+    {
+      "loc": 210,
+      "cyclomatic_complexity": 25,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\filter\\config\\ConfigTools.java"
+    },
+    {
+      "loc": 78,
+      "cyclomatic_complexity": 29,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\filter\\encoding\\CharsetConvert.java"
+    },
+    {
+      "loc": 55,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\filter\\encoding\\CharsetParameter.java"
+    },
+    {
+      "loc": 645,
+      "cyclomatic_complexity": 25,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\filter\\encoding\\EncodingConvertFilter.java"
+    },
+    {
+      "loc": 161,
+      "cyclomatic_complexity": 16,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\filter\\logging\\CommonsLogFilter.java"
+    },
+    {
+      "loc": 22,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\filter\\logging\\CommonsLogFilterMBean.java"
+    },
+    {
+      "loc": 153,
+      "cyclomatic_complexity": 12,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\filter\\logging\\Log4j2Filter.java"
+    },
+    {
+      "loc": 19,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\filter\\logging\\Log4j2FilterMBean.java"
+    },
+    {
+      "loc": 153,
+      "cyclomatic_complexity": 12,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\filter\\logging\\Log4jFilter.java"
+    },
+    {
+      "loc": 22,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\filter\\logging\\Log4jFilterMBean.java"
+    },
+    {
+      "loc": 973,
+      "cyclomatic_complexity": 127,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\filter\\logging\\LogFilter.java"
+    },
+    {
+      "loc": 146,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\filter\\logging\\LogFilterMBean.java"
+    },
+    {
+      "loc": 160,
+      "cyclomatic_complexity": 12,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\filter\\logging\\Slf4jLogFilter.java"
+    },
+    {
+      "loc": 152,
+      "cyclomatic_complexity": 2,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\filter\\mysql8datetime\\MySQL8DateTimeResultSetMetaData.java"
+    },
+    {
+      "loc": 81,
+      "cyclomatic_complexity": 20,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\filter\\mysql8datetime\\MySQL8DateTimeSqlTypeFilter.java"
+    },
+    {
+      "loc": 35,
+      "cyclomatic_complexity": 8,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\filter\\stat\\MergeStatFilter.java"
+    },
+    {
+      "loc": 1135,
+      "cyclomatic_complexity": 129,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\filter\\stat\\StatFilter.java"
+    },
+    {
+      "loc": 140,
+      "cyclomatic_complexity": 19,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\filter\\stat\\StatFilterContext.java"
+    },
+    {
+      "loc": 46,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\filter\\stat\\StatFilterContextListener.java"
+    },
+    {
+      "loc": 75,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\filter\\stat\\StatFilterContextListenerAdapter.java"
+    },
+    {
+      "loc": 35,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\filter\\stat\\StatFilterMBean.java"
+    },
+    {
+      "loc": 83,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\mock\\MockArray.java"
+    },
+    {
+      "loc": 84,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\mock\\MockBlob.java"
+    },
+    {
+      "loc": 661,
+      "cyclomatic_complexity": 15,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\mock\\MockCallableStatement.java"
+    },
+    {
+      "loc": 100,
+      "cyclomatic_complexity": 6,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\mock\\MockClob.java"
+    },
+    {
+      "loc": 486,
+      "cyclomatic_complexity": 26,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\mock\\MockConnection.java"
+    },
+    {
+      "loc": 26,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\mock\\MockConnectionClosedException.java"
+    },
+    {
+      "loc": 325,
+      "cyclomatic_complexity": 33,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\mock\\MockDriver.java"
+    },
+    {
+      "loc": 42,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\mock\\MockDriverMBean.java"
+    },
+    {
+      "loc": 21,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\mock\\MockNClob.java"
+    },
+    {
+      "loc": 163,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\mock\\MockParameterMetaData.java"
+    },
+    {
+      "loc": 91,
+      "cyclomatic_complexity": 11,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\mock\\MockPreparedStatement.java"
+    },
+    {
+      "loc": 50,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\mock\\MockRef.java"
+    },
+    {
+      "loc": 96,
+      "cyclomatic_complexity": 10,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\mock\\MockResultSet.java"
+    },
+    {
+      "loc": 26,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\mock\\MockResultSetMetaData.java"
+    },
+    {
+      "loc": 39,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\mock\\MockRowId.java"
+    },
+    {
+      "loc": 40,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\mock\\MockSavepoint.java"
+    },
+    {
+      "loc": 72,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\mock\\MockSQLXML.java"
+    },
+    {
+      "loc": 99,
+      "cyclomatic_complexity": 13,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\mock\\MockStatement.java"
+    },
+    {
+      "loc": 23,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\mock\\MockStatementBase.java"
+    },
+    {
+      "loc": 38,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\mock\\MockStruct.java"
+    },
+    {
+      "loc": 25,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\mock\\handler\\MockExecuteHandler.java"
+    },
+    {
+      "loc": 162,
+      "cyclomatic_complexity": 25,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\mock\\handler\\MySqlMockExecuteHandlerImpl.java"
+    },
+    {
+      "loc": 27,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\pool\\DataSourceClosedException.java"
+    },
+    {
+      "loc": 35,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\pool\\DataSourceDisableException.java"
+    },
+    {
+      "loc": 27,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\pool\\DataSourceNotAvailableException.java"
+    },
+    {
+      "loc": 2388,
+      "cyclomatic_complexity": 224,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\pool\\DruidAbstractDataSource.java"
+    },
+    {
+      "loc": 175,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\pool\\DruidAbstractDataSourceMBean.java"
+    },
+    {
+      "loc": 476,
+      "cyclomatic_complexity": 49,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\pool\\DruidConnectionHolder.java"
+    },
+    {
+      "loc": 3984,
+      "cyclomatic_complexity": 711,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\pool\\DruidDataSource.java"
+    },
+    {
+      "loc": 489,
+      "cyclomatic_complexity": 7,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\pool\\DruidDataSourceC3P0Adapter.java"
+    },
+    {
+      "loc": 70,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\pool\\DruidDataSourceC3P0AdapterMBean.java"
+    },
+    {
+      "loc": 413,
+      "cyclomatic_complexity": 61,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\pool\\DruidDataSourceFactory.java"
+    },
+    {
+      "loc": 92,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\pool\\DruidDataSourceMBean.java"
+    },
+    {
+      "loc": 38,
+      "cyclomatic_complexity": 6,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\pool\\DruidDataSourceStatLogger.java"
+    },
+    {
+      "loc": 43,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\pool\\DruidDataSourceStatLoggerAdapter.java"
+    },
+    {
+      "loc": 249,
+      "cyclomatic_complexity": 42,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\pool\\DruidDataSourceStatLoggerImpl.java"
+    },
+    {
+      "loc": 576,
+      "cyclomatic_complexity": 7,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\pool\\DruidDataSourceStatValue.java"
+    },
+    {
+      "loc": 1078,
+      "cyclomatic_complexity": 231,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\pool\\DruidPooledCallableStatement.java"
+    },
+    {
+      "loc": 1298,
+      "cyclomatic_complexity": 159,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\pool\\DruidPooledConnection.java"
+    },
+    {
+      "loc": 1077,
+      "cyclomatic_complexity": 166,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\pool\\DruidPooledPreparedStatement.java"
+    },
+    {
+      "loc": 1770,
+      "cyclomatic_complexity": 382,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\pool\\DruidPooledResultSet.java"
+    },
+    {
+      "loc": 890,
+      "cyclomatic_complexity": 137,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\pool\\DruidPooledStatement.java"
+    },
+    {
+      "loc": 333,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\pool\\DruidStatementConnection.java"
+    },
+    {
+      "loc": 34,
+      "cyclomatic_complexity": 10,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\pool\\ExceptionSorter.java"
+    },
+    {
+      "loc": 31,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\pool\\GetConnectionTimeoutException.java"
+    },
+    {
+      "loc": 41,
+      "cyclomatic_complexity": 7,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\pool\\JDBC4ValidConnectionChecker.java"
+    },
+    {
+      "loc": 29,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\pool\\ManagedDataSource.java"
+    },
+    {
+      "loc": 104,
+      "cyclomatic_complexity": 21,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\pool\\PoolableWrapper.java"
+    },
+    {
+      "loc": 111,
+      "cyclomatic_complexity": 6,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\pool\\PreparedStatementHolder.java"
+    },
+    {
+      "loc": 202,
+      "cyclomatic_complexity": 29,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\pool\\PreparedStatementPool.java"
+    },
+    {
+      "loc": 29,
+      "cyclomatic_complexity": 6,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\pool\\ValidConnectionChecker.java"
+    },
+    {
+      "loc": 82,
+      "cyclomatic_complexity": 14,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\pool\\ValidConnectionCheckerAdapter.java"
+    },
+    {
+      "loc": 44,
+      "cyclomatic_complexity": 8,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\pool\\WrapperAdapter.java"
+    },
+    {
+      "loc": 78,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\pool\\ha\\DataSourceCreator.java"
+    },
+    {
+      "loc": 558,
+      "cyclomatic_complexity": 32,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\pool\\ha\\HighAvailableDataSource.java"
+    },
+    {
+      "loc": 112,
+      "cyclomatic_complexity": 30,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\pool\\ha\\PropertiesUtils.java"
+    },
+    {
+      "loc": 151,
+      "cyclomatic_complexity": 26,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\pool\\ha\\node\\FileNodeListener.java"
+    },
+    {
+      "loc": 132,
+      "cyclomatic_complexity": 16,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\pool\\ha\\node\\NodeEvent.java"
+    },
+    {
+      "loc": 25,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\pool\\ha\\node\\NodeEventTypeEnum.java"
+    },
+    {
+      "loc": 116,
+      "cyclomatic_complexity": 10,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\pool\\ha\\node\\NodeListener.java"
+    },
+    {
+      "loc": 270,
+      "cyclomatic_complexity": 54,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\pool\\ha\\node\\PoolUpdater.java"
+    },
+    {
+      "loc": 89,
+      "cyclomatic_complexity": 10,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\pool\\ha\\node\\ZookeeperNodeInfo.java"
+    },
+    {
+      "loc": 327,
+      "cyclomatic_complexity": 44,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\pool\\ha\\node\\ZookeeperNodeListener.java"
+    },
+    {
+      "loc": 179,
+      "cyclomatic_complexity": 27,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\pool\\ha\\node\\ZookeeperNodeRegister.java"
+    },
+    {
+      "loc": 53,
+      "cyclomatic_complexity": 8,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\pool\\ha\\selector\\DataSourceSelector.java"
+    },
+    {
+      "loc": 68,
+      "cyclomatic_complexity": 12,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\pool\\ha\\selector\\DataSourceSelectorEnum.java"
+    },
+    {
+      "loc": 39,
+      "cyclomatic_complexity": 9,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\pool\\ha\\selector\\DataSourceSelectorFactory.java"
+    },
+    {
+      "loc": 98,
+      "cyclomatic_complexity": 12,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\pool\\ha\\selector\\NamedDataSourceSelector.java"
+    },
+    {
+      "loc": 126,
+      "cyclomatic_complexity": 22,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\pool\\ha\\selector\\RandomDataSourceRecoverThread.java"
+    },
+    {
+      "loc": 293,
+      "cyclomatic_complexity": 43,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\pool\\ha\\selector\\RandomDataSourceSelector.java"
+    },
+    {
+      "loc": 53,
+      "cyclomatic_complexity": 6,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\pool\\ha\\selector\\RandomDataSourceValidateFilter.java"
+    },
+    {
+      "loc": 314,
+      "cyclomatic_complexity": 67,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\pool\\ha\\selector\\RandomDataSourceValidateThread.java"
+    },
+    {
+      "loc": 55,
+      "cyclomatic_complexity": 7,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\pool\\ha\\selector\\StickyDataSourceHolder.java"
+    },
+    {
+      "loc": 93,
+      "cyclomatic_complexity": 15,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\pool\\ha\\selector\\StickyRandomDataSourceSelector.java"
+    },
+    {
+      "loc": 38,
+      "cyclomatic_complexity": 8,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\pool\\vendor\\AbstractOracleExceptionSorter.java"
+    },
+    {
+      "loc": 58,
+      "cyclomatic_complexity": 8,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\pool\\vendor\\DB2ExceptionSorter.java"
+    },
+    {
+      "loc": 61,
+      "cyclomatic_complexity": 8,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\pool\\vendor\\InformixExceptionSorter.java"
+    },
+    {
+      "loc": 38,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\pool\\vendor\\MockExceptionSorter.java"
+    },
+    {
+      "loc": 49,
+      "cyclomatic_complexity": 7,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\pool\\vendor\\MSSQLValidConnectionChecker.java"
+    },
+    {
+      "loc": 119,
+      "cyclomatic_complexity": 26,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\pool\\vendor\\MySqlExceptionSorter.java"
+    },
+    {
+      "loc": 86,
+      "cyclomatic_complexity": 13,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\pool\\vendor\\MySqlValidConnectionChecker.java"
+    },
+    {
+      "loc": 37,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\pool\\vendor\\NullExceptionSorter.java"
+    },
+    {
+      "loc": 118,
+      "cyclomatic_complexity": 34,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\pool\\vendor\\OceanBaseOracleExceptionSorter.java"
+    },
+    {
+      "loc": 64,
+      "cyclomatic_complexity": 10,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\pool\\vendor\\OceanBaseValidConnectionChecker.java"
+    },
+    {
+      "loc": 133,
+      "cyclomatic_complexity": 32,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\pool\\vendor\\OracleExceptionSorter.java"
+    },
+    {
+      "loc": 69,
+      "cyclomatic_complexity": 10,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\pool\\vendor\\OracleValidConnectionChecker.java"
+    },
+    {
+      "loc": 48,
+      "cyclomatic_complexity": 8,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\pool\\vendor\\PGExceptionSorter.java"
+    },
+    {
+      "loc": 50,
+      "cyclomatic_complexity": 7,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\pool\\vendor\\PGValidConnectionChecker.java"
+    },
+    {
+      "loc": 48,
+      "cyclomatic_complexity": 8,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\pool\\vendor\\PhoenixExceptionSorter.java"
+    },
+    {
+      "loc": 56,
+      "cyclomatic_complexity": 9,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\pool\\vendor\\SybaseExceptionSorter.java"
+    },
+    {
+      "loc": 73,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\pool\\xa\\DruidPooledXAConnection.java"
+    },
+    {
+      "loc": 102,
+      "cyclomatic_complexity": 9,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\pool\\xa\\DruidXADataSource.java"
+    },
+    {
+      "loc": 82,
+      "cyclomatic_complexity": 7,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\pool\\xa\\JtdsXAConnection.java"
+    },
+    {
+      "loc": 122,
+      "cyclomatic_complexity": 13,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\pool\\xa\\JtdsXAResource.java"
+    },
+    {
+      "loc": 323,
+      "cyclomatic_complexity": 37,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\proxy\\DruidDriver.java"
+    },
+    {
+      "loc": 37,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\proxy\\DruidDriverMBean.java"
+    },
+    {
+      "loc": 25,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\proxy\\jdbc\\CallableStatementProxy.java"
+    },
+    {
+      "loc": 895,
+      "cyclomatic_complexity": 7,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\proxy\\jdbc\\CallableStatementProxyImpl.java"
+    },
+    {
+      "loc": 27,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\proxy\\jdbc\\ClobProxy.java"
+    },
+    {
+      "loc": 129,
+      "cyclomatic_complexity": 6,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\proxy\\jdbc\\ClobProxyImpl.java"
+    },
+    {
+      "loc": 39,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\proxy\\jdbc\\ConnectionProxy.java"
+    },
+    {
+      "loc": 553,
+      "cyclomatic_complexity": 14,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\proxy\\jdbc\\ConnectionProxyImpl.java"
+    },
+    {
+      "loc": 950,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\proxy\\jdbc\\DatabaseMetaDataProxyImpl.java"
+    },
+    {
+      "loc": 55,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\proxy\\jdbc\\DataSourceProxy.java"
+    },
+    {
+      "loc": 106,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\proxy\\jdbc\\DataSourceProxyConfig.java"
+    },
+    {
+      "loc": 378,
+      "cyclomatic_complexity": 17,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\proxy\\jdbc\\DataSourceProxyImpl.java"
+    },
+    {
+      "loc": 41,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\proxy\\jdbc\\DataSourceProxyImplMBean.java"
+    },
+    {
+      "loc": 48,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\proxy\\jdbc\\JdbcParameter.java"
+    },
+    {
+      "loc": 49,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\proxy\\jdbc\\JdbcParameterDate.java"
+    },
+    {
+      "loc": 69,
+      "cyclomatic_complexity": 8,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\proxy\\jdbc\\JdbcParameterDecimal.java"
+    },
+    {
+      "loc": 70,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\proxy\\jdbc\\JdbcParameterImpl.java"
+    },
+    {
+      "loc": 66,
+      "cyclomatic_complexity": 8,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\proxy\\jdbc\\JdbcParameterInt.java"
+    },
+    {
+      "loc": 66,
+      "cyclomatic_complexity": 8,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\proxy\\jdbc\\JdbcParameterLong.java"
+    },
+    {
+      "loc": 117,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\proxy\\jdbc\\JdbcParameterNull.java"
+    },
+    {
+      "loc": 50,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\proxy\\jdbc\\JdbcParameterString.java"
+    },
+    {
+      "loc": 49,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\proxy\\jdbc\\JdbcParameterTimestamp.java"
+    },
+    {
+      "loc": 22,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\proxy\\jdbc\\NClobProxy.java"
+    },
+    {
+      "loc": 32,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\proxy\\jdbc\\NClobProxyImpl.java"
+    },
+    {
+      "loc": 30,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\proxy\\jdbc\\PreparedStatementProxy.java"
+    },
+    {
+      "loc": 895,
+      "cyclomatic_complexity": 59,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\proxy\\jdbc\\PreparedStatementProxyImpl.java"
+    },
+    {
+      "loc": 29,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\proxy\\jdbc\\ResultSetMetaDataProxy.java"
+    },
+    {
+      "loc": 233,
+      "cyclomatic_complexity": 6,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\proxy\\jdbc\\ResultSetMetaDataProxyImpl.java"
+    },
+    {
+      "loc": 78,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\proxy\\jdbc\\ResultSetProxy.java"
+    },
+    {
+      "loc": 1658,
+      "cyclomatic_complexity": 17,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\proxy\\jdbc\\ResultSetProxyImpl.java"
+    },
+    {
+      "loc": 23,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\proxy\\jdbc\\StatementExecuteType.java"
+    },
+    {
+      "loc": 63,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\proxy\\jdbc\\StatementProxy.java"
+    },
+    {
+      "loc": 585,
+      "cyclomatic_complexity": 24,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\proxy\\jdbc\\StatementProxyImpl.java"
+    },
+    {
+      "loc": 24,
+      "cyclomatic_complexity": 6,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\proxy\\jdbc\\TransactionInfo.java"
+    },
+    {
+      "loc": 38,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\proxy\\jdbc\\WrapperProxy.java"
+    },
+    {
+      "loc": 116,
+      "cyclomatic_complexity": 14,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\proxy\\jdbc\\WrapperProxyImpl.java"
+    },
+    {
+      "loc": 809,
+      "cyclomatic_complexity": 139,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\PagerUtils.java"
+    },
+    {
+      "loc": 202,
+      "cyclomatic_complexity": 20,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\SQLDialect.java"
+    },
+    {
+      "loc": 2554,
+      "cyclomatic_complexity": 379,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\SQLUtils.java"
+    },
+    {
+      "loc": 17,
+      "cyclomatic_complexity": 1,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\AutoIncrementType.java"
+    },
+    {
+      "loc": 6,
+      "cyclomatic_complexity": 1,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\ClusteringType.java"
+    },
+    {
+      "loc": 6,
+      "cyclomatic_complexity": 1,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\DistributedByType.java"
+    },
+    {
+      "loc": 33,
+      "cyclomatic_complexity": 3,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\SQLAdhocTableSource.java"
+    },
+    {
+      "loc": 112,
+      "cyclomatic_complexity": 13,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\SQLAnnIndex.java"
+    },
+    {
+      "loc": 66,
+      "cyclomatic_complexity": 8,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\SQLArgument.java"
+    },
+    {
+      "loc": 146,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\SQLArrayDataType.java"
+    },
+    {
+      "loc": 50,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\SQLCommentHint.java"
+    },
+    {
+      "loc": 39,
+      "cyclomatic_complexity": 4,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\SQLComputeIncrementalStatsStatement.java"
+    },
+    {
+      "loc": 85,
+      "cyclomatic_complexity": 6,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\SQLCurrentTimeExpr.java"
+    },
+    {
+      "loc": 36,
+      "cyclomatic_complexity": 3,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\SQLCurrentUserExpr.java"
+    },
+    {
+      "loc": 88,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\SQLDataType.java"
+    },
+    {
+      "loc": 542,
+      "cyclomatic_complexity": 147,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\SQLDataTypeImpl.java"
+    },
+    {
+      "loc": 57,
+      "cyclomatic_complexity": 6,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\SQLDataTypeRefExpr.java"
+    },
+    {
+      "loc": 22,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\SQLDbTypedObject.java"
+    },
+    {
+      "loc": 136,
+      "cyclomatic_complexity": 11,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\SQLDeclareItem.java"
+    },
+    {
+      "loc": 28,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\SQLExpr.java"
+    },
+    {
+      "loc": 33,
+      "cyclomatic_complexity": 7,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\SQLExprComparor.java"
+    },
+    {
+      "loc": 72,
+      "cyclomatic_complexity": 6,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\SQLExprImpl.java"
+    },
+    {
+      "loc": 20,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\SQLHint.java"
+    },
+    {
+      "loc": 11,
+      "cyclomatic_complexity": 1,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\SQLIndex.java"
+    },
+    {
+      "loc": 497,
+      "cyclomatic_complexity": 64,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\SQLIndexDefinition.java"
+    },
+    {
+      "loc": 201,
+      "cyclomatic_complexity": 27,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\SQLIndexOptions.java"
+    },
+    {
+      "loc": 27,
+      "cyclomatic_complexity": 1,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\SQLJSONValueExpr.java"
+    },
+    {
+      "loc": 68,
+      "cyclomatic_complexity": 8,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\SQLKeep.java"
+    },
+    {
+      "loc": 211,
+      "cyclomatic_complexity": 32,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\SQLLimit.java"
+    },
+    {
+      "loc": 152,
+      "cyclomatic_complexity": 6,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\SQLMapDataType.java"
+    },
+    {
+      "loc": 30,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\SQLName.java"
+    },
+    {
+      "loc": 71,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\SQLObject.java"
+    },
+    {
+      "loc": 314,
+      "cyclomatic_complexity": 40,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\SQLObjectImpl.java"
+    },
+    {
+      "loc": 22,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\SQLObjectWithDataType.java"
+    },
+    {
+      "loc": 136,
+      "cyclomatic_complexity": 16,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\SQLOrderBy.java"
+    },
+    {
+      "loc": 28,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\SQLOrderingSpecification.java"
+    },
+    {
+      "loc": 351,
+      "cyclomatic_complexity": 41,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\SQLOver.java"
+    },
+    {
+      "loc": 202,
+      "cyclomatic_complexity": 15,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\SQLParameter.java"
+    },
+    {
+      "loc": 15,
+      "cyclomatic_complexity": 1,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\SQLPartition.java"
+    },
+    {
+      "loc": 52,
+      "cyclomatic_complexity": 2,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\SQLPartitionBatch.java"
+    },
+    {
+      "loc": 158,
+      "cyclomatic_complexity": 17,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\SQLPartitionBy.java"
+    },
+    {
+      "loc": 73,
+      "cyclomatic_complexity": 8,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\SQLPartitionByHash.java"
+    },
+    {
+      "loc": 62,
+      "cyclomatic_complexity": 7,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\SQLPartitionByList.java"
+    },
+    {
+      "loc": 154,
+      "cyclomatic_complexity": 15,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\SQLPartitionByRange.java"
+    },
+    {
+      "loc": 50,
+      "cyclomatic_complexity": 7,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\SQLPartitionByValue.java"
+    },
+    {
+      "loc": 163,
+      "cyclomatic_complexity": 15,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\SQLPartitionOf.java"
+    },
+    {
+      "loc": 139,
+      "cyclomatic_complexity": 17,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\SQLPartitionSingle.java"
+    },
+    {
+      "loc": 81,
+      "cyclomatic_complexity": 6,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\SQLPartitionSpec.java"
+    },
+    {
+      "loc": 80,
+      "cyclomatic_complexity": 8,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\SQLPartitionValue.java"
+    },
+    {
+      "loc": 78,
+      "cyclomatic_complexity": 6,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\SQLPivot.java"
+    },
+    {
+      "loc": 56,
+      "cyclomatic_complexity": 7,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\SQLRecordDataType.java"
+    },
+    {
+      "loc": 23,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\SQLReplaceable.java"
+    },
+    {
+      "loc": 23,
+      "cyclomatic_complexity": 1,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\SQLResetStatement.java"
+    },
+    {
+      "loc": 126,
+      "cyclomatic_complexity": 3,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\SQLRowDataType.java"
+    },
+    {
+      "loc": 29,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\SQLSetQuantifier.java"
+    },
+    {
+      "loc": 45,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\SQLStatement.java"
+    },
+    {
+      "loc": 101,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\SQLStatementImpl.java"
+    },
+    {
+      "loc": 195,
+      "cyclomatic_complexity": 7,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\SQLStructDataType.java"
+    },
+    {
+      "loc": 142,
+      "cyclomatic_complexity": 13,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\SQLSubPartition.java"
+    },
+    {
+      "loc": 93,
+      "cyclomatic_complexity": 9,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\SQLSubPartitionBy.java"
+    },
+    {
+      "loc": 67,
+      "cyclomatic_complexity": 10,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\SQLSubPartitionByHash.java"
+    },
+    {
+      "loc": 55,
+      "cyclomatic_complexity": 9,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\SQLSubPartitionByList.java"
+    },
+    {
+      "loc": 61,
+      "cyclomatic_complexity": 10,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\SQLSubPartitionByRange.java"
+    },
+    {
+      "loc": 122,
+      "cyclomatic_complexity": 3,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\SQLTableDataType.java"
+    },
+    {
+      "loc": 82,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\SQLTop.java"
+    },
+    {
+      "loc": 44,
+      "cyclomatic_complexity": 4,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\SQLUnionDataType.java"
+    },
+    {
+      "loc": 92,
+      "cyclomatic_complexity": 8,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\SQLUnpivot.java"
+    },
+    {
+      "loc": 44,
+      "cyclomatic_complexity": 4,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\SQLWindow.java"
+    },
+    {
+      "loc": 136,
+      "cyclomatic_complexity": 16,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\SQLZOrderBy.java"
+    },
+    {
+      "loc": 321,
+      "cyclomatic_complexity": 47,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\TDDLHint.java"
+    },
+    {
+      "loc": 392,
+      "cyclomatic_complexity": 58,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\expr\\SQLAggregateExpr.java"
+    },
+    {
+      "loc": 23,
+      "cyclomatic_complexity": 6,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\expr\\SQLAggregateOption.java"
+    },
+    {
+      "loc": 148,
+      "cyclomatic_complexity": 20,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\expr\\SQLAliasedExpr.java"
+    },
+    {
+      "loc": 124,
+      "cyclomatic_complexity": 7,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\expr\\SQLAllColumnExpr.java"
+    },
+    {
+      "loc": 100,
+      "cyclomatic_complexity": 15,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\expr\\SQLAllExpr.java"
+    },
+    {
+      "loc": 120,
+      "cyclomatic_complexity": 18,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\expr\\SQLAnyExpr.java"
+    },
+    {
+      "loc": 158,
+      "cyclomatic_complexity": 24,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\expr\\SQLArrayExpr.java"
+    },
+    {
+      "loc": 79,
+      "cyclomatic_complexity": 8,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\expr\\SQLAtTimeZoneExpr.java"
+    },
+    {
+      "loc": 197,
+      "cyclomatic_complexity": 31,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\expr\\SQLBetweenExpr.java"
+    },
+    {
+      "loc": 110,
+      "cyclomatic_complexity": 12,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\expr\\SQLBigIntExpr.java"
+    },
+    {
+      "loc": 130,
+      "cyclomatic_complexity": 17,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\expr\\SQLBinaryExpr.java"
+    },
+    {
+      "loc": 188,
+      "cyclomatic_complexity": 12,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\expr\\SQLBinaryOperator.java"
+    },
+    {
+      "loc": 906,
+      "cyclomatic_complexity": 184,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\expr\\SQLBinaryOpExpr.java"
+    },
+    {
+      "loc": 194,
+      "cyclomatic_complexity": 32,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\expr\\SQLBinaryOpExprGroup.java"
+    },
+    {
+      "loc": 100,
+      "cyclomatic_complexity": 9,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\expr\\SQLBooleanExpr.java"
+    },
+    {
+      "loc": 314,
+      "cyclomatic_complexity": 52,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\expr\\SQLCaseExpr.java"
+    },
+    {
+      "loc": 210,
+      "cyclomatic_complexity": 35,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\expr\\SQLCaseStatement.java"
+    },
+    {
+      "loc": 162,
+      "cyclomatic_complexity": 20,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\expr\\SQLCastExpr.java"
+    },
+    {
+      "loc": 105,
+      "cyclomatic_complexity": 6,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\expr\\SQLCharExpr.java"
+    },
+    {
+      "loc": 175,
+      "cyclomatic_complexity": 27,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\expr\\SQLContainsExpr.java"
+    },
+    {
+      "loc": 111,
+      "cyclomatic_complexity": 16,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\expr\\SQLCurrentOfCursorExpr.java"
+    },
+    {
+      "loc": 311,
+      "cyclomatic_complexity": 44,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\expr\\SQLDateExpr.java"
+    },
+    {
+      "loc": 138,
+      "cyclomatic_complexity": 27,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\expr\\SQLDateTimeExpr.java"
+    },
+    {
+      "loc": 15,
+      "cyclomatic_complexity": 1,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\expr\\SQLDateTypeExpr.java"
+    },
+    {
+      "loc": 145,
+      "cyclomatic_complexity": 16,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\expr\\SQLDbLinkExpr.java"
+    },
+    {
+      "loc": 118,
+      "cyclomatic_complexity": 12,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\expr\\SQLDecimalExpr.java"
+    },
+    {
+      "loc": 53,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\expr\\SQLDefaultExpr.java"
+    },
+    {
+      "loc": 105,
+      "cyclomatic_complexity": 9,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\expr\\SQLDoubleExpr.java"
+    },
+    {
+      "loc": 121,
+      "cyclomatic_complexity": 16,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\expr\\SQLExistsExpr.java"
+    },
+    {
+      "loc": 186,
+      "cyclomatic_complexity": 39,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\expr\\SQLExprUtils.java"
+    },
+    {
+      "loc": 122,
+      "cyclomatic_complexity": 17,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\expr\\SQLExtractExpr.java"
+    },
+    {
+      "loc": 118,
+      "cyclomatic_complexity": 14,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\expr\\SQLFlashbackExpr.java"
+    },
+    {
+      "loc": 105,
+      "cyclomatic_complexity": 9,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\expr\\SQLFloatExpr.java"
+    },
+    {
+      "loc": 100,
+      "cyclomatic_complexity": 14,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\expr\\SQLGroupingSetExpr.java"
+    },
+    {
+      "loc": 101,
+      "cyclomatic_complexity": 13,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\expr\\SQLHexExpr.java"
+    },
+    {
+      "loc": 308,
+      "cyclomatic_complexity": 34,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\expr\\SQLIdentifierExpr.java"
+    },
+    {
+      "loc": 231,
+      "cyclomatic_complexity": 33,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\expr\\SQLInListExpr.java"
+    },
+    {
+      "loc": 188,
+      "cyclomatic_complexity": 26,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\expr\\SQLInSubQueryExpr.java"
+    },
+    {
+      "loc": 217,
+      "cyclomatic_complexity": 36,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\expr\\SQLIntegerExpr.java"
+    },
+    {
+      "loc": 137,
+      "cyclomatic_complexity": 18,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\expr\\SQLIntervalExpr.java"
+    },
+    {
+      "loc": 147,
+      "cyclomatic_complexity": 9,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\expr\\SQLIntervalUnit.java"
+    },
+    {
+      "loc": 76,
+      "cyclomatic_complexity": 8,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\expr\\SQLJSONExpr.java"
+    },
+    {
+      "loc": 124,
+      "cyclomatic_complexity": 18,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\expr\\SQLListExpr.java"
+    },
+    {
+      "loc": 22,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\expr\\SQLLiteralExpr.java"
+    },
+    {
+      "loc": 181,
+      "cyclomatic_complexity": 26,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\expr\\SQLMatchAgainstExpr.java"
+    },
+    {
+      "loc": 641,
+      "cyclomatic_complexity": 124,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\expr\\SQLMethodInvokeExpr.java"
+    },
+    {
+      "loc": 61,
+      "cyclomatic_complexity": 7,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\expr\\SQLNCharExpr.java"
+    },
+    {
+      "loc": 124,
+      "cyclomatic_complexity": 17,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\expr\\SQLNotExpr.java"
+    },
+    {
+      "loc": 66,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\expr\\SQLNullExpr.java"
+    },
+    {
+      "loc": 161,
+      "cyclomatic_complexity": 24,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\expr\\SQLNumberExpr.java"
+    },
+    {
+      "loc": 38,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\expr\\SQLNumericLiteralExpr.java"
+    },
+    {
+      "loc": 76,
+      "cyclomatic_complexity": 7,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\expr\\SQLParametricMethodInvokeExpr.java"
+    },
+    {
+      "loc": 100,
+      "cyclomatic_complexity": 8,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\expr\\SQLPatternExpr.java"
+    },
+    {
+      "loc": 464,
+      "cyclomatic_complexity": 71,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\expr\\SQLPropertyExpr.java"
+    },
+    {
+      "loc": 125,
+      "cyclomatic_complexity": 18,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\expr\\SQLQueryExpr.java"
+    },
+    {
+      "loc": 102,
+      "cyclomatic_complexity": 9,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\expr\\SQLRealExpr.java"
+    },
+    {
+      "loc": 130,
+      "cyclomatic_complexity": 16,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\expr\\SQLSequenceExpr.java"
+    },
+    {
+      "loc": 117,
+      "cyclomatic_complexity": 13,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\expr\\SQLSizeExpr.java"
+    },
+    {
+      "loc": 113,
+      "cyclomatic_complexity": 13,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\expr\\SQLSmallIntExpr.java"
+    },
+    {
+      "loc": 121,
+      "cyclomatic_complexity": 18,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\expr\\SQLSomeExpr.java"
+    },
+    {
+      "loc": 84,
+      "cyclomatic_complexity": 6,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\expr\\SQLStructExpr.java"
+    },
+    {
+      "loc": 77,
+      "cyclomatic_complexity": 11,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\expr\\SQLTextLiteralExpr.java"
+    },
+    {
+      "loc": 150,
+      "cyclomatic_complexity": 27,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\expr\\SQLTimeExpr.java"
+    },
+    {
+      "loc": 593,
+      "cyclomatic_complexity": 121,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\expr\\SQLTimestampExpr.java"
+    },
+    {
+      "loc": 337,
+      "cyclomatic_complexity": 49,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\expr\\SQLTimestampNTZExpr.java"
+    },
+    {
+      "loc": 113,
+      "cyclomatic_complexity": 13,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\expr\\SQLTinyIntExpr.java"
+    },
+    {
+      "loc": 107,
+      "cyclomatic_complexity": 16,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\expr\\SQLTypeExpr.java"
+    },
+    {
+      "loc": 136,
+      "cyclomatic_complexity": 17,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\expr\\SQLUnaryExpr.java"
+    },
+    {
+      "loc": 36,
+      "cyclomatic_complexity": 6,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\expr\\SQLUnaryOperator.java"
+    },
+    {
+      "loc": 23,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\expr\\SQLValuableExpr.java"
+    },
+    {
+      "loc": 74,
+      "cyclomatic_complexity": 8,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\expr\\SQLValuesExpr.java"
+    },
+    {
+      "loc": 185,
+      "cyclomatic_complexity": 18,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\expr\\SQLVariantRefExpr.java"
+    },
+    {
+      "loc": 50,
+      "cyclomatic_complexity": 6,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterCharacter.java"
+    },
+    {
+      "loc": 21,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterDatabaseItem.java"
+    },
+    {
+      "loc": 98,
+      "cyclomatic_complexity": 8,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterDatabaseStatement.java"
+    },
+    {
+      "loc": 113,
+      "cyclomatic_complexity": 9,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterFunctionStatement.java"
+    },
+    {
+      "loc": 169,
+      "cyclomatic_complexity": 9,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterIndexStatement.java"
+    },
+    {
+      "loc": 183,
+      "cyclomatic_complexity": 17,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterMaterializedViewStatement.java"
+    },
+    {
+      "loc": 92,
+      "cyclomatic_complexity": 8,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterOutlineStatement.java"
+    },
+    {
+      "loc": 106,
+      "cyclomatic_complexity": 8,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterProcedureStatement.java"
+    },
+    {
+      "loc": 232,
+      "cyclomatic_complexity": 11,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterSequenceStatement.java"
+    },
+    {
+      "loc": 22,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterStatement.java"
+    },
+    {
+      "loc": 40,
+      "cyclomatic_complexity": 6,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterSystemGetConfigStatement.java"
+    },
+    {
+      "loc": 44,
+      "cyclomatic_complexity": 6,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterSystemSetConfigStatement.java"
+    },
+    {
+      "loc": 56,
+      "cyclomatic_complexity": 8,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTableAddClusteringKey.java"
+    },
+    {
+      "loc": 112,
+      "cyclomatic_complexity": 9,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTableAddColumn.java"
+    },
+    {
+      "loc": 76,
+      "cyclomatic_complexity": 7,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTableAddConstraint.java"
+    },
+    {
+      "loc": 38,
+      "cyclomatic_complexity": 2,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTableAddExtPartition.java"
+    },
+    {
+      "loc": 226,
+      "cyclomatic_complexity": 18,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTableAddIndex.java"
+    },
+    {
+      "loc": 82,
+      "cyclomatic_complexity": 9,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTableAddPartition.java"
+    },
+    {
+      "loc": 46,
+      "cyclomatic_complexity": 7,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTableAddSupplemental.java"
+    },
+    {
+      "loc": 127,
+      "cyclomatic_complexity": 9,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTableAlterColumn.java"
+    },
+    {
+      "loc": 226,
+      "cyclomatic_complexity": 18,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTableAlterIndex.java"
+    },
+    {
+      "loc": 46,
+      "cyclomatic_complexity": 7,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTableAnalyzePartition.java"
+    },
+    {
+      "loc": 38,
+      "cyclomatic_complexity": 6,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTableArchive.java"
+    },
+    {
+      "loc": 45,
+      "cyclomatic_complexity": 7,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTableArchivePartition.java"
+    },
+    {
+      "loc": 50,
+      "cyclomatic_complexity": 6,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTableAttachPartition.java"
+    },
+    {
+      "loc": 47,
+      "cyclomatic_complexity": 7,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTableBlockSize.java"
+    },
+    {
+      "loc": 49,
+      "cyclomatic_complexity": 6,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTableChangeOwner.java"
+    },
+    {
+      "loc": 46,
+      "cyclomatic_complexity": 7,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTableCheckPartition.java"
+    },
+    {
+      "loc": 43,
+      "cyclomatic_complexity": 7,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTableCoalescePartition.java"
+    },
+    {
+      "loc": 47,
+      "cyclomatic_complexity": 7,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTableCompression.java"
+    },
+    {
+      "loc": 60,
+      "cyclomatic_complexity": 8,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTableConvertCharSet.java"
+    },
+    {
+      "loc": 44,
+      "cyclomatic_complexity": 7,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTableDeleteByCondition.java"
+    },
+    {
+      "loc": 59,
+      "cyclomatic_complexity": 6,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTableDetachPartition.java"
+    },
+    {
+      "loc": 41,
+      "cyclomatic_complexity": 6,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTableDisableConstraint.java"
+    },
+    {
+      "loc": 28,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTableDisableKeys.java"
+    },
+    {
+      "loc": 38,
+      "cyclomatic_complexity": 6,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTableDisableLifecycle.java"
+    },
+    {
+      "loc": 59,
+      "cyclomatic_complexity": 7,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTableDiscardPartition.java"
+    },
+    {
+      "loc": 69,
+      "cyclomatic_complexity": 6,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTableDropCheck.java"
+    },
+    {
+      "loc": 41,
+      "cyclomatic_complexity": 6,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTableDropClusteringKey.java"
+    },
+    {
+      "loc": 78,
+      "cyclomatic_complexity": 7,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTableDropColumnItem.java"
+    },
+    {
+      "loc": 69,
+      "cyclomatic_complexity": 6,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTableDropConstraint.java"
+    },
+    {
+      "loc": 38,
+      "cyclomatic_complexity": 2,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTableDropExtPartition.java"
+    },
+    {
+      "loc": 41,
+      "cyclomatic_complexity": 6,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTableDropForeignKey.java"
+    },
+    {
+      "loc": 41,
+      "cyclomatic_complexity": 6,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTableDropIndex.java"
+    },
+    {
+      "loc": 41,
+      "cyclomatic_complexity": 6,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTableDropKey.java"
+    },
+    {
+      "loc": 64,
+      "cyclomatic_complexity": 7,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTableDropPartition.java"
+    },
+    {
+      "loc": 28,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTableDropPrimaryKey.java"
+    },
+    {
+      "loc": 56,
+      "cyclomatic_complexity": 6,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTableDropSubpartition.java"
+    },
+    {
+      "loc": 41,
+      "cyclomatic_complexity": 6,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTableEnableConstraint.java"
+    },
+    {
+      "loc": 28,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTableEnableKeys.java"
+    },
+    {
+      "loc": 38,
+      "cyclomatic_complexity": 6,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTableEnableLifecycle.java"
+    },
+    {
+      "loc": 76,
+      "cyclomatic_complexity": 8,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTableExchangePartition.java"
+    },
+    {
+      "loc": 61,
+      "cyclomatic_complexity": 7,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTableGroupStatement.java"
+    },
+    {
+      "loc": 56,
+      "cyclomatic_complexity": 7,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTableImportPartition.java"
+    },
+    {
+      "loc": 21,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTableItem.java"
+    },
+    {
+      "loc": 76,
+      "cyclomatic_complexity": 8,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTableMergePartition.java"
+    },
+    {
+      "loc": 44,
+      "cyclomatic_complexity": 6,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTableModifyClusteredBy.java"
+    },
+    {
+      "loc": 46,
+      "cyclomatic_complexity": 7,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTableOptimizePartition.java"
+    },
+    {
+      "loc": 31,
+      "cyclomatic_complexity": 2,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTablePartition.java"
+    },
+    {
+      "loc": 47,
+      "cyclomatic_complexity": 7,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTablePartitionCount.java"
+    },
+    {
+      "loc": 47,
+      "cyclomatic_complexity": 7,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTablePartitionLifecycle.java"
+    },
+    {
+      "loc": 51,
+      "cyclomatic_complexity": 3,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTablePartitionSetProperties.java"
+    },
+    {
+      "loc": 46,
+      "cyclomatic_complexity": 7,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTableRebuildPartition.java"
+    },
+    {
+      "loc": 46,
+      "cyclomatic_complexity": 7,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTableRecoverPartitions.java"
+    },
+    {
+      "loc": 70,
+      "cyclomatic_complexity": 9,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTableRename.java"
+    },
+    {
+      "loc": 60,
+      "cyclomatic_complexity": 8,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTableRenameColumn.java"
+    },
+    {
+      "loc": 59,
+      "cyclomatic_complexity": 8,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTableRenameConstraint.java"
+    },
+    {
+      "loc": 63,
+      "cyclomatic_complexity": 8,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTableRenameIndex.java"
+    },
+    {
+      "loc": 54,
+      "cyclomatic_complexity": 6,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTableRenamePartition.java"
+    },
+    {
+      "loc": 53,
+      "cyclomatic_complexity": 7,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTableReOrganizePartition.java"
+    },
+    {
+      "loc": 46,
+      "cyclomatic_complexity": 7,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTableRepairPartition.java"
+    },
+    {
+      "loc": 76,
+      "cyclomatic_complexity": 8,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTableReplaceColumn.java"
+    },
+    {
+      "loc": 44,
+      "cyclomatic_complexity": 7,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTableSetComment.java"
+    },
+    {
+      "loc": 28,
+      "cyclomatic_complexity": 3,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTableSetFileFormat.java"
+    },
+    {
+      "loc": 44,
+      "cyclomatic_complexity": 7,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTableSetLifecycle.java"
+    },
+    {
+      "loc": 44,
+      "cyclomatic_complexity": 7,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTableSetLocation.java"
+    },
+    {
+      "loc": 60,
+      "cyclomatic_complexity": 7,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTableSetOption.java"
+    },
+    {
+      "loc": 44,
+      "cyclomatic_complexity": 7,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTableSetSchema.java"
+    },
+    {
+      "loc": 57,
+      "cyclomatic_complexity": 7,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTableSetSerde.java"
+    },
+    {
+      "loc": 60,
+      "cyclomatic_complexity": 7,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTableSetSerdeProperties.java"
+    },
+    {
+      "loc": 44,
+      "cyclomatic_complexity": 7,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTableSetTableSpace.java"
+    },
+    {
+      "loc": 319,
+      "cyclomatic_complexity": 17,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTableStatement.java"
+    },
+    {
+      "loc": 44,
+      "cyclomatic_complexity": 7,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTableSubpartitionAvailablePartitionNum.java"
+    },
+    {
+      "loc": 56,
+      "cyclomatic_complexity": 6,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTableSubpartitionLifecycle.java"
+    },
+    {
+      "loc": 37,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTableTouch.java"
+    },
+    {
+      "loc": 57,
+      "cyclomatic_complexity": 8,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTableTruncatePartition.java"
+    },
+    {
+      "loc": 45,
+      "cyclomatic_complexity": 7,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTableUnarchivePartition.java"
+    },
+    {
+      "loc": 40,
+      "cyclomatic_complexity": 6,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTableValidateConstraint.java"
+    },
+    {
+      "loc": 88,
+      "cyclomatic_complexity": 7,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterTypeStatement.java"
+    },
+    {
+      "loc": 70,
+      "cyclomatic_complexity": 9,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterViewRenameStatement.java"
+    },
+    {
+      "loc": 296,
+      "cyclomatic_complexity": 24,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAlterViewStatement.java"
+    },
+    {
+      "loc": 183,
+      "cyclomatic_complexity": 18,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAnalyzeTableStatement.java"
+    },
+    {
+      "loc": 74,
+      "cyclomatic_complexity": 8,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLArchiveTableStatement.java"
+    },
+    {
+      "loc": 122,
+      "cyclomatic_complexity": 16,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLAssignItem.java"
+    },
+    {
+      "loc": 61,
+      "cyclomatic_complexity": 6,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLBackupStatement.java"
+    },
+    {
+      "loc": 77,
+      "cyclomatic_complexity": 8,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLBeginStatement.java"
+    },
+    {
+      "loc": 179,
+      "cyclomatic_complexity": 14,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLBlockStatement.java"
+    },
+    {
+      "loc": 69,
+      "cyclomatic_complexity": 6,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLBuildTableStatement.java"
+    },
+    {
+      "loc": 90,
+      "cyclomatic_complexity": 6,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLCallStatement.java"
+    },
+    {
+      "loc": 49,
+      "cyclomatic_complexity": 6,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLCancelJobStatement.java"
+    },
+    {
+      "loc": 155,
+      "cyclomatic_complexity": 18,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLCharacterDataType.java"
+    },
+    {
+      "loc": 101,
+      "cyclomatic_complexity": 13,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLCheck.java"
+    },
+    {
+      "loc": 116,
+      "cyclomatic_complexity": 10,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLCloneTableStatement.java"
+    },
+    {
+      "loc": 64,
+      "cyclomatic_complexity": 7,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLCloseStatement.java"
+    },
+    {
+      "loc": 92,
+      "cyclomatic_complexity": 11,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLColumnCheck.java"
+    },
+    {
+      "loc": 20,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLColumnConstraint.java"
+    },
+    {
+      "loc": 58,
+      "cyclomatic_complexity": 6,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLColumnDefault.java"
+    },
+    {
+      "loc": 891,
+      "cyclomatic_complexity": 86,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLColumnDefinition.java"
+    },
+    {
+      "loc": 48,
+      "cyclomatic_complexity": 6,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLColumnPrimaryKey.java"
+    },
+    {
+      "loc": 113,
+      "cyclomatic_complexity": 8,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLColumnReference.java"
+    },
+    {
+      "loc": 38,
+      "cyclomatic_complexity": 6,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLColumnUniqueKey.java"
+    },
+    {
+      "loc": 87,
+      "cyclomatic_complexity": 9,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLCommentStatement.java"
+    },
+    {
+      "loc": 143,
+      "cyclomatic_complexity": 12,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLCommitStatement.java"
+    },
+    {
+      "loc": 11,
+      "cyclomatic_complexity": 1,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLCommitTransactionStatement.java"
+    },
+    {
+      "loc": 35,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLConstraint.java"
+    },
+    {
+      "loc": 144,
+      "cyclomatic_complexity": 13,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLConstraintImpl.java"
+    },
+    {
+      "loc": 12,
+      "cyclomatic_complexity": 1,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLContinueStatement.java"
+    },
+    {
+      "loc": 87,
+      "cyclomatic_complexity": 6,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLCopyFromStatement.java"
+    },
+    {
+      "loc": 29,
+      "cyclomatic_complexity": 3,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLCostStatement.java"
+    },
+    {
+      "loc": 276,
+      "cyclomatic_complexity": 25,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLCreateDatabaseStatement.java"
+    },
+    {
+      "loc": 318,
+      "cyclomatic_complexity": 23,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLCreateFunctionStatement.java"
+    },
+    {
+      "loc": 334,
+      "cyclomatic_complexity": 23,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLCreateIndexStatement.java"
+    },
+    {
+      "loc": 497,
+      "cyclomatic_complexity": 30,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLCreateMaterializedViewStatement.java"
+    },
+    {
+      "loc": 69,
+      "cyclomatic_complexity": 6,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLCreateOutlineStatement.java"
+    },
+    {
+      "loc": 212,
+      "cyclomatic_complexity": 13,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLCreateProcedureStatement.java"
+    },
+    {
+      "loc": 75,
+      "cyclomatic_complexity": 7,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLCreateRoleStatement.java"
+    },
+    {
+      "loc": 265,
+      "cyclomatic_complexity": 18,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLCreateSequenceStatement.java"
+    },
+    {
+      "loc": 24,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLCreateStatement.java"
+    },
+    {
+      "loc": 112,
+      "cyclomatic_complexity": 13,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLCreateTableGroupStatement.java"
+    },
+    {
+      "loc": 1747,
+      "cyclomatic_complexity": 267,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLCreateTableStatement.java"
+    },
+    {
+      "loc": 229,
+      "cyclomatic_complexity": 15,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLCreateTriggerStatement.java"
+    },
+    {
+      "loc": 85,
+      "cyclomatic_complexity": 8,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLCreateUserStatement.java"
+    },
+    {
+      "loc": 444,
+      "cyclomatic_complexity": 39,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLCreateViewStatement.java"
+    },
+    {
+      "loc": 42,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLDDLStatement.java"
+    },
+    {
+      "loc": 56,
+      "cyclomatic_complexity": 7,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLDeclareStatement.java"
+    },
+    {
+      "loc": 115,
+      "cyclomatic_complexity": 14,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLDefault.java"
+    },
+    {
+      "loc": 313,
+      "cyclomatic_complexity": 45,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLDeleteStatement.java"
+    },
+    {
+      "loc": 114,
+      "cyclomatic_complexity": 10,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLDescribeStatement.java"
+    },
+    {
+      "loc": 89,
+      "cyclomatic_complexity": 9,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLDropCatalogStatement.java"
+    },
+    {
+      "loc": 194,
+      "cyclomatic_complexity": 22,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLDropDatabaseStatement.java"
+    },
+    {
+      "loc": 74,
+      "cyclomatic_complexity": 8,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLDropEventStatement.java"
+    },
+    {
+      "loc": 94,
+      "cyclomatic_complexity": 8,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLDropFunctionStatement.java"
+    },
+    {
+      "loc": 136,
+      "cyclomatic_complexity": 13,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLDropIndexStatement.java"
+    },
+    {
+      "loc": 79,
+      "cyclomatic_complexity": 9,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLDropLogFileGroupStatement.java"
+    },
+    {
+      "loc": 74,
+      "cyclomatic_complexity": 8,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLDropMaterializedViewStatement.java"
+    },
+    {
+      "loc": 90,
+      "cyclomatic_complexity": 10,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLDropOfflineModelStatement.java"
+    },
+    {
+      "loc": 74,
+      "cyclomatic_complexity": 8,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLDropOutlineStatement.java"
+    },
+    {
+      "loc": 65,
+      "cyclomatic_complexity": 7,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLDropProcedureStatement.java"
+    },
+    {
+      "loc": 75,
+      "cyclomatic_complexity": 8,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLDropResourceGroupStatement.java"
+    },
+    {
+      "loc": 74,
+      "cyclomatic_complexity": 8,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLDropResourceStatement.java"
+    },
+    {
+      "loc": 82,
+      "cyclomatic_complexity": 8,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLDropRoleStatement.java"
+    },
+    {
+      "loc": 96,
+      "cyclomatic_complexity": 10,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLDropSequenceStatement.java"
+    },
+    {
+      "loc": 80,
+      "cyclomatic_complexity": 9,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLDropServerStatement.java"
+    },
+    {
+      "loc": 24,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLDropStatement.java"
+    },
+    {
+      "loc": 109,
+      "cyclomatic_complexity": 10,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLDropSynonymStatement.java"
+    },
+    {
+      "loc": 94,
+      "cyclomatic_complexity": 10,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLDropTableGroupStatement.java"
+    },
+    {
+      "loc": 100,
+      "cyclomatic_complexity": 11,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLDropTableSpaceStatement.java"
+    },
+    {
+      "loc": 254,
+      "cyclomatic_complexity": 23,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLDropTableStatement.java"
+    },
+    {
+      "loc": 83,
+      "cyclomatic_complexity": 8,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLDropTriggerStatement.java"
+    },
+    {
+      "loc": 85,
+      "cyclomatic_complexity": 9,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLDropTypeStatement.java"
+    },
+    {
+      "loc": 96,
+      "cyclomatic_complexity": 9,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLDropUserStatement.java"
+    },
+    {
+      "loc": 117,
+      "cyclomatic_complexity": 9,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLDropViewStatement.java"
+    },
+    {
+      "loc": 68,
+      "cyclomatic_complexity": 7,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLDumpStatement.java"
+    },
+    {
+      "loc": 76,
+      "cyclomatic_complexity": 9,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLErrorLoggingClause.java"
+    },
+    {
+      "loc": 81,
+      "cyclomatic_complexity": 7,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLExceptionStatement.java"
+    },
+    {
+      "loc": 58,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLExecuteImmediateStatement.java"
+    },
+    {
+      "loc": 60,
+      "cyclomatic_complexity": 7,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLExplainAnalyzeStatement.java"
+    },
+    {
+      "loc": 137,
+      "cyclomatic_complexity": 8,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLExplainStatement.java"
+    },
+    {
+      "loc": 33,
+      "cyclomatic_complexity": 2,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLExportDatabaseStatement.java"
+    },
+    {
+      "loc": 67,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLExportTableStatement.java"
+    },
+    {
+      "loc": 60,
+      "cyclomatic_complexity": 8,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLExprHint.java"
+    },
+    {
+      "loc": 73,
+      "cyclomatic_complexity": 9,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLExprStatement.java"
+    },
+    {
+      "loc": 553,
+      "cyclomatic_complexity": 91,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLExprTableSource.java"
+    },
+    {
+      "loc": 205,
+      "cyclomatic_complexity": 17,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLExternalRecordFormat.java"
+    },
+    {
+      "loc": 85,
+      "cyclomatic_complexity": 9,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLFetchStatement.java"
+    },
+    {
+      "loc": 32,
+      "cyclomatic_complexity": 5,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLForeignKeyConstraint.java"
+    },
+    {
+      "loc": 195,
+      "cyclomatic_complexity": 12,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLForeignKeyImpl.java"
+    },
+    {
+      "loc": 63,
+      "cyclomatic_complexity": 3,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLForStatement.java"
+    },
+    {
+      "loc": 73,
+      "cyclomatic_complexity": 9,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLGeneratedTableSource.java"
+    },
+    {
+      "loc": 43,
+      "cyclomatic_complexity": 3,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLGetDiagnosticsStatement.java"
+    },
+    {
+      "loc": 145,
+      "cyclomatic_complexity": 9,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLGrantStatement.java"
+    },
+    {
+      "loc": 217,
+      "cyclomatic_complexity": 24,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLIfStatement.java"
+    },
+    {
+      "loc": 34,
+      "cyclomatic_complexity": 2,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLImportDatabaseStatement.java"
+    },
+    {
+      "loc": 97,
+      "cyclomatic_complexity": 6,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLImportTableStatement.java"
+    },
+    {
+      "loc": 227,
+      "cyclomatic_complexity": 24,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLInsertInto.java"
+    },
+    {
+      "loc": 213,
+      "cyclomatic_complexity": 20,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLInsertStatement.java"
+    },
+    {
+      "loc": 788,
+      "cyclomatic_complexity": 129,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLJoinTableSource.java"
+    },
+    {
+      "loc": 164,
+      "cyclomatic_complexity": 22,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLLateralViewTableSource.java"
+    },
+    {
+      "loc": 12,
+      "cyclomatic_complexity": 1,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLLeaveStatement.java"
+    },
+    {
+      "loc": 6,
+      "cyclomatic_complexity": 1,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLLockTableStatement.java"
+    },
+    {
+      "loc": 91,
+      "cyclomatic_complexity": 10,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLLoopStatement.java"
+    },
+    {
+      "loc": 351,
+      "cyclomatic_complexity": 32,
+      "file": "core\\src\\main\\java\\com\\alibaba\\druid\\sql\\ast\\statement\\SQLMergeStatement.java"
+    }
+  ]
+}

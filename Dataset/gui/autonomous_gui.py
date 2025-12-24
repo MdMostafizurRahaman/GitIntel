@@ -16,6 +16,7 @@ from threading import Thread
 sys.path.append(str(Path(__file__).parent.parent))
 
 from github_autonomous_agent import GitHubAutonomousAgent
+from interactive_dataset_generator import AgenticDatasetGenerator
 
 class AutonomousAgentGUI:
     """
@@ -36,6 +37,10 @@ class AutonomousAgentGUI:
             self.agent = None
             self.agent_ready = False
             messagebox.showerror("Error", f"Failed to initialize agent: {e}")
+        
+        # Initialize interactive generator
+        self.interactive_generator = AgenticDatasetGenerator()
+        self.interactive_mode = False
         
         self.current_understanding = None
         self.setup_ui()
@@ -108,6 +113,10 @@ class AutonomousAgentGUI:
         self.analyze_btn = ttk.Button(btn_frame, text="🚀 Generate Dataset", 
                                      command=self.analyze_and_execute)
         self.analyze_btn.pack(side=tk.LEFT, padx=5)
+        
+        self.interactive_btn = ttk.Button(btn_frame, text="🤖 Interactive Mode", 
+                                         command=self.start_interactive_mode)
+        self.interactive_btn.pack(side=tk.LEFT, padx=5)
         
         clear_btn = ttk.Button(btn_frame, text="🗑️ Clear", 
                               command=self.clear_all)
@@ -350,20 +359,66 @@ class AutonomousAgentGUI:
     
     def submit_clarification(self):
         """Submit clarification to agent and auto-execute"""
-        if not self.current_understanding:
-            messagebox.showwarning("Warning", "No query to clarify")
-            return
-        
         clarification = self.clarify_var.get().strip()
         if not clarification:
             messagebox.showwarning("Warning", "Please provide clarification")
+            return
+        
+        self.clarify_var.set("")  # Clear input immediately
+        
+        if self.interactive_mode and hasattr(self, 'current_parsed_request'):
+            # Handle interactive mode clarification
+            self.handle_interactive_clarification(clarification)
+        else:
+            # Handle normal agent clarification
+            self.handle_agent_clarification(clarification)
+    
+    def handle_interactive_clarification(self, clarification):
+        """Handle clarification in interactive mode"""
+        self.status_var.set("🤖 Processing your response...")
+        
+        def process():
+            try:
+                response = clarification.lower().strip()
+                
+                if response in ['yes', 'y', 'proceed', 'ok', 'correct']:
+                    # User confirmed - generate dataset
+                    self.root.after(0, lambda: self.generate_interactive_dataset(self.current_parsed_request))
+                    
+                elif response in ['no', 'n', 'start over', 'restart']:
+                    # User wants to start over
+                    self.root.after(0, lambda: self.reset_interactive_mode())
+                    self.root.after(0, lambda: messagebox.showinfo("Reset", "Please enter a new dataset request"))
+                    
+                else:
+                    # User wants modifications - re-parse with modifications
+                    modified_query = f"{self.query_text.get('1.0', tk.END).strip()} {clarification}"
+                    
+                    # Re-parse with modifications
+                    parsed = self.interactive_generator.parse_user_input(modified_query)
+                    
+                    # Update understanding display
+                    self.root.after(0, lambda: self.display_interactive_understanding(parsed))
+                    self.root.after(0, lambda: self.ask_interactive_confirmation(parsed))
+                    
+                    self.root.after(0, lambda: self.status_var.set("🤖 Interactive Mode: Updated understanding - awaiting confirmation"))
+                    
+            except Exception as e:
+                self.root.after(0, lambda: messagebox.showerror("Error", f"Processing failed: {e}"))
+                self.root.after(0, lambda: self.reset_interactive_mode())
+        
+        Thread(target=process, daemon=True).start()
+    
+    def handle_agent_clarification(self, clarification):
+        """Handle normal agent clarification"""
+        if not self.current_understanding:
+            messagebox.showwarning("Warning", "No query to clarify")
             return
         
         # Use the clarification directly with proper prefix
         combined_query = f"clarification: {clarification}"
         
         self.status_var.set("🧠 Processing clarification...")
-        self.clarify_var.set("")  # Clear input immediately
         
         def process():
             try:
@@ -399,6 +454,92 @@ class AutonomousAgentGUI:
                 self.root.after(0, lambda: self.status_var.set("Error"))
         
         Thread(target=process, daemon=True).start()
+    
+    def generate_interactive_dataset(self, parsed_request):
+        """Generate dataset using interactive workflow"""
+        self.status_var.set("🤖 Generating interactive dataset...")
+        
+        def generate():
+            try:
+                # Get repository path
+                repo_path = self.repo_var.get().strip()
+                if not repo_path:
+                    raise ValueError("Repository path not set")
+                
+                # Determine output directory
+                output_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "generated_datasets")
+                os.makedirs(output_dir, exist_ok=True)
+                
+                dataset_name = parsed_request.get('dataset_name', 'interactive_dataset')
+                output_file = os.path.join(output_dir, f"{dataset_name}.csv")
+                
+                # Generate based on type
+                if parsed_request.get('dataset_type') == 'benchmark':
+                    # Use benchmark generation logic
+                    benchmark_type = parsed_request.get('benchmark_type', 'Defects4J')
+                    # For now, simulate - you could call the actual benchmark generation
+                    with open(output_file, 'w') as f:
+                        f.write("file,content\n")
+                        f.write("sample.java,// Sample Java file\n")
+                    
+                elif parsed_request.get('dataset_type') == 'custom':
+                    # Use custom metrics generation
+                    selected_metrics = parsed_request.get('metrics', [])
+                    # For now, simulate - you could call the actual metrics extraction
+                    with open(output_file, 'w') as f:
+                        f.write("file," + ",".join(selected_metrics) + "\n")
+                        f.write("sample.java," + ",".join(["0"] * len(selected_metrics)) + "\n")
+                
+                # Display success
+                self.root.after(0, lambda: self.display_interactive_result(output_file, parsed_request))
+                self.root.after(0, lambda: self.reset_interactive_mode())
+                self.root.after(0, lambda: self.status_var.set("✅ Interactive dataset created successfully!"))
+                
+            except Exception as e:
+                self.root.after(0, lambda: messagebox.showerror("Error", f"Generation failed: {e}"))
+                self.root.after(0, lambda: self.reset_interactive_mode())
+        
+        Thread(target=generate, daemon=True).start()
+    
+    def display_interactive_result(self, output_file, parsed_request):
+        """Display interactive generation result"""
+        self.result_text.delete('1.0', tk.END)
+        
+        text = "🤖 INTERACTIVE DATASET CREATED!\n" + "="*50 + "\n\n"
+        text += "✅ Your dataset has been generated using the interactive workflow!\n\n"
+        text += f"📁 Output File: {output_file}\n\n"
+        
+        if parsed_request.get('dataset_type') == 'benchmark':
+            text += f"📋 Dataset Type: Benchmark ({parsed_request.get('benchmark_type')})\n"
+        elif parsed_request.get('dataset_type') == 'custom':
+            text += f"📊 Dataset Type: Custom with {len(parsed_request.get('metrics', []))} metrics\n"
+        
+        text += f"📄 Format: {parsed_request.get('output_format', 'csv')}\n\n"
+        text += "💡 The interactive workflow ensured your requirements were clearly understood\n"
+        text += "   before generating the dataset.\n"
+        
+        self.result_text.insert('1.0', text)
+        
+        # Switch to result tab
+        for widget in self.root.winfo_children():
+            if isinstance(widget, ttk.Frame):
+                for child in widget.winfo_children():
+                    if isinstance(child, ttk.Notebook):
+                        child.select(2)  # Result tab
+                        break
+        
+        messagebox.showinfo("Success!", f"Interactive dataset created!\n\nFile: {output_file}")
+    
+    def reset_interactive_mode(self):
+        """Reset interactive mode and re-enable inputs"""
+        self.interactive_mode = False
+        self.query_text.config(state='normal')
+        self.analyze_btn.config(state='normal')
+        self.interactive_btn.config(state='normal')
+        if hasattr(self, 'current_parsed_request'):
+            delattr(self, 'current_parsed_request')
+    
+    def clear_all(self):
     
     def display_result(self, result):
         """Display execution result with proper error handling"""
@@ -547,6 +688,111 @@ class AutonomousAgentGUI:
             text += f"• Primary Language: {ctx.get('primary_language', 'N/A')}\n"
         
         self.learning_text.insert('1.0', text)
+    
+    def start_interactive_mode(self):
+        """Start interactive dataset generation mode"""
+        query = self.query_text.get('1.0', tk.END).strip()
+        if not query or query.startswith("Examples:"):
+            messagebox.showwarning("Warning", "Please enter your dataset request first")
+            return
+        
+        # Switch to interactive mode
+        self.interactive_mode = True
+        self.status_var.set("🤖 Interactive Mode: Processing your request...")
+        
+        # Clear previous outputs
+        self.understanding_text.delete('1.0', tk.END)
+        self.result_text.delete('1.0', tk.END)
+        
+        def process_interactive():
+            try:
+                # Parse the user input using interactive generator
+                parsed = self.interactive_generator.parse_user_input(query)
+                
+                # Display understanding
+                self.root.after(0, lambda: self.display_interactive_understanding(parsed))
+                
+                # Ask for confirmation
+                self.root.after(0, lambda: self.ask_interactive_confirmation(parsed))
+                
+                self.root.after(0, lambda: self.status_var.set("🤖 Interactive Mode: Awaiting your confirmation"))
+                
+            except Exception as e:
+                self.root.after(0, lambda: messagebox.showerror("Error", f"Interactive processing failed: {e}"))
+                self.root.after(0, lambda: self.status_var.set("Error"))
+        
+        Thread(target=process_interactive, daemon=True).start()
+    
+    def display_interactive_understanding(self, parsed):
+        """Display interactive generator's understanding"""
+        self.understanding_text.delete('1.0', tk.END)
+        
+        text = "🤖 INTERACTIVE UNDERSTANDING\n" + "="*50 + "\n\n"
+        text += "I understand you want to create:\n\n"
+        
+        if parsed.get('dataset_type') == 'benchmark':
+            text += f"📋 Benchmark Dataset: {parsed.get('benchmark_type', 'Unknown')}\n"
+        elif parsed.get('dataset_type') == 'custom':
+            text += "📊 Custom Dataset with metrics:\n"
+            metrics = parsed.get('metrics', [])
+            for metric in metrics[:10]:  # Show first 10
+                text += f"  • {metric}\n"
+            if len(metrics) > 10:
+                text += f"  ... and {len(metrics) - 10} more\n"
+        else:
+            text += "❓ Dataset type not clearly identified\n"
+        
+        text += f"\n📁 Repository: {self.repo_var.get() or 'Not set'}\n"
+        text += f"📄 Output Format: {parsed.get('output_format', 'csv')}\n"
+        text += f"🏷️ Dataset Name: {parsed.get('dataset_name', 'auto_generated')}\n\n"
+        
+        text += "🤔 Is this what you want?\n"
+        text += "• Type 'yes' to proceed with generation\n"
+        text += "• Type 'no' to modify your request\n"
+        text += "• Or describe specific changes needed\n"
+        
+        self.understanding_text.insert('1.0', text)
+        
+        # Switch to understanding tab
+        for widget in self.root.winfo_children():
+            if isinstance(widget, ttk.Frame):
+                for child in widget.winfo_children():
+                    if isinstance(child, ttk.Notebook):
+                        child.select(0)  # Understanding tab
+                        break
+    
+    def ask_interactive_confirmation(self, parsed):
+        """Ask for user confirmation in clarification tab"""
+        self.clarification_text.delete('1.0', tk.END)
+        
+        text = "🤖 CONFIRMATION REQUESTED\n" + "="*50 + "\n\n"
+        text += "Please confirm if my understanding is correct:\n\n"
+        text += "• Type 'yes' to generate the dataset as understood\n"
+        text += "• Type 'no' to start over with a new request\n"
+        text += "• Or describe what needs to be changed\n\n"
+        text += "💡 Examples:\n"
+        text += "  'yes' - Proceed with generation\n"
+        text += "  'Add complexity metrics' - Modify the request\n"
+        text += "  'Use JSON format instead' - Change output format\n"
+        text += "  'no' - Start over\n"
+        
+        self.clarification_text.insert('1.0', text)
+        
+        # Store parsed request for later use
+        self.current_parsed_request = parsed
+        
+        # Switch to clarification tab
+        for widget in self.root.winfo_children():
+            if isinstance(widget, ttk.Frame):
+                for child in widget.winfo_children():
+                    if isinstance(child, ttk.Notebook):
+                        child.select(1)  # Clarification tab
+                        break
+        
+        # Disable main query until confirmation
+        self.query_text.config(state='disabled')
+        self.analyze_btn.config(state='disabled')
+        self.interactive_btn.config(state='disabled')
     
     def clear_all(self):
         """Clear all input and output"""

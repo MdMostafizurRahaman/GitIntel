@@ -65,10 +65,10 @@ class GitIntelDesktopApp:
         # Check if Neo4j is available
         if hasattr(self.gitintel_ultimate, 'neo4j_available') and self.gitintel_ultimate.neo4j_available:
             print("✅ Neo4j connected successfully!")
-            self.neo4j_status = "🟢 Connected"
+            self.neo4j_status = tk.StringVar(value="🟢 Connected")
         else:
             print("⚠️  Neo4j not available - running in offline mode")
-            self.neo4j_status = "🔴 Offline Mode"
+            self.neo4j_status = tk.StringVar(value="🔴 Offline Mode")
         
         # Current repository state
         self.current_repo = None
@@ -83,6 +83,9 @@ class GitIntelDesktopApp:
     
     def setup_gui(self):
         """Setup the GUI components"""
+        # Setup modern styling
+        self.setup_styles()
+        
         # Create main menu
         self.create_menu()
         
@@ -104,23 +107,75 @@ class GitIntelDesktopApp:
         # Create status bar
         self.create_status_bar()
     
+    def setup_styles(self):
+        """Setup modern GUI styles"""
+        style = ttk.Style()
+        
+        # Configure overall theme
+        try:
+            style.theme_use('clam')  # Modern theme
+        except:
+            pass  # Fallback to default
+        
+        # Button styles
+        style.configure('Accent.TButton', 
+                       font=('Segoe UI', 10, 'bold'),
+                       padding=8,
+                       relief='raised',
+                       borderwidth=2)
+        
+        style.map('Accent.TButton',
+                 background=[('active', '#0078d4'), ('pressed', '#106ebe')],
+                 foreground=[('active', 'white')])
+        
+        # LabelFrame styles
+        style.configure('Card.TLabelframe', 
+                       font=('Segoe UI', 11, 'bold'),
+                       padding=15,
+                       relief='solid',
+                       borderwidth=1)
+        
+        style.configure('Card.TLabelframe.Label', 
+                       font=('Segoe UI', 11, 'bold'),
+                       foreground='#2d3748')
+        
+        # Entry and Combobox styles
+        style.configure('Modern.TEntry', 
+                       font=('Segoe UI', 10),
+                       padding=6,
+                       relief='solid',
+                       borderwidth=1)
+        
+        style.configure('Modern.TCombobox', 
+                       font=('Segoe UI', 10),
+                       padding=6)
+        
+        # Label styles
+        style.configure('Header.TLabel', 
+                       font=('Segoe UI', 12, 'bold'),
+                       foreground='#1a365d')
+        
+        style.configure('Body.TLabel', 
+                       font=('Segoe UI', 10),
+                       foreground='#4a5568')
+    
     def create_menu(self):
-        """Create application menu"""
+        """Create application menu with modern icons"""
         menubar = tk.Menu(self.root)
         self.root.config(menu=menubar)
 
         # File menu
         file_menu = tk.Menu(menubar, tearoff=0)
-        menubar.add_cascade(label="File", menu=file_menu)
-        file_menu.add_command(label="Open Repository...", command=self.open_repository)
+        menubar.add_cascade(label="📁 File", menu=file_menu)
+        file_menu.add_command(label="📂 Open Repository...", command=self.open_repository)
         file_menu.add_separator()
-        file_menu.add_command(label="Export Analysis...", command=self.export_analysis)
+        file_menu.add_command(label="📊 Export Analysis...", command=self.export_analysis)
         file_menu.add_separator()
-        file_menu.add_command(label="Exit", command=self.root.quit)
+        file_menu.add_command(label="❌ Exit", command=self.root.quit)
 
         # View menu - for switching between tabs
         view_menu = tk.Menu(menubar, tearoff=0)
-        menubar.add_cascade(label="View", menu=view_menu)
+        menubar.add_cascade(label="👁️ View", menu=view_menu)
         view_menu.add_command(label="📁 Repository Tab", command=lambda: self.notebook.select(0))
         view_menu.add_command(label="📊 Analysis Tab", command=lambda: self.notebook.select(1))
         view_menu.add_command(label="💬 Chat Tab", command=lambda: self.notebook.select(2))
@@ -129,14 +184,14 @@ class GitIntelDesktopApp:
 
         # Tools menu
         tools_menu = tk.Menu(menubar, tearoff=0)
-        menubar.add_cascade(label="Tools", menu=tools_menu)
-        tools_menu.add_command(label="Settings", command=self.open_settings)
+        menubar.add_cascade(label="🔧 Tools", menu=tools_menu)
+        tools_menu.add_command(label="⚙️ Settings", command=self.open_settings)
 
         # Help menu
         help_menu = tk.Menu(menubar, tearoff=0)
-        menubar.add_cascade(label="Help", menu=help_menu)
-        help_menu.add_command(label="User Guide", command=self.show_user_guide)
-        help_menu.add_command(label="About", command=self.show_about)
+        menubar.add_cascade(label="❓ Help", menu=help_menu)
+        help_menu.add_command(label="📖 User Guide", command=self.show_user_guide)
+        help_menu.add_command(label="ℹ️ About", command=self.show_about)
     
     def create_main_frames(self):
         """Create main application frames"""
@@ -169,187 +224,267 @@ class GitIntelDesktopApp:
     
     def create_repository_panel(self):
         """Create repository management panel"""
-        # Repository selection frame
-        repo_select_frame = ttk.LabelFrame(self.repo_frame, text="Repository Selection", padding="10")
-        repo_select_frame.pack(fill='x', padx=10, pady=10)
+        # Main container with padding
+        main_container = ttk.Frame(self.repo_frame, padding="20")
+        main_container.pack(fill='both', expand=True)
         
-        # Repository input type selection
-        ttk.Label(repo_select_frame, text="Repository Source:").grid(row=0, column=0, sticky='w', pady=(0, 5))
+        # Repository selection frame with modern styling
+        repo_select_frame = ttk.LabelFrame(main_container, text="📁 Repository Selection", 
+                                         style='Card.TLabelframe', padding="15")
+        repo_select_frame.pack(fill='x', pady=(0, 20))
+        
+        # Repository source selection with better layout
+        source_frame = ttk.Frame(repo_select_frame)
+        source_frame.pack(fill='x', pady=(0, 15))
+        
+        ttk.Label(source_frame, text="Repository Source:", style='Header.TLabel').pack(anchor='w', pady=(0, 8))
+        
+        radio_frame = ttk.Frame(source_frame)
+        radio_frame.pack(fill='x')
         
         self.repo_source_var = tk.StringVar(value="local")
-        ttk.Radiobutton(repo_select_frame, text="Local Path", variable=self.repo_source_var, value="local", command=self.on_source_change).grid(row=0, column=1, sticky='w')
-        ttk.Radiobutton(repo_select_frame, text="Git URL", variable=self.repo_source_var, value="url", command=self.on_source_change).grid(row=0, column=2, sticky='w')
+        ttk.Radiobutton(radio_frame, text="📂 Local Path", variable=self.repo_source_var, 
+                       value="local", command=self.on_source_change).pack(side='left', padx=(0, 20))
+        ttk.Radiobutton(radio_frame, text="🌐 Git URL", variable=self.repo_source_var, 
+                       value="url", command=self.on_source_change).pack(side='left')
         
-        # Repository path/URL input
-        self.repo_input_label = ttk.Label(repo_select_frame, text="Repository Path:")
-        self.repo_input_label.grid(row=1, column=0, sticky='w', pady=(5, 5))
+        # Repository path input with better spacing
+        path_frame = ttk.Frame(repo_select_frame)
+        path_frame.pack(fill='x', pady=(0, 15))
+        
+        self.repo_input_label = ttk.Label(path_frame, text="Repository Path:", style='Body.TLabel')
+        self.repo_input_label.pack(anchor='w', pady=(0, 8))
+        
+        input_frame = ttk.Frame(path_frame)
+        input_frame.pack(fill='x')
         
         self.repo_path_var = tk.StringVar()
-        self.repo_path_entry = ttk.Entry(repo_select_frame, textvariable=self.repo_path_var, width=50)
-        self.repo_path_entry.grid(row=2, column=0, sticky='ew', padx=(0, 10))
+        self.repo_path_entry = ttk.Entry(input_frame, textvariable=self.repo_path_var, 
+                                       style='Modern.TEntry', width=50)
+        self.repo_path_entry.pack(side='left', fill='x', expand=True, padx=(0, 10))
         
-        ttk.Button(repo_select_frame, text="Browse...", command=self.browse_repository).grid(row=2, column=1)
+        ttk.Button(input_frame, text="📂 Browse...", command=self.browse_repository).pack(side='right')
         
-        # Action button (text changes based on mode)
-        self.action_button = ttk.Button(repo_select_frame, text="Load", command=self.load_repository)
-        self.action_button.grid(row=2, column=2, padx=(5, 0))
+        # Action button with modern styling
+        action_frame = ttk.Frame(repo_select_frame)
+        action_frame.pack(fill='x', pady=(15, 0))
         
-        # Clone destination (for Git URLs)
+        self.action_button = ttk.Button(action_frame, text="📥 Load Repository", 
+                                      command=self.load_repository, style='Accent.TButton')
+        self.action_button.pack(side='left')
+        
+        # Clone destination (for Git URLs) - hidden initially
         self.clone_dest_frame = ttk.Frame(repo_select_frame)
-        self.clone_dest_label = ttk.Label(self.clone_dest_frame, text="Clone to:")
-        self.clone_dest_label.grid(row=0, column=0, sticky='w', pady=(5, 0))
+        ttk.Label(self.clone_dest_frame, text="Clone Destination:", style='Body.TLabel').pack(anchor='w', pady=(10, 8))
+        
+        clone_input_frame = ttk.Frame(self.clone_dest_frame)
+        clone_input_frame.pack(fill='x')
         
         self.clone_dest_var = tk.StringVar(value="D:/GitIntel/cloned_repos")
-        self.clone_dest_entry = ttk.Entry(self.clone_dest_frame, textvariable=self.clone_dest_var, width=40)
-        self.clone_dest_entry.grid(row=1, column=0, sticky='ew', padx=(0, 10))
+        self.clone_dest_entry = ttk.Entry(clone_input_frame, textvariable=self.clone_dest_var, 
+                                        style='Modern.TEntry', width=40)
+        self.clone_dest_entry.pack(side='left', fill='x', expand=True, padx=(0, 10))
         
-        ttk.Button(self.clone_dest_frame, text="Browse...", command=self.browse_clone_destination).grid(row=1, column=1)
+        ttk.Button(clone_input_frame, text="📂 Browse...", command=self.browse_clone_destination).pack(side='right')
         
-        # Clone progress bar (for Git URLs)
+        # Clone progress (for Git URLs) - hidden initially
         self.clone_progress_frame = ttk.Frame(repo_select_frame)
-        self.clone_progress_label = ttk.Label(self.clone_progress_frame, text="Clone Progress:")
-        self.clone_progress_label.grid(row=0, column=0, sticky='w', pady=(5, 0))
+        ttk.Label(self.clone_progress_frame, text="📊 Clone Progress:", style='Body.TLabel').pack(anchor='w', pady=(10, 8))
         
-        self.clone_progress = ttk.Progressbar(self.clone_progress_frame, mode='determinate', maximum=100)
-        self.clone_progress.grid(row=1, column=0, sticky='ew', padx=(0, 10))
+        progress_frame = ttk.Frame(self.clone_progress_frame)
+        progress_frame.pack(fill='x')
         
-        self.clone_status_var = tk.StringVar(value="Ready to clone")
-        self.clone_status_label = ttk.Label(self.clone_progress_frame, textvariable=self.clone_status_var)
-        self.clone_status_label.grid(row=1, column=1, padx=(5, 0))
+        self.clone_progress = ttk.Progressbar(progress_frame, mode='determinate', maximum=100)
+        self.clone_progress.pack(side='left', fill='x', expand=True, padx=(0, 10))
         
+        self.clone_status_var = tk.StringVar(value="⏳ Ready to clone")
+        self.clone_status_label = ttk.Label(progress_frame, textvariable=self.clone_status_var, style='Body.TLabel')
+        self.clone_status_label.pack(side='right')
         
-        repo_select_frame.columnconfigure(0, weight=1)
+        # Repository info frame with modern styling
+        self.repo_info_frame = ttk.LabelFrame(main_container, text="📋 Repository Information", 
+                                            style='Card.TLabelframe', padding="15")
+        self.repo_info_frame.pack(fill='both', expand=True, pady=(0, 20))
         
-        # Repository info frame
-        self.repo_info_frame = ttk.LabelFrame(self.repo_frame, text="Repository Information", padding="10")
-        self.repo_info_frame.pack(fill='both', expand=True, padx=10, pady=10)
-        
-        # Repository info text
-        self.repo_info_text = scrolledtext.ScrolledText(self.repo_info_frame, height=15, wrap='word')
+        # Repository info text with better font
+        self.repo_info_text = scrolledtext.ScrolledText(self.repo_info_frame, height=15, 
+                                                      wrap='word', font=('Consolas', 10))
         self.repo_info_text.pack(fill='both', expand=True)
         
-        # Ingestion frame
-        ingest_frame = ttk.LabelFrame(self.repo_frame, text="Data Ingestion", padding="10")
-        ingest_frame.pack(fill='x', padx=10, pady=10)
+        # Ingestion frame with modern styling
+        ingest_frame = ttk.LabelFrame(main_container, text="⚙️ Data Ingestion", 
+                                    style='Card.TLabelframe', padding="15")
+        ingest_frame.pack(fill='x')
         
-        # Commit limit for ingestion
-        ttk.Label(ingest_frame, text="Commit Limit:").grid(row=0, column=0, sticky='w', pady=(0, 5))
+        # Commit limit input
+        limit_frame = ttk.Frame(ingest_frame)
+        limit_frame.pack(fill='x', pady=(0, 15))
+        
+        ttk.Label(limit_frame, text="Commit Limit:", style='Body.TLabel').grid(row=0, column=0, sticky='w', pady=(0, 8))
         
         self.ingest_commit_limit_var = tk.StringVar(value="100")
-        ttk.Entry(ingest_frame, textvariable=self.ingest_commit_limit_var, width=10).grid(row=0, column=1, sticky='w', padx=(0, 10))
+        ttk.Entry(limit_frame, textvariable=self.ingest_commit_limit_var, 
+                 style='Modern.TEntry', width=15).grid(row=1, column=0, sticky='w', padx=(0, 10))
         
-        # Add "all" option hint
-        ttk.Label(ingest_frame, text="(Enter number or 'all')", font=("Arial", 8), foreground='gray').grid(row=0, column=2, sticky='w')
+        ttk.Label(limit_frame, text="(Enter number or 'all')", 
+                 font=("Segoe UI", 8), foreground='gray').grid(row=1, column=1, sticky='w')
         
         # Force reprocessing option
         self.force_reprocess_var = tk.BooleanVar(value=False)
-        ttk.Checkbutton(ingest_frame, text="Force reprocessing (ignore existing data)", 
-                       variable=self.force_reprocess_var).grid(row=1, column=0, columnspan=2, sticky='w', pady=(5, 0))
+        ttk.Checkbutton(ingest_frame, text="🔄 Force reprocessing (ignore existing data)", 
+                       variable=self.force_reprocess_var, style='Body.TLabel').pack(anchor='w', pady=(0, 15))
         
-        # Button and progress on next row
-        self.ingest_button = ttk.Button(ingest_frame, text="Start Data Ingestion", command=self.ingest_repository)
-        self.ingest_button.grid(row=2, column=0, sticky='w', pady=(10, 0))
+        # Action buttons
+        button_frame = ttk.Frame(ingest_frame)
+        button_frame.pack(fill='x')
         
-        self.ingest_progress = ttk.Progressbar(ingest_frame, mode='determinate', maximum=100)
-        self.ingest_progress.grid(row=2, column=1, sticky='ew', padx=(10, 5), pady=(10, 0))
+        self.ingest_button = ttk.Button(button_frame, text="🚀 Start Data Ingestion", 
+                                      command=self.ingest_repository, style='Accent.TButton')
+        self.ingest_button.pack(side='left')
         
-        self.ingest_status_var = tk.StringVar(value="Ready to ingest")
-        self.ingest_status_label = ttk.Label(ingest_frame, textvariable=self.ingest_status_var)
-        self.ingest_status_label.grid(row=2, column=2, sticky='w', padx=(5, 0), pady=(10, 0))
+        self.ingest_progress = ttk.Progressbar(button_frame, mode='determinate', maximum=100)
+        self.ingest_progress.pack(side='left', fill='x', expand=True, padx=(15, 10))
         
-        # Configure grid weights
-        ingest_frame.grid_columnconfigure(1, weight=1)
+        self.ingest_status_var = tk.StringVar(value="⏳ Ready to ingest")
+        self.ingest_status_label = ttk.Label(button_frame, textvariable=self.ingest_status_var, style='Body.TLabel')
+        self.ingest_status_label.pack(side='right')
         
         # Initialize UI state
         self.on_source_change()
     
     def create_analysis_panel(self):
         """Create statistical analysis panel"""
-        # Analysis controls frame
-        controls_frame = ttk.LabelFrame(self.analysis_frame, text="Analysis Controls", padding="10")
-        controls_frame.pack(fill='x', padx=10, pady=10)
+        # Main container with padding
+        main_container = ttk.Frame(self.analysis_frame, padding="20")
+        main_container.pack(fill='both', expand=True)
         
-        # Analysis type selection
-        ttk.Label(controls_frame, text="Analysis Type:").grid(row=0, column=0, sticky='w', pady=(0, 5))
+        # Analysis controls frame with modern styling
+        controls_frame = ttk.LabelFrame(main_container, text="📊 Analysis Controls", 
+                                      style='Card.TLabelframe', padding="15")
+        controls_frame.pack(fill='x', pady=(0, 20))
+        
+        # Analysis type selection with better layout
+        type_frame = ttk.Frame(controls_frame)
+        type_frame.pack(fill='x', pady=(0, 15))
+        
+        ttk.Label(type_frame, text="Analysis Type:", style='Header.TLabel').pack(anchor='w', pady=(0, 8))
         
         self.analysis_type_var = tk.StringVar(value="package_churn")
-        analysis_combo = ttk.Combobox(controls_frame, textvariable=self.analysis_type_var, 
+        analysis_combo = ttk.Combobox(type_frame, textvariable=self.analysis_type_var, 
                                      values=[
                                          "package_churn", "loc_analysis", "complexity", "releases",
                                          "loc_time_ratio", "complexity_time_ratio", "combined_analysis",
                                          "file_class_count", "code_duplication", "test_coverage",
                                          "security_patterns", "halstead_metrics", "maintainability_index",
-                                         "technical_debt", "dependency_metrics"
+                                         "technical_debt", "dependency_metrics", "unified_metrics",
+                                         "ck_metrics", "szz_analysis", "bug_density", "churn_analysis"
                                      ], 
-                                     state="readonly", width=25)
-        analysis_combo.grid(row=1, column=0, sticky='w', padx=(0, 10))
+                                     state="readonly", style='Modern.TCombobox', width=30)
+        analysis_combo.pack(fill='x')
+        
+        # Parameters frame
+        params_frame = ttk.Frame(controls_frame)
+        params_frame.pack(fill='x', pady=(0, 15))
         
         # Commit limit
-        ttk.Label(controls_frame, text="Commit Limit:").grid(row=0, column=1, sticky='w', pady=(0, 5))
+        limit_frame = ttk.Frame(params_frame)
+        limit_frame.pack(side='left', padx=(0, 20))
+        
+        ttk.Label(limit_frame, text="Commit Limit:", style='Body.TLabel').pack(anchor='w', pady=(0, 5))
         
         self.commit_limit_var = tk.StringVar(value="1000")
-        ttk.Entry(controls_frame, textvariable=self.commit_limit_var, width=10).grid(row=1, column=1, sticky='w', padx=(0, 10))
+        ttk.Entry(limit_frame, textvariable=self.commit_limit_var, 
+                 style='Modern.TEntry', width=12).pack()
         
-        # Analysis button
-        ttk.Button(controls_frame, text="Run Analysis", command=self.run_statistical_analysis).grid(row=1, column=2, padx=(10, 0))
+        # Analysis threshold (for some analyses)
+        threshold_frame = ttk.Frame(params_frame)
+        threshold_frame.pack(side='left')
         
-        # Export button
-        ttk.Button(controls_frame, text="Export to Excel", command=self.export_to_excel).grid(row=1, column=3, padx=(5, 0))
+        ttk.Label(threshold_frame, text="Threshold:", style='Body.TLabel').pack(anchor='w', pady=(0, 5))
+        
+        self.analysis_threshold_var = tk.StringVar(value="500")
+        ttk.Entry(threshold_frame, textvariable=self.analysis_threshold_var, 
+                 style='Modern.TEntry', width=12).pack()
+        
+        # Action buttons frame
+        buttons_frame = ttk.Frame(controls_frame)
+        buttons_frame.pack(fill='x')
+        
+        # Analysis buttons
+        self.run_analysis_button = ttk.Button(buttons_frame, text="🔍 Run Analysis", 
+                                            command=self.run_statistical_analysis, style='Accent.TButton')
+        self.run_analysis_button.pack(side='left', padx=(0, 10))
+        
+        ttk.Button(buttons_frame, text="📊 Export to Excel", 
+                  command=self.export_to_excel).pack(side='left', padx=(0, 10))
         
         # Add GitIntel Ultimate button
-        ttk.Button(controls_frame, text="🚀 Ultimate Analysis (CK+SZZ)", 
-                  command=self.run_ultimate_analysis, 
-                  style='Accent.TButton').grid(row=2, column=0, columnspan=2, pady=(10, 0), sticky='ew')
+        ttk.Button(buttons_frame, text="🚀 Ultimate Analysis (CK+SZZ)", 
+                  command=self.run_ultimate_analysis, style='Accent.TButton').pack(side='left')
         
-        # Results frame
-        results_frame = ttk.LabelFrame(self.analysis_frame, text="Analysis Results", padding="10")
-        results_frame.pack(fill='both', expand=True, padx=10, pady=10)
+        # Results frame with modern styling
+        results_frame = ttk.LabelFrame(main_container, text="📈 Analysis Results", 
+                                     style='Card.TLabelframe', padding="15")
+        results_frame.pack(fill='both', expand=True)
         
-        # Results text area
-        self.analysis_results_text = scrolledtext.ScrolledText(results_frame, height=20, wrap='word')
+        # Results text area with better font
+        self.analysis_results_text = scrolledtext.ScrolledText(results_frame, height=20, 
+                                                            wrap='word', font=('Consolas', 10))
         self.analysis_results_text.pack(fill='both', expand=True)
     
     def create_chat_panel(self):
         """Create conversational Q&A panel"""
-        # Chat history frame
-        chat_history_frame = ttk.LabelFrame(self.chat_frame, text="Conversation History", padding="10")
-        chat_history_frame.pack(fill='both', expand=True, padx=10, pady=10)
+        # Main container with padding
+        main_container = ttk.Frame(self.chat_frame, padding="20")
+        main_container.pack(fill='both', expand=True)
         
-        # Chat display
-        self.chat_display = scrolledtext.ScrolledText(chat_history_frame, height=20, wrap='word')
+        # Chat history frame with modern styling
+        chat_history_frame = ttk.LabelFrame(main_container, text="💬 Conversation History", 
+                                          style='Card.TLabelframe', padding="15")
+        chat_history_frame.pack(fill='both', expand=True, pady=(0, 20))
+        
+        # Chat display with better font
+        self.chat_display = scrolledtext.ScrolledText(chat_history_frame, height=20, 
+                                                    wrap='word', font=('Segoe UI', 10))
         self.chat_display.pack(fill='both', expand=True)
         self.chat_display.config(state='disabled')
         
-        # Input frame
-        input_frame = ttk.Frame(self.chat_frame)
-        input_frame.pack(fill='x', padx=10, pady=(0, 10))
+        # Input frame with modern styling
+        input_frame = ttk.LabelFrame(main_container, text="❓ Ask Questions", 
+                                   style='Card.TLabelframe', padding="15")
+        input_frame.pack(fill='x', pady=(0, 20))
         
-        # Question input
-        ttk.Label(input_frame, text="Ask a question:").pack(anchor='w')
+        # Question input with better layout
+        ttk.Label(input_frame, text="Your Question:", style='Header.TLabel').pack(anchor='w', pady=(0, 10))
         
         question_input_frame = ttk.Frame(input_frame)
-        question_input_frame.pack(fill='x', pady=(5, 0))
+        question_input_frame.pack(fill='x', pady=(0, 15))
         
         self.question_var = tk.StringVar()
-        self.question_entry = ttk.Entry(question_input_frame, textvariable=self.question_var)
+        self.question_entry = ttk.Entry(question_input_frame, textvariable=self.question_var, 
+                                      style='Modern.TEntry')
         self.question_entry.pack(side='left', fill='x', expand=True, padx=(0, 10))
         
-        self.ask_button = ttk.Button(question_input_frame, text="Ask", command=self.ask_question)
+        self.ask_button = ttk.Button(question_input_frame, text="🚀 Ask", 
+                                   command=self.ask_question, style='Accent.TButton')
         self.ask_button.pack(side='right')
         
-        # Language selection
+        # Language selection with better layout
         lang_frame = ttk.Frame(input_frame)
-        lang_frame.pack(fill='x', pady=(5, 0))
+        lang_frame.pack(fill='x', pady=(0, 15))
         
-        ttk.Label(lang_frame, text="Language:").pack(side='left')
+        ttk.Label(lang_frame, text="Language:", style='Body.TLabel').pack(side='left')
         
         self.language_var = tk.StringVar(value="English")
-        ttk.Radiobutton(lang_frame, text="English", variable=self.language_var, value="English").pack(side='left', padx=(10, 0))
-        ttk.Radiobutton(lang_frame, text="বাংলা", variable=self.language_var, value="Bengali").pack(side='left', padx=(10, 0))
+        ttk.Radiobutton(lang_frame, text="🇺🇸 English", variable=self.language_var, 
+                       value="English").pack(side='left', padx=(10, 0))
+        ttk.Radiobutton(lang_frame, text="🇧🇩 বাংলা", variable=self.language_var, 
+                       value="Bengali").pack(side='left', padx=(10, 0))
         
-        # Example questions
-        examples_frame = ttk.LabelFrame(input_frame, text="Example Questions", padding="5")
-        examples_frame.pack(fill='x', pady=(10, 0))
+        # Example questions with modern styling
+        examples_frame = ttk.LabelFrame(input_frame, text="💡 Example Questions", 
+                                      style='Card.TLabelframe', padding="10")
+        examples_frame.pack(fill='x')
         
         examples = [
             "Who are the top contributors?",
@@ -359,49 +494,69 @@ class GitIntelDesktopApp:
             "সাম্প্রতিক কমিট দেখাও"
         ]
         
+        # Create a grid layout for examples
         for i, example in enumerate(examples):
+            row = i // 2
+            col = i % 2
             btn = ttk.Button(examples_frame, text=example, 
                            command=lambda q=example: self.use_example_question(q))
-            btn.pack(side='left', padx=2, pady=2)
+            btn.grid(row=row, column=col, padx=5, pady=5, sticky='ew')
+        
+        examples_frame.grid_columnconfigure(0, weight=1)
+        examples_frame.grid_columnconfigure(1, weight=1)
     
     def create_graph_panel(self):
         """Create knowledge graph visualization panel"""
-        # Graph controls frame
-        graph_controls_frame = ttk.LabelFrame(self.graph_frame, text="Graph Controls", padding="10")
-        graph_controls_frame.pack(fill='x', padx=10, pady=10)
+        # Main container with padding
+        main_container = ttk.Frame(self.graph_frame, padding="20")
+        main_container.pack(fill='both', expand=True)
         
-        # Repository selection for graph
-        ttk.Label(graph_controls_frame, text="Repository:").grid(row=0, column=0, sticky='w', pady=(0, 5))
+        # Graph controls frame with modern styling
+        graph_controls_frame = ttk.LabelFrame(main_container, text="🔗 Graph Controls", 
+                                            style='Card.TLabelframe', padding="15")
+        graph_controls_frame.pack(fill='x', pady=(0, 20))
+        
+        # Repository selection
+        repo_frame = ttk.Frame(graph_controls_frame)
+        repo_frame.pack(fill='x', pady=(0, 15))
+        
+        ttk.Label(repo_frame, text="Repository:", style='Body.TLabel').pack(anchor='w', pady=(0, 5))
         
         self.graph_repo_var = tk.StringVar(value="kafka")
         
         # Get available repositories dynamically
         available_repos = self._get_available_repositories()
         
-        repo_combo = ttk.Combobox(graph_controls_frame, textvariable=self.graph_repo_var, 
+        repo_combo = ttk.Combobox(repo_frame, textvariable=self.graph_repo_var, 
                                  values=available_repos, 
-                                 state="readonly", width=20)
-        repo_combo.grid(row=1, column=0, sticky='w', padx=(0, 10))
+                                 state="readonly", style='Modern.TCombobox', width=25)
+        repo_combo.pack(fill='x')
         repo_combo.bind('<<ComboboxSelected>>', self.on_graph_repo_change)
         
         # Query type selection
-        ttk.Label(graph_controls_frame, text="Query Type:").grid(row=0, column=1, sticky='w', pady=(0, 5))
+        query_frame = ttk.Frame(graph_controls_frame)
+        query_frame.pack(fill='x', pady=(0, 15))
+        
+        ttk.Label(query_frame, text="Query Type:", style='Body.TLabel').pack(anchor='w', pady=(0, 5))
         
         self.graph_query_var = tk.StringVar(value="overview")
-        query_combo = ttk.Combobox(graph_controls_frame, textvariable=self.graph_query_var, 
+        query_combo = ttk.Combobox(query_frame, textvariable=self.graph_query_var, 
                                   values=["overview", "contributors", "commits", "files"], 
-                                  state="readonly", width=15)
-        query_combo.grid(row=1, column=1, sticky='w', padx=(0, 10))
+                                  state="readonly", style='Modern.TCombobox', width=25)
+        query_combo.pack(fill='x')
         
         # Load graph button
-        ttk.Button(graph_controls_frame, text="Load Graph Data", command=self.load_graph_data).grid(row=1, column=2, padx=(10, 0))
+        ttk.Button(query_frame, text="🔍 Load Graph Data", 
+                  command=self.load_graph_data, style='Accent.TButton').pack(fill='x', pady=(10, 0))
         
-        # Graph display frame
-        graph_display_frame = ttk.LabelFrame(self.graph_frame, text="Graph Data", padding="10")
-        graph_display_frame.pack(fill='both', expand=True, padx=10, pady=10)
+        # Graph display frame with modern styling
+        graph_display_frame = ttk.LabelFrame(main_container, text="📊 Graph Data", 
+                                           style='Card.TLabelframe', padding="15")
+        graph_display_frame.pack(fill='both', expand=True)
         
-        # Graph text area (for now, we'll show textual representation)
-        self.graph_display_text = scrolledtext.ScrolledText(graph_display_frame, height=20, wrap='word')
+        # Graph text area with better font
+        self.graph_display_text = scrolledtext.ScrolledText(graph_display_frame, height=20, 
+                                                          wrap='word', font=('Consolas', 10))
         self.graph_display_text.pack(fill='both', expand=True)
     
     def on_graph_repo_change(self, event=None):
@@ -431,46 +586,59 @@ class GitIntelDesktopApp:
     
     def create_visual_graph_panel(self):
         """Create visual graph panel with network visualization"""
-        # Graph controls
-        visual_controls_frame = ttk.LabelFrame(self.visual_graph_frame, text="Visualization Controls", padding="10")
-        visual_controls_frame.pack(fill='x', padx=10, pady=10)
+        # Main container with padding
+        main_container = ttk.Frame(self.visual_graph_frame, padding="20")
+        main_container.pack(fill='both', expand=True)
+        
+        # Graph controls with modern styling
+        visual_controls_frame = ttk.LabelFrame(main_container, text="🎨 Visualization Controls", 
+                                             style='Card.TLabelframe', padding="15")
+        visual_controls_frame.pack(fill='x', pady=(0, 20))
         
         # Visualization type
-        ttk.Label(visual_controls_frame, text="Visualization:").grid(row=0, column=0, sticky='w', pady=(0, 5))
+        type_frame = ttk.Frame(visual_controls_frame)
+        type_frame.pack(fill='x', pady=(0, 15))
+        
+        ttk.Label(type_frame, text="Visualization Type:", style='Body.TLabel').pack(anchor='w', pady=(0, 5))
         
         self.visual_type_var = tk.StringVar(value="network")
-        visual_combo = ttk.Combobox(visual_controls_frame, textvariable=self.visual_type_var, 
+        visual_combo = ttk.Combobox(type_frame, textvariable=self.visual_type_var, 
                                    values=["network", "hierarchy", "timeline", "vector_data"], 
-                                   state="readonly", width=15)
-        visual_combo.grid(row=1, column=0, sticky='w', padx=(0, 10))
+                                   state="readonly", style='Modern.TCombobox', width=25)
+        visual_combo.pack(fill='x')
         
         # Repository for visual
-        ttk.Label(visual_controls_frame, text="Repository:").grid(row=0, column=1, sticky='w', pady=(0, 5))
+        repo_frame = ttk.Frame(visual_controls_frame)
+        repo_frame.pack(fill='x', pady=(0, 15))
+        
+        ttk.Label(repo_frame, text="Repository:", style='Body.TLabel').pack(anchor='w', pady=(0, 5))
         
         self.visual_repo_var = tk.StringVar(value="kafka")
         
         # Use same available repositories
         available_repos = self._get_available_repositories()
         
-        visual_repo_combo = ttk.Combobox(visual_controls_frame, textvariable=self.visual_repo_var, 
+        visual_repo_combo = ttk.Combobox(repo_frame, textvariable=self.visual_repo_var, 
                                         values=available_repos, 
-                                        state="readonly", width=20)
-        visual_repo_combo.grid(row=1, column=1, sticky='w', padx=(0, 10))
+                                        state="readonly", style='Modern.TCombobox', width=25)
+        visual_repo_combo.pack(fill='x')
         
         # Generate visualization button
-        ttk.Button(visual_controls_frame, text="Generate Visualization", 
-                  command=self.generate_visual_graph).grid(row=1, column=2, padx=(10, 0))
+        ttk.Button(repo_frame, text="🎯 Generate Visualization", 
+                  command=self.generate_visual_graph, style='Accent.TButton').pack(fill='x', pady=(10, 0))
         
-        # Canvas for visualization
-        visual_display_frame = ttk.LabelFrame(self.visual_graph_frame, text="Network Visualization", padding="10")
-        visual_display_frame.pack(fill='both', expand=True, padx=10, pady=10)
+        # Canvas for visualization with modern styling
+        visual_display_frame = ttk.LabelFrame(main_container, text="🌐 Network Visualization", 
+                                            style='Card.TLabelframe', padding="15")
+        visual_display_frame.pack(fill='both', expand=True)
         
         # Create canvas with scrollbars
         canvas_frame = ttk.Frame(visual_display_frame)
         canvas_frame.pack(fill='both', expand=True)
         
         # Canvas
-        self.visual_canvas = tk.Canvas(canvas_frame, bg='white', width=600, height=400)
+        self.visual_canvas = tk.Canvas(canvas_frame, bg='white', width=600, height=400, 
+                                     relief='solid', borderwidth=1)
         
         # Scrollbars
         v_scrollbar = ttk.Scrollbar(canvas_frame, orient='vertical', command=self.visual_canvas.yview)
@@ -1140,17 +1308,40 @@ Repository({repo_name}) → Contains Files → Files
         self.update_status(f"Graph loading failed: {error_msg}")
 
     def create_status_bar(self):
-        """Create status bar"""
-        self.status_frame = ttk.Frame(self.root)
-        self.status_frame.pack(fill='x', side='bottom')
+        """Create status bar with modern styling"""
+        self.status_frame = ttk.Frame(self.root, style='Card.TLabelframe')
+        self.status_frame.pack(fill='x', side='bottom', padx=10, pady=(0, 10))
         
-        self.status_var = tk.StringVar(value="Ready")
-        self.status_label = ttk.Label(self.status_frame, textvariable=self.status_var, relief='sunken')
-        self.status_label.pack(side='left', fill='x', expand=True, padx=(10, 0), pady=5)
+        # Main status
+        status_frame = ttk.Frame(self.status_frame)
+        status_frame.pack(side='left', fill='x', expand=True, padx=10, pady=5)
+        
+        ttk.Label(status_frame, text="📊 Status:", style='Body.TLabel').pack(side='left')
+        
+        self.status_var = tk.StringVar(value="✅ Ready")
+        self.status_label = ttk.Label(status_frame, textvariable=self.status_var, 
+                                    style='Body.TLabel', background='#f7fafc')
+        self.status_label.pack(side='left', fill='x', expand=True, padx=(5, 0))
         
         # Repository status
-        self.repo_status_var = tk.StringVar(value="No repository loaded")
-        ttk.Label(self.status_frame, textvariable=self.repo_status_var, relief='sunken').pack(side='right', padx=(0, 10), pady=5)
+        repo_frame = ttk.Frame(self.status_frame)
+        repo_frame.pack(side='right', padx=10, pady=5)
+        
+        ttk.Label(repo_frame, text="📁 Repository:", style='Body.TLabel').pack(side='left')
+        
+        self.repo_status_var = tk.StringVar(value="❌ No repository loaded")
+        ttk.Label(repo_frame, textvariable=self.repo_status_var, 
+                 style='Body.TLabel', background='#f7fafc').pack(side='left', padx=(5, 0))
+        
+        # Neo4j status
+        neo4j_frame = ttk.Frame(self.status_frame)
+        neo4j_frame.pack(side='right', padx=(0, 10), pady=5)
+        
+        ttk.Label(neo4j_frame, text="🔗 Neo4j:", style='Body.TLabel').pack(side='left')
+        
+        self.neo4j_status_label = ttk.Label(neo4j_frame, textvariable=self.neo4j_status, 
+                                          style='Body.TLabel', background='#f7fafc')
+        self.neo4j_status_label.pack(side='left', padx=(5, 0))
     
     def setup_bindings(self):
         """Setup keyboard bindings"""
@@ -1600,6 +1791,16 @@ Repository({repo_name}) → Contains Files → Files
                 result = self.llm_analyzer.analyze_technical_debt(output_format='text')
             elif analysis_type == "dependency_metrics":
                 result = self.llm_analyzer.analyze_dependency_metrics(output_format='text')
+            elif analysis_type == "unified_metrics":
+                result = self.run_unified_metrics_analysis()
+            elif analysis_type == "ck_metrics":
+                result = self.run_ck_metrics_analysis()
+            elif analysis_type == "szz_analysis":
+                result = self.run_szz_analysis()
+            elif analysis_type == "bug_density":
+                result = self.run_bug_density_analysis()
+            elif analysis_type == "churn_analysis":
+                result = self.run_churn_analysis()
             else:
                 result = "Unknown analysis type"
             
@@ -1621,6 +1822,133 @@ Repository({repo_name}) → Contains Files → Files
         self.analysis_results_text.delete('1.0', tk.END)
         self.analysis_results_text.insert('1.0', f"Analysis failed: {error_msg}")
         self.update_status(f"Analysis failed: {error_msg}")
+    
+    def run_unified_metrics_analysis(self):
+        """Run unified metrics analysis"""
+        try:
+            analyzer = UnifiedMetricsAnalyzer(self.current_repo)
+            results = analyzer.analyze_all()
+            
+            output = "🔬 UNIFIED METRICS ANALYSIS\n"
+            output += "=" * 50 + "\n\n"
+            
+            for file_path, metrics in results.items():
+                output += f"📁 File: {file_path}\n"
+                output += f"📊 Class: {metrics.name}\n\n"
+                
+                if metrics.ck_metrics:
+                    output += "🏗️ CK Metrics:\n"
+                    output += f"  • WMC (Weighted Methods per Class): {metrics.ck_metrics.wmc}\n"
+                    output += f"  • CBO (Coupling Between Objects): {metrics.ck_metrics.cbo}\n"
+                    output += f"  • RFC (Response For Class): {metrics.ck_metrics.rfc}\n"
+                    output += f"  • LCOM (Lack of Cohesion): {metrics.ck_metrics.lcom}\n"
+                    output += f"  • DIT (Depth of Inheritance): {metrics.ck_metrics.dit}\n"
+                    output += f"  • NOC (Number of Children): {metrics.ck_metrics.noc}\n\n"
+                
+                if metrics.complexity:
+                    output += "🌀 Complexity Metrics:\n"
+                    output += f"  • Cyclomatic Complexity: {metrics.complexity.cyclomatic_complexity:.2f}\n"
+                    output += f"  • Cognitive Complexity: {metrics.complexity.cognitive_complexity:.2f}\n"
+                    output += f"  • Average Complexity: {metrics.complexity.average_complexity:.2f}\n"
+                    output += f"  • Max Complexity: {metrics.complexity.max_complexity}\n"
+                    output += f"  • Functions Count: {metrics.complexity.num_functions}\n\n"
+                
+                if metrics.halstead:
+                    output += "📐 Halstead Metrics:\n"
+                    output += f"  • Volume: {metrics.halstead.volume:.2f}\n"
+                    output += f"  • Difficulty: {metrics.halstead.difficulty:.2f}\n"
+                    output += f"  • Effort: {metrics.halstead.effort:.2f}\n"
+                    output += f"  • Estimated Bugs: {metrics.halstead.bugs:.2f}\n\n"
+                
+                if metrics.maintainability:
+                    output += "🔧 Maintainability Metrics:\n"
+                    output += f"  • Maintainability Index: {metrics.maintainability.maintainability_index:.2f}\n"
+                    output += f"  • Technical Debt (Hours): {metrics.maintainability.technical_debt_hours:.2f}\n"
+                    output += f"  • Technical Debt Score: {metrics.maintainability.technical_debt_score:.2f}\n"
+                    if metrics.maintainability.code_smells:
+                        output += f"  • Code Smells: {', '.join(metrics.maintainability.code_smells)}\n"
+                    output += "\n"
+                
+                output += "-" * 50 + "\n"
+            
+            return output
+            
+        except Exception as e:
+            return f"❌ Unified metrics analysis failed: {str(e)}"
+    
+    def run_ck_metrics_analysis(self):
+        """Run CK metrics analysis"""
+        try:
+            analyzer = CKMetricsAnalyzer()
+            results = analyzer.analyze_directory(self.current_repo)
+            
+            output = "🏗️ CK METRICS ANALYSIS\n"
+            output += "=" * 50 + "\n\n"
+            
+            for class_name, metrics in results.items():
+                output += f"📊 Class: {class_name}\n"
+                output += f"  • WMC: {metrics.wmc}\n"
+                output += f"  • CBO: {metrics.cbo}\n"
+                output += f"  • RFC: {metrics.rfc}\n"
+                output += f"  • LCOM: {metrics.lcom}\n"
+                output += f"  • DIT: {metrics.dit}\n"
+                output += f"  • NOC: {metrics.noc}\n\n"
+            
+            return output
+            
+        except Exception as e:
+            return f"❌ CK metrics analysis failed: {str(e)}"
+    
+    def run_szz_analysis(self):
+        """Run SZZ analysis"""
+        try:
+            analyzer = EnhancedSZZAnalyzer(self.current_repo)
+            results = analyzer.analyze_bug_inducing_commits()
+            
+            output = "🐛 SZZ BUG-INDUCING ANALYSIS\n"
+            output += "=" * 50 + "\n\n"
+            
+            for bug_commit, inducing_commits in results.items():
+                output += f"🐛 Bug Commit: {bug_commit}\n"
+                output += "🔍 Inducing Commits:\n"
+                for commit in inducing_commits:
+                    output += f"  • {commit}\n"
+                output += "\n"
+            
+            return output
+            
+        except Exception as e:
+            return f"❌ SZZ analysis failed: {str(e)}"
+    
+    def run_bug_density_analysis(self):
+        """Run bug density analysis"""
+        try:
+            # Use GitIntel Ultimate for comprehensive analysis
+            results = self.gitintel_ultimate.analyze_repository()
+            
+            output = "🐛 BUG DENSITY ANALYSIS\n"
+            output += "=" * 50 + "\n\n"
+            
+            if 'bug_density' in results:
+                for file_path, density in results['bug_density'].items():
+                    output += f"📁 {file_path}: {density:.4f} bugs/LOC\n"
+            else:
+                output += "No bug density data available\n"
+            
+            return output
+            
+        except Exception as e:
+            return f"❌ Bug density analysis failed: {str(e)}"
+    
+    def run_churn_analysis(self):
+        """Run code churn analysis"""
+        try:
+            # Use LLM analyzer for churn analysis
+            result = self.llm_analyzer.analyze_package_churn(commit_limit=int(self.commit_limit_var.get()))
+            return result
+            
+        except Exception as e:
+            return f"❌ Churn analysis failed: {str(e)}"
     
     # Chat Methods
     
