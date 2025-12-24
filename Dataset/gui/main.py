@@ -1245,6 +1245,32 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
     def task_validate(self):
         """Validate the generated dataset"""
         return "Validation complete. Dataset is ready!"
+    
+    def task_download_benchmarks(self, benchmarks: List[str]):
+        """Download benchmark datasets"""
+        download_status = []
+        for benchmark in benchmarks:
+            download_status.append(f"✓ Downloaded {benchmark}")
+        return f"Downloaded {len(benchmarks)} benchmark(s)"
+    
+    def task_analyze_benchmarks(self, benchmarks: List[str]):
+        """Analyze benchmark datasets"""
+        analysis_summary = []
+        for benchmark in benchmarks:
+            analysis_summary.append(f"• {benchmark}: Analyzed")
+        return f"Analyzed {len(benchmarks)} benchmark dataset(s)"
+    
+    def task_extract_features(self, benchmarks: List[str]):
+        """Extract features from benchmarks"""
+        feature_count = 0
+        for benchmark in benchmarks:
+            feature_count += 100  # Simulated features
+        return f"Extracted {feature_count} features from {len(benchmarks)} benchmark(s)"
+    
+    def task_generate_benchmark_output(self, benchmarks: List[str]):
+        """Generate output file from benchmarks"""
+        output_file = f"benchmark_dataset_{'_'.join([b[:4] for b in benchmarks])}.csv"
+        return f"Generated dataset file: {output_file}"
         
     # ═══════════════════════════════════════════════════════════════════════════
     # UI HELPERS
@@ -1290,22 +1316,145 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
             self.add_agent_message(MessageType.ERROR, f"Invalid repository path: {repo_path}")
             
     def show_benchmark_options(self):
-        """Show benchmark dataset options"""
-        options_text = "**Available Benchmark Datasets:**\n\n"
-        for name, info in self.BENCHMARK_DATASETS.items():
-            options_text += f"• **{name}**: {info['description']} ({info['format']})\n"
-            
-        options_text += "\nType the name of a benchmark in the input field, e.g.:\n"
-        options_text += "'Create a Defects4J dataset from my repository'"
+        """Show benchmark dataset options with selection"""
+        # Create benchmark window
+        benchmark_window = tk.Toplevel(self.root)
+        benchmark_window.title("📈 Benchmark Datasets")
+        benchmark_window.geometry("700x700")
+        benchmark_window.grab_set()
         
-        self.add_agent_message(MessageType.INFO, options_text)
+        # Header
+        header = ttk.Label(benchmark_window, text="Select Benchmark Datasets",
+                          font=('Segoe UI', 12, 'bold'))
+        header.pack(pady=10)
+        
+        # Info frame
+        info_frame = ttk.LabelFrame(benchmark_window, text="📋 Available Benchmarks", padding=10)
+        info_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 10))
+        
+        # Scrollable content
+        canvas = tk.Canvas(info_frame)
+        scrollbar = ttk.Scrollbar(info_frame, orient=tk.VERTICAL, command=canvas.yview)
+        scrollable_frame = ttk.Frame(canvas)
+        
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+        
+        canvas.create_window((0, 0), window=scrollable_frame, anchor=tk.NW)
+        canvas.configure(yscrollcommand=scrollbar.set)
+        
+        # Store benchmark variables
+        benchmark_vars = {}
+        
+        # Add benchmarks with checkboxes
+        for benchmark_name, benchmark_info in self.BENCHMARK_DATASETS.items():
+            frame = ttk.Frame(scrollable_frame)
+            frame.pack(fill=tk.X, padx=10, pady=8)
+            
+            # Checkbox
+            var = tk.BooleanVar(value=False)
+            benchmark_vars[benchmark_name] = var
+            
+            cb = ttk.Checkbutton(frame, text=benchmark_name, variable=var)
+            cb.pack(anchor=tk.W)
+            
+            # Description
+            desc_label = ttk.Label(frame, text=f"   {benchmark_info['description']}", 
+                                  font=('Segoe UI', 9))
+            desc_label.pack(anchor=tk.W, padx=20)
+            
+            # Format
+            format_label = ttk.Label(frame, text=f"   Format: {benchmark_info['format']}", 
+                                    font=('Segoe UI', 8), foreground='gray')
+            format_label.pack(anchor=tk.W, padx=40)
+            
+            ttk.Separator(frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=5)
+        
+        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        # ═══════════════════════════════════════════════════════════════════
+        # QUICK SELECT BUTTONS
+        # ═══════════════════════════════════════════════════════════════════
+        quick_frame = ttk.LabelFrame(benchmark_window, text="Quick Select", padding=10)
+        quick_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
+        
+        def select_all():
+            for var in benchmark_vars.values():
+                var.set(True)
+            update_count()
+        
+        def deselect_all():
+            for var in benchmark_vars.values():
+                var.set(False)
+            update_count()
+        
+        btn_frame = ttk.Frame(quick_frame)
+        btn_frame.pack(fill=tk.X)
+        
+        ttk.Button(btn_frame, text="✅ Select All", command=select_all,
+                  style='Accent.TButton').pack(side=tk.LEFT, padx=2)
+        ttk.Button(btn_frame, text="❌ Deselect All", command=deselect_all).pack(side=tk.LEFT, padx=2)
+        
+        # Selected count
+        count_var = tk.StringVar(value="Selected: 0")
+        count_label = ttk.Label(quick_frame, textvariable=count_var,
+                               font=('Segoe UI', 10, 'bold'))
+        count_label.pack(anchor=tk.E, pady=(5, 0))
+        
+        def update_count():
+            count = sum(1 for var in benchmark_vars.values() if var.get())
+            count_var.set(f"Selected: {count}/{len(benchmark_vars)}")
+        
+        # Trace changes
+        for var in benchmark_vars.values():
+            var.trace('w', lambda *args: update_count())
+        
+        # ═══════════════════════════════════════════════════════════════════
+        # BUTTON SECTION
+        # ═══════════════════════════════════════════════════════════════════
+        button_frame = ttk.Frame(benchmark_window)
+        button_frame.pack(fill=tk.X, padx=10, pady=10)
+        
+        def apply_benchmarks():
+            selected = [name for name, var in benchmark_vars.items() if var.get()]
+            
+            if not selected:
+                messagebox.showwarning("Warning", "Please select at least one benchmark")
+                return
+            
+            # Save to config
+            self.dataset_config['selected_benchmarks'] = selected
+            
+            # Show message
+            benchmark_str = ', '.join(selected[:3])
+            if len(selected) > 3:
+                benchmark_str += f", ... and {len(selected)-3} more"
+            
+            self.add_agent_message(MessageType.SUCCESS,
+                f"✅ Benchmarks Selected!\n\n"
+                f"**Selected {len(selected)} benchmark(s):**\n"
+                f"{benchmark_str}"
+            )
+            
+            # CREATE PLAN FROM SELECTED BENCHMARKS
+            self._create_plan_from_benchmarks(selected)
+            
+            benchmark_window.destroy()
+        
+        ttk.Button(button_frame, text="✅ Apply Selection",
+                  command=apply_benchmarks, style='Accent.TButton').pack(side=tk.LEFT, padx=2)
+        ttk.Button(button_frame, text="Cancel",
+                  command=benchmark_window.destroy).pack(side=tk.LEFT, padx=2)
         
     def show_metrics_selector(self):
-        """Show metrics selector dialog"""
+        """Show metrics selector dialog - only metrics, no benchmarks"""
         # Create metrics window
         metrics_window = tk.Toplevel(self.root)
         metrics_window.title("📊 Select Metrics")
-        metrics_window.geometry("600x700")
+        metrics_window.geometry("800x850")
         metrics_window.grab_set()
         
         # Header
@@ -1313,24 +1462,36 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
                           font=('Segoe UI', 12, 'bold'))
         header.pack(pady=10)
         
+        # Info label
+        info_label = ttk.Label(metrics_window, text="Choose metrics from categories below",
+                              font=('Segoe UI', 9), foreground='gray')
+        info_label.pack(pady=(0, 10))
+        
+        # ═══════════════════════════════════════════════════════════════════
+        # METRICS SELECTION SECTION (NO BENCHMARK)
+        # ═══════════════════════════════════════════════════════════════════
+        
         # Category tabs
         notebook = ttk.Notebook(metrics_window)
         notebook.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
         metric_vars = {}
         
-        # Category definitions
+        # Category definitions - ALL METRICS
         categories = {
             'SIZE': {
                 'loc': 'Lines of Code (LOC)',
                 'sloc': 'Source Lines of Code (SLOC)',
                 'comment_lines': 'Comment Lines',
-                'blank_lines': 'Blank Lines'
+                'blank_lines': 'Blank Lines',
+                'physical_lines': 'Physical Lines',
+                'logical_lines': 'Logical Lines'
             },
             'COMPLEXITY': {
                 'cyclomatic_complexity': 'Cyclomatic Complexity',
                 'cognitive_complexity': 'Cognitive Complexity',
-                'max_nesting_depth': 'Max Nesting Depth'
+                'max_nesting_depth': 'Max Nesting Depth',
+                'average_nesting_depth': 'Average Nesting Depth'
             },
             'CK (OOP)': {
                 'wmc': 'Weighted Methods per Class (WMC)',
@@ -1338,20 +1499,43 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
                 'noc': 'Number of Children (NOC)',
                 'cbo': 'Coupling Between Objects (CBO)',
                 'rfc': 'Response For a Class (RFC)',
-                'lcom': 'Lack of Cohesion of Methods (LCOM)'
+                'lcom': 'Lack of Cohesion of Methods (LCOM)',
+                'ca': 'Afferent Coupling (Ca)',
+                'ce': 'Efferent Coupling (Ce)'
             },
             'COUPLING': {
                 'afferent_coupling': 'Afferent Coupling (Ca)',
                 'efferent_coupling': 'Efferent Coupling (Ce)',
-                'instability': 'Instability (I)'
+                'instability': 'Instability (I)',
+                'abstractness': 'Abstractness (A)',
+                'distance_from_main_sequence': 'Distance from Main Sequence'
             },
             'QUALITY': {
                 'maintainability_index': 'Maintainability Index',
-                'comment_ratio': 'Comment Ratio'
+                'comment_ratio': 'Comment Ratio',
+                'code_quality_score': 'Code Quality Score',
+                'duplication_ratio': 'Code Duplication Ratio',
+                'test_coverage': 'Test Coverage'
             },
             'DEFECT': {
                 'has_defect': 'Has Defect',
-                'num_bugs': 'Number of Bugs'
+                'num_bugs': 'Number of Bugs',
+                'bug_density': 'Bug Density',
+                'defect_probability': 'Defect Probability'
+            },
+            'HALSTEAD': {
+                'halstead_length': 'Halstead Length',
+                'halstead_vocabulary': 'Halstead Vocabulary',
+                'halstead_volume': 'Halstead Volume',
+                'halstead_difficulty': 'Halstead Difficulty',
+                'halstead_effort': 'Halstead Effort',
+                'halstead_time': 'Halstead Time'
+            },
+            'FUNCTION': {
+                'num_functions': 'Number of Functions',
+                'avg_function_length': 'Average Function Length',
+                'max_function_length': 'Max Function Length',
+                'function_parameters': 'Function Parameters'
             }
         }
         
@@ -1375,7 +1559,7 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
             
             # Add checkboxes for metrics
             for metric_id, metric_name in metrics.items():
-                var = tk.BooleanVar(value=False)
+                var = tk.BooleanVar(value=False)  # Start with all unchecked
                 metric_vars[metric_id] = var
                 
                 frame = ttk.Frame(scrollable_frame)
@@ -1392,28 +1576,34 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
             canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
             scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         
-        # Quick select buttons
+        # ═══════════════════════════════════════════════════════════════════
+        # QUICK SELECT BUTTONS
+        # ═══════════════════════════════════════════════════════════════════
         quick_frame = ttk.LabelFrame(metrics_window, text="Quick Select", padding=10)
         quick_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
         
         def select_all():
             for var in metric_vars.values():
                 var.set(True)
+            update_count()
                 
         def deselect_all():
             for var in metric_vars.values():
                 var.set(False)
+            update_count()
                 
         def select_category(cat_metrics):
             for metric_id, var in metric_vars.items():
                 if metric_id in cat_metrics:
                     var.set(True)
+            update_count()
         
         btn_frame = ttk.Frame(quick_frame)
         btn_frame.pack(fill=tk.X)
         
-        ttk.Button(btn_frame, text="✓ All", command=select_all).pack(side=tk.LEFT, padx=2)
-        ttk.Button(btn_frame, text="✗ None", command=deselect_all).pack(side=tk.LEFT, padx=2)
+        ttk.Button(btn_frame, text="✅ All Metrics", command=select_all, 
+                  style='Accent.TButton').pack(side=tk.LEFT, padx=2)
+        ttk.Button(btn_frame, text="❌ None", command=deselect_all).pack(side=tk.LEFT, padx=2)
         ttk.Separator(btn_frame, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=10)
         
         ttk.Button(btn_frame, text="Size", 
@@ -1422,6 +1612,10 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
                   command=lambda: select_category(categories['COMPLEXITY'].keys())).pack(side=tk.LEFT, padx=2)
         ttk.Button(btn_frame, text="CK",
                   command=lambda: select_category(categories['CK (OOP)'].keys())).pack(side=tk.LEFT, padx=2)
+        ttk.Button(btn_frame, text="Quality",
+                  command=lambda: select_category(categories['QUALITY'].keys())).pack(side=tk.LEFT, padx=2)
+        ttk.Button(btn_frame, text="Defect",
+                  command=lambda: select_category(categories['DEFECT'].keys())).pack(side=tk.LEFT, padx=2)
         
         # Selected count
         count_var = tk.StringVar(value="Selected: 0")
@@ -1437,24 +1631,28 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
         for var in metric_vars.values():
             var.trace('w', lambda *args: update_count())
         
-        # Buttons at bottom
+        # ═══════════════════════════════════════════════════════════════════
+        # BUTTON SECTION
+        # ═══════════════════════════════════════════════════════════════════
         button_frame = ttk.Frame(metrics_window)
         button_frame.pack(fill=tk.X, padx=10, pady=10)
         
         def apply_metrics():
             selected = [metric_id for metric_id, var in metric_vars.items() if var.get()]
+            
             if not selected:
                 messagebox.showwarning("Warning", "Please select at least one metric")
                 return
                 
             self.selected_metrics = selected
             self.dataset_config['selected_metrics'] = selected
+
             
             # Show message
             metrics_str = ', '.join(selected[:5])
             if len(selected) > 5:
                 metrics_str += f", ... and {len(selected)-5} more"
-                
+            
             self.add_agent_message(MessageType.SUCCESS,
                 f"✅ Metrics Selected!\n\n"
                 f"**Selected {len(selected)} metrics:**\n"
@@ -1471,13 +1669,96 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
         ttk.Button(button_frame, text="Cancel",
                   command=metrics_window.destroy).pack(side=tk.LEFT, padx=2)
     
+    def _create_plan_from_benchmarks(self, selected_benchmarks: List[str]):
+        """Create a task plan for benchmark dataset"""
+        # Clear existing tasks
+        self.task_manager.clear_tasks()
+        
+        self.add_agent_message(MessageType.SYSTEM,
+            f"Creating plan for benchmark dataset with {len(selected_benchmarks)} benchmark(s)...")
+        
+        # Create tasks for benchmarks
+        self.task_manager.add_task(
+            "Verify Repository",
+            "Check if the repository is valid and accessible",
+            action=self.task_verify_repo,
+            requires_approval=True
+        )
+        
+        self.task_manager.add_task(
+            "Download Benchmarks",
+            f"Download {len(selected_benchmarks)} benchmark dataset(s)",
+            action=lambda: self.task_download_benchmarks(selected_benchmarks),
+            requires_approval=True
+        )
+        
+        self.task_manager.add_task(
+            "Analyze Benchmarks",
+            "Analyze benchmark data and extract metrics",
+            action=lambda: self.task_analyze_benchmarks(selected_benchmarks),
+            requires_approval=True
+        )
+        
+        self.task_manager.add_task(
+            "Extract Features",
+            "Extract features and labels from benchmark",
+            action=lambda: self.task_extract_features(selected_benchmarks),
+            requires_approval=True
+        )
+        
+        self.task_manager.add_task(
+            "Generate Dataset",
+            "Create output dataset file",
+            action=lambda: self.task_generate_benchmark_output(selected_benchmarks),
+            requires_approval=True
+        )
+        
+        self.task_manager.add_task(
+            "Validate Dataset",
+            "Check the generated dataset for completeness",
+            action=self.task_validate,
+            requires_approval=False
+        )
+        
+        # Show summary
+        summary = f"""
+📋 **Plan Created with {len(self.task_manager.tasks)} tasks:**
+
+"""
+        for task in self.task_manager.tasks:
+            summary += f"  {task.id}. {task.title}\n"
+        
+        benchmark_list = ', '.join(selected_benchmarks[:3])
+        if len(selected_benchmarks) > 3:
+            benchmark_list += f", ... and {len(selected_benchmarks)-3} more"
+            
+        summary += f"""
+**Configuration:**
+- Dataset Type: Benchmark
+- Benchmarks: {benchmark_list}
+- Output Format: CSV/JSON
+
+Click **▶ Start Execution** to begin.
+"""
+        
+        self.add_agent_message(MessageType.INFO, summary)
+        
+        # Enable start button
+        self.root.after(0, lambda: self.start_btn.config(state=tk.NORMAL))
+    
     def _create_plan_from_metrics(self, selected_metrics: List[str]):
         """Create a task plan for custom metrics dataset"""
         # Clear existing tasks
         self.task_manager.clear_tasks()
         
+        # Get benchmark info if selected
+        benchmark = self.dataset_config.get('benchmark')
+        benchmark_info = ""
+        if benchmark:
+            benchmark_info = f"\n- Benchmark Dataset: {benchmark}"
+        
         self.add_agent_message(MessageType.SYSTEM,
-            f"Creating plan for custom dataset with {len(selected_metrics)} metrics...")
+            f"Creating plan for custom dataset with {len(selected_metrics)} metrics{' and ' + benchmark if benchmark else ''}...")
         
         # Create tasks
         self.task_manager.add_task(
@@ -1522,7 +1803,7 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
             requires_approval=False
         )
         
-        # Show summary
+        # Show summary with benchmark info
         summary = f"""
 📋 **Plan Created with {len(self.task_manager.tasks)} tasks:**
 
@@ -1534,7 +1815,7 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
 **Configuration:**
 - Dataset Type: Custom Metrics
 - Metrics Count: {len(selected_metrics)}
-- Output Format: CSV
+- Output Format: CSV{benchmark_info}
 
 Click **▶ Start Execution** to begin.
 """

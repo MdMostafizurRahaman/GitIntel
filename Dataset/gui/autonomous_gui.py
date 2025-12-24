@@ -540,6 +540,19 @@ class AutonomousAgentGUI:
             delattr(self, 'current_parsed_request')
     
     def clear_all(self):
+        """Clear all input and output"""
+        self.query_text.delete('1.0', tk.END)
+        self.understanding_text.delete('1.0', tk.END)
+        self.clarification_text.delete('1.0', tk.END)
+        self.result_text.delete('1.0', tk.END)
+        self.clarify_var.set("")
+        self.current_understanding = None
+        self.status_var.set("Ready")
+        # Re-enable inputs if they were disabled
+        self.query_text.config(state='normal')
+        self.analyze_btn.config(state='normal')
+        if hasattr(self, 'interactive_btn'):
+            self.interactive_btn.config(state='normal')
     
     def display_result(self, result):
         """Display execution result with proper error handling"""
