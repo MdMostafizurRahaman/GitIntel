@@ -16,7 +16,7 @@ from threading import Thread
 sys.path.append(str(Path(__file__).parent.parent))
 
 from github_autonomous_agent import GitHubAutonomousAgent
-from interactive_dataset_generator import AgenticDatasetGenerator
+from interactive_dataset_generator import InteractiveDatasetGenerator
 
 class AutonomousAgentGUI:
     """

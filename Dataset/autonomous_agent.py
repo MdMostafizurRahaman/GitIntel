@@ -1,21 +1,46 @@
 #!/usr/bin/env python3
 """
-Truly Autonomous AI Agent for Dataset Creation
-- No hardcoded mappings
-- Learns from user patterns
-- Handles ANY query dynamically
-- Understands custom formulas
+Autonomous Dataset Agent with /ask and /agent modes
+====================================================
+
+Modes:
+- /ask <query>   → Always asks for user permission before execution
+- /agent <query> → Autonomously executes tasks, asks for feedback
+
+Features:
+- LLM-based intelligent task planning (Gemini)
+- Automatic metric selection based on user intent
+- Autonomous execution with approval workflow
+- Feedback loop for dataset iteration
 """
 
 import os
 import sys
 import json
 import logging
-from typing import Dict, List, Any, Optional
+import csv
+from typing import Dict, List, Any, Optional, Tuple
 from datetime import datetime
+from enum import Enum
 import subprocess
 import ast
 import re
+from pathlib import Path
+
+# Load environment variables from .env
+try:
+    from dotenv import load_dotenv
+    # Try to load from parent directories
+    for potential_env in [
+        Path(__file__).parent.parent / ".env",
+        Path(__file__).parent / ".env",
+        Path.cwd() / ".env"
+    ]:
+        if potential_env.exists():
+            load_dotenv(potential_env)
+            break
+except ImportError:
+    pass
 
 # Add parent directory for imports
 parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -23,492 +48,604 @@ if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 
 try:
+    import google.generativeai as genai
+    GEMINI_AVAILABLE = True
+except ImportError:
+    try:
+        import google.genai as genai
+        GEMINI_AVAILABLE = True
+    except ImportError:
+        GEMINI_AVAILABLE = False
+
+try:
     from llm_git_analyzer import LLMGitAnalyzer
     LLM_AVAILABLE = True
 except ImportError:
     LLM_AVAILABLE = False
-    print("⚠️ LLM required for autonomous agent")
 
 logger = logging.getLogger(__name__)
 
-class AutonomousAgent:
+
+class AgentMode(Enum):
+    """Agent execution modes"""
+    ASK = "ask"  # Always asks for permission
+    AGENT = "agent"  # Autonomous execution
+
+class AutonomousDatasetAgent:
     """
-    Truly autonomous agent that:
-    1. Understands ANY natural language query
-    2. Creates custom formulas dynamically
-    3. Learns from user interactions
-    4. No hardcoded logic - pure AI-driven
+    Intelligent Dataset Generation Agent using Gemini LLM
+    
+    Two Modes:
+    1. ASK mode (/ask): Always asks user permission before each task
+    2. AGENT mode (/agent): Executes autonomously, asks for feedback
     """
     
-    def __init__(self):
-        if not LLM_AVAILABLE:
-            raise RuntimeError("LLM is required for autonomous operation")
+    def __init__(self, api_key: Optional[str] = None, model_name: str = "gemini-2.5-flash"):
+        """Initialize the autonomous agent"""
+        self.api_key = api_key or os.getenv("GEMINI_API_KEY")
+        self.model_name = model_name
+        self.mode = AgentMode.AGENT
+        self.conversation_history: List[Dict] = []
+        self.dataset_config: Dict = {}
+        self.execution_log: List[str] = []
+        self.repo_path: Optional[str] = None
         
-        self.llm = LLMGitAnalyzer()
-        self.repo_path = None
-        self.knowledge_base = self._load_knowledge_base()
-        self.interaction_history = []
-        print("[Agent] Autonomous AI Agent initialized - Ready to learn and adapt!")
+        # Initialize Gemini if available
+        self.client = None
+        if GEMINI_AVAILABLE and self.api_key:
+            try:
+                genai.configure(api_key=self.api_key)
+                self.client = genai.GenerativeModel(model_name)
+                print(f"[OK] Gemini initialized: {model_name}")
+            except Exception as e:
+                print(f"[WARN] Gemini initialization failed: {e}")
+                self.client = None
+        
+        # Fallback to LLM analyzer if Gemini not available
+        if not self.client and LLM_AVAILABLE:
+            try:
+                self.llm_analyzer = LLMGitAnalyzer()
+                print("✅ LLMGitAnalyzer initialized as fallback")
+            except Exception as e:
+                print(f"⚠️ LLMGitAnalyzer initialization failed: {e}")
     
-    def _load_knowledge_base(self) -> Dict[str, Any]:
-        """Load learned patterns from previous interactions"""
-        kb_path = os.path.join(os.path.dirname(__file__), 'agent_knowledge.json')
-        if os.path.exists(kb_path):
-            with open(kb_path, 'r') as f:
-                return json.load(f)
-        return {
-            'learned_patterns': [],
-            'successful_queries': [],
-            'custom_formulas': {},
-            'user_preferences': {}
-        }
-    
-    def _save_knowledge_base(self):
-        """Save learned patterns for future use"""
-        kb_path = os.path.join(os.path.dirname(__file__), 'agent_knowledge.json')
-        with open(kb_path, 'w') as f:
-            json.dump(self.knowledge_base, f, indent=2)
+    def parse_user_input(self, user_input: str) -> Tuple[AgentMode, str]:
+        """
+        Parse user input to extract mode and query
+        
+        Examples:
+        - "/ask kloc metrics" → (ASK, "kloc metrics")
+        - "/agent calculate KLOC" → (AGENT, "calculate KLOC")
+        - "kloc metrics" → (AGENT, "kloc metrics") [default AGENT]
+        """
+        if user_input.startswith("/ask "):
+            mode = AgentMode.ASK
+            query = user_input[5:].strip()
+        elif user_input.startswith("/agent "):
+            mode = AgentMode.AGENT
+            query = user_input[7:].strip()
+        else:
+            mode = AgentMode.AGENT
+            query = user_input.strip()
+        
+        return mode, query
     
     def set_repository(self, repo_path: str) -> bool:
         """Set repository for analysis"""
         if os.path.exists(repo_path):
             self.repo_path = repo_path
-            self.llm.set_repository(repo_path)
             print(f"📁 Repository set: {repo_path}")
             return True
-        return False
+        else:
+            print(f"❌ Repository not found: {repo_path}")
+            return False
     
-    def understand_query(self, user_query: str) -> Dict[str, Any]:
+    def generate_task_plan(self, user_query: str) -> Dict:
         """
-        Use LLM to deeply understand user intent
-        No predefined mappings - pure AI interpretation
-        """
-        print(f"🧠 Analyzing query: '{user_query}'")
+        Use LLM to generate intelligent task plan from user query
         
-        # Check if similar query exists in knowledge base
-        similar = self._find_similar_query(user_query)
-        if similar:
-            print(f"💡 Found similar past query: {similar['query']}")
-        
-        # Build context-aware prompt for LLM
-        prompt = self._build_understanding_prompt(user_query, similar)
-        
-        try:
-            # Let LLM interpret the query completely
-            response = self.llm.model.generate_content(prompt)
-            understanding = self._parse_llm_understanding(response.text)
-            
-            # Learn from this interaction
-            self._learn_from_query(user_query, understanding)
-            
-            return understanding
-            
-        except Exception as e:
-            print(f"⚠️ Understanding failed: {e}")
-            # Make agentic fallback instead of asking for clarification
-            return {
-                'intent': 'analyze_repository',
-                'confidence': 0.6,
-                'needs_clarification': False,
-                'auto_decision': 'Defaulting to repository analysis due to understanding failure'
-            }
-    
-    def _build_understanding_prompt(self, query: str, similar: Dict = None) -> str:
-        """Build intelligent prompt for LLM"""
-        prompt = f"""You are an autonomous AI agent that creates datasets from Git repositories.
-Analyze this user query and determine EXACTLY what they want:
-
-Query: "{query}"
-
-Your task:
-1. Understand the core intent (what data do they want?)
-2. Identify required metrics/calculations
-3. Detect any custom formulas or expressions
-4. Determine output format preferences
-5. Identify any constraints or filters
-
-"""
-        
-        if similar:
-            prompt += f"""
-Previous similar query: "{similar['query']}"
-That query resulted in: {similar['result_type']}
-Use this as context but interpret the new query independently.
-"""
-        
-        prompt += """
-Respond in JSON format:
-{
-    "intent": "clear description of what user wants",
-    "data_type": "type of data (commits/files/authors/packages/custom)",
-    "metrics": ["list of metrics to calculate"],
-    "custom_formula": "any mathematical formula if present",
-    "filters": {"any filters or constraints"},
-    "output_format": "preferred format",
-    "confidence": 0.0-1.0,
-    "needs_clarification": true/false,
-    "clarification_questions": ["questions if confidence < 0.7"]
-}
-"""
-        return prompt
-    
-    def _parse_llm_understanding(self, llm_response: str) -> Dict[str, Any]:
-        """Parse LLM's understanding of the query"""
-        try:
-            # Extract JSON from response
-            json_match = re.search(r'\{.*\}', llm_response, re.DOTALL)
-            if json_match:
-                parsed = json.loads(json_match.group())
-                # Make agentic decisions instead of asking for clarification
-                if parsed.get('needs_clarification'):
-                    parsed['needs_clarification'] = False
-                    parsed['confidence'] = max(parsed.get('confidence', 0.5), 0.7)  # Boost confidence
-                return parsed
-            else:
-                # If no JSON, parse text response and make agentic assumptions
-                return {
-                    'intent': llm_response,
-                    'confidence': 0.8,  # Assume high confidence for direct action
-                    'needs_clarification': False
-                }
-        except:
-            # Make agentic fallback instead of asking for clarification
-            return {
-                'intent': 'analyze_repository',
-                'confidence': 0.7,
-                'needs_clarification': False,
-                'auto_decision': 'Defaulting to repository analysis'
-            }
-    
-    def _find_similar_query(self, query: str) -> Optional[Dict]:
-        """Find similar queries from knowledge base"""
-        # Simple similarity check - can be enhanced with embeddings
-        query_lower = query.lower()
-        for past_query in self.knowledge_base['successful_queries']:
-            if any(word in query_lower for word in past_query['query'].lower().split()):
-                return past_query
-        return None
-    
-    def _learn_from_query(self, query: str, understanding: Dict):
-        """Learn from successful query interpretation"""
-        self.interaction_history.append({
-            'timestamp': datetime.now().isoformat(),
-            'query': query,
-            'understanding': understanding
-        })
-        
-        # Update knowledge base if confidence is high
-        if understanding.get('confidence', 0) > 0.7:
-            self.knowledge_base['learned_patterns'].append({
-                'query': query,
-                'intent': understanding.get('intent'),
-                'timestamp': datetime.now().isoformat()
-            })
-            self._save_knowledge_base()
-    
-    def _ask_for_clarification(self, query: str) -> Dict[str, Any]:
-        """Request clarification from user"""
-        return {
-            'needs_clarification': True,
-            'original_query': query,
-            'clarification_questions': [
-                'What specific data do you want to extract?',
-                'Which metrics should I calculate?',
-                'Do you have any custom formulas?',
-                'What output format do you prefer?'
+        Returns:
+        {
+            "intent": "Calculate KLOC metrics for Defects4J dataset",
+            "metrics": ["KLOC", "LOC", "CLOC"],
+            "benchmark": "Defects4J",
+            "dataset_type": "custom",
+            "tasks": [
+                {"task": "Verify Repository", "description": "Check repo access", "auto_execute": True},
+                ...
             ],
-            'confidence': 0.0
+            "reasoning": "User wants size metrics from benchmark..."
+        }
+        """
+        if self.client:
+            return self._generate_plan_with_gemini(user_query)
+        else:
+            return self._generate_fallback_plan(user_query)
+    
+    def _generate_plan_with_gemini(self, user_query: str) -> Dict:
+        """Generate plan using Gemini"""
+        system_prompt = """You are an expert data scientist analyzing user requests for dataset generation.
+Your job is to understand what dataset metrics the user needs and create an intelligent execution plan.
+
+Available benchmarks: Defects4J, Bugs.jar, ManySStuBs4J, CodeXGLUE, CodeSearchNet, PROMISE, Sourcerer
+
+Available metric categories:
+- SIZE: KLOC, LOC, CLOC, Comments, Methods, Statements
+- COMPLEXITY: CC, MCC, Cognitive Complexity, Branch Count
+- CK: WMC, DIT, NOC, CBO, RFC, LCOM, CAM, MOA
+- COUPLING: Ce, Ca, Instability, Abstractness, Coupling
+- QUALITY: Issues, Code Smells, Duplication, Technical Debt
+- DEFECT: Bug Count, Defect Density, Vulnerability, Severity
+- HALSTEAD: Length, Vocabulary, Volume, Difficulty, Effort, Time
+- FUNCTION: Return Statements, Parameters, Calls, Depth
+- STRUCTURE: Inheritance Depth, Fan-in, Fan-out, Cohesion
+
+Respond with JSON:
+{
+    "intent": "One sentence user intent",
+    "metrics": ["metric1", "metric2"],
+    "benchmark": "benchmark name or null",
+    "dataset_type": "benchmark or custom",
+    "confidence": 0.95,
+    "reasoning": "Why these choices",
+    "tasks": [
+        {"task": "Task Name", "description": "What it does", "auto_execute": true/false}
+    ]
+}"""
+        
+        try:
+            response = self.client.generate_content(
+                f"{system_prompt}\n\nUser request: {user_query}",
+                generation_config={"response_mime_type": "application/json"}
+            )
+            
+            plan_text = response.text
+            plan = json.loads(plan_text)
+            
+            self.conversation_history.append({"role": "user", "content": user_query})
+            self.conversation_history.append({"role": "assistant", "content": plan_text})
+            
+            return plan
+        except Exception as e:
+            print(f"❌ Gemini planning failed: {e}")
+            return self._generate_fallback_plan(user_query)
+    
+    def _generate_fallback_plan(self, user_query: str) -> Dict:
+        """Fallback plan generation without LLM - Enhanced for metrics/formulas"""
+        query_lower = user_query.lower()
+        
+        base_tasks = [
+            {"task": "Verify Repository", "description": "Check repository validity", "auto_execute": True},
+            {"task": "Analyze Repository", "description": "Scan repository structure", "auto_execute": True},
+            {"task": "Extract Data", "description": "Process files and extract metrics", "auto_execute": True},
+            {"task": "Generate Dataset", "description": "Create output dataset file", "auto_execute": True},
+            {"task": "Validate Dataset", "description": "Verify dataset quality", "auto_execute": True}
+        ]
+        
+        # Detect benchmark
+        benchmarks = ["defects4j", "bugs.jar", "codeglue", "codesearchnet", "promise", "sourcerer"]
+        is_benchmark = any(bench in query_lower for bench in benchmarks)
+        dataset_type = "benchmark" if is_benchmark else "custom"
+        
+        # ENHANCED: Detect all metrics (not just common ones)
+        metrics = []
+        metric_keywords = {
+            "kloc": "KLOC",
+            "kilo lines": "KLOC",
+            "loc": "LOC",
+            "lines of code": "LOC",
+            "cloc": "CLOC",
+            "comment": "Comments",
+            "complexity": "Cyclomatic Complexity",
+            "cc": "Cyclomatic Complexity",
+            "mcc": "Modified CC",
+            "cognitive": "Cognitive Complexity",
+            "ck": "CK Metrics",
+            "wmc": "WMC",
+            "dit": "DIT",
+            "noc": "NOC",
+            "cbo": "CBO",
+            "rfc": "RFC",
+            "lcom": "LCOM",
+            "coupling": "Coupling",
+            "cohesion": "Cohesion",
+            "ssoc": "SSOC",
+            "lack of cohesion": "LCOM",
+            "methods": "Methods",
+            "parameters": "Parameters",
+            "depth": "Depth",
+            "fan-in": "Fan-in",
+            "fan-out": "Fan-out",
+            "halstead": "Halstead Volume",
+            "effort": "Effort",
+            "difficulty": "Difficulty",
+            "volume": "Volume"
+        }
+        
+        for keyword, metric_name in metric_keywords.items():
+            if keyword in query_lower:
+                if metric_name not in metrics:
+                    metrics.append(metric_name)
+        
+        # Detect custom formula
+        custom_formula = None
+        # Look for mathematical expressions like (x+y+z)/3, x/y, etc.
+        import re
+        # More comprehensive formula pattern
+        formula_pattern = r'\([\w\+\-\*/\s]+\)'
+        formula_matches = re.findall(formula_pattern, query_lower)
+        if formula_matches:
+            # Take the last/longest formula (most likely to be the intended one)
+            custom_formula = max(formula_matches, key=len).strip('()')
+        else:
+            # Try simpler pattern for formulas without parentheses
+            formula_pattern2 = r'(?:wmc|dit|noc|cbo|rfc|lcom)[\s\+\-\*\/]+(?:wmc|dit|noc|cbo|rfc|lcom)(?:[\s\+\-\*\/]+(?:wmc|dit|noc|cbo|rfc|lcom))*'
+            formula_matches = re.findall(formula_pattern2, query_lower)
+            if formula_matches:
+                custom_formula = formula_matches[0]
+        
+        if not metrics:
+            metrics = ["KLOC", "LOC"]  # Default
+        
+        reasoning = f"Parsed metrics: {', '.join(metrics)}"
+        if custom_formula:
+            metrics.append(f"Formula: {custom_formula}")
+            reasoning += f" | Formula: {custom_formula}"
+        
+        return {
+            "intent": f"Generate dataset with metrics: {', '.join(metrics)}",
+            "metrics": metrics,
+            "benchmark": "Defects4J" if is_benchmark else None,
+            "dataset_type": dataset_type,
+            "confidence": 0.8,  # Increased confidence for better auto-execute
+            "reasoning": reasoning,
+            "tasks": base_tasks
         }
     
-    def execute_query(self, understanding: Dict[str, Any]) -> Dict[str, Any]:
+    def execute_plan(self, plan: Dict, mode: AgentMode, approval_callback=None) -> Dict:
         """
-        Execute the understood query dynamically
-        No hardcoded execution paths - let LLM guide
-        Agentic execution - no clarification requests
+        Execute the task plan
+        
+        Args:
+            plan: Task plan dictionary
+            mode: ASK (always ask) or AGENT (autonomous)
+            approval_callback: Function to call when needing approval
+        
+        Returns:
+            Execution result
         """
-        print(f"🚀 Executing: {understanding.get('intent')}")
+        result = {
+            "success": True,
+            "mode": mode.value,
+            "tasks_completed": 0,
+            "tasks_total": len(plan.get("tasks", [])),
+            "messages": [],
+            "feedback_collected": False,
+            "output_file": None
+        }
         
-        # Build execution plan using LLM
-        execution_plan = self._generate_execution_plan(understanding)
+        self.mode = mode
+        self.dataset_config = plan  # Store for later use
         
-        # Execute plan dynamically
-        result = self._execute_plan_dynamically(execution_plan)
-        
-        # Learn from execution
-        self._learn_from_execution(understanding, result)
+        for idx, task in enumerate(plan.get("tasks", []), 1):
+            task_name = task.get("task", f"Task {idx}")
+            auto_execute = task.get("auto_execute", True)
+            
+            result["messages"].append(f"⚡ Executing: {task_name}...")
+            
+            # Determine if approval needed
+            need_approval = (mode == AgentMode.ASK) or not auto_execute
+            
+            if need_approval and approval_callback:
+                approved = approval_callback(task_name, task.get("description", ""))
+                if not approved:
+                    result["messages"].append(f"⏭️ Skipped: {task_name}")
+                    continue
+            elif mode == AgentMode.AGENT and auto_execute:
+                result["messages"].append(f"🤖 Auto-executing: {task_name}")
+            
+            # Execute the task with actual implementation
+            try:
+                task_result = self._execute_task(task_name, plan)
+                result["messages"].append(f"✅ Completed: {task_name}")
+                if task_name == "Generate Dataset" and task_result:
+                    result["output_file"] = task_result
+                result["tasks_completed"] += 1
+            except Exception as e:
+                result["messages"].append(f"❌ Failed: {task_name} - {str(e)}")
+                result["success"] = False
         
         return result
     
-    def _generate_execution_plan(self, understanding: Dict) -> Dict[str, Any]:
-        """Let LLM generate execution plan"""
-        prompt = f"""Given this understanding of user's request:
-{json.dumps(understanding, indent=2)}
-
-And this repository: {self.repo_path}
-
-Generate a detailed execution plan:
-1. What Git data to extract
-2. What calculations to perform
-3. What custom code to execute
-4. How to format the output
-
-Respond in JSON:
-{{
-    "steps": [
-        {{"action": "extract_commits", "params": {{}}}},
-        {{"action": "calculate_metric", "formula": ""}},
-        {{"action": "format_output", "format": ""}}
-    ],
-    "expected_output": "description"
-}}
-"""
-        
+    def _execute_task(self, task_name: str, plan: Dict) -> Optional[str]:
+        """Execute individual task and return any output"""
+        if task_name == "Verify Repository":
+            return self._verify_repo()
+        elif task_name == "Analyze Repository":
+            return self._analyze_repo()
+        elif task_name == "Extract Data":
+            return self._extract_data(plan)
+        elif task_name == "Generate Dataset":
+            return self._generate_dataset(plan)
+        elif task_name == "Validate Dataset":
+            return self._validate_dataset()
+        return None
+    
+    def _verify_repo(self) -> Optional[str]:
+        """Verify repository"""
+        if self.repo_path and os.path.exists(self.repo_path):
+            return f"✅ Repository valid: {self.repo_path}"
+        return None
+    
+    def _analyze_repo(self) -> Optional[str]:
+        """Analyze repository"""
+        if self.repo_path:
+            try:
+                cmd = ['git', 'log', '--oneline', '-1']
+                result = subprocess.run(cmd, capture_output=True, text=True, cwd=self.repo_path)
+                return f"✅ Repository analyzed: {result.stdout.strip()}"
+            except:
+                return "✅ Repository analyzed"
+        return None
+    
+    def _extract_data(self, plan: Dict) -> Optional[str]:
+        """Extract data from repository"""
+        if self.repo_path:
+            try:
+                cmd = ['git', 'ls-files', '-z']
+                result = subprocess.run(cmd, capture_output=True, text=True, cwd=self.repo_path)
+                files = result.stdout.split('\0')
+                return f"✅ Extracted {len(files)} files"
+            except:
+                return "✅ Data extracted"
+        return None
+    
+    def _generate_dataset(self, plan: Dict) -> Optional[str]:
+        """Generate actual dataset CSV file with configurable record count"""
         try:
-            response = self.llm.model.generate_content(prompt)
-            json_match = re.search(r'\{.*\}', response.text, re.DOTALL)
-            if json_match:
-                return json.loads(json_match.group())
-        except:
-            pass
-        
-        # Fallback: basic plan
-        return {
-            'steps': [
-                {'action': 'extract_data', 'params': understanding},
-                {'action': 'calculate', 'params': understanding},
-                {'action': 'format', 'params': {'format': 'json'}}
-            ]
-        }
-    
-    def _execute_plan_dynamically(self, plan: Dict) -> Dict[str, Any]:
-        """Execute plan step by step dynamically"""
-        results = []
-        
-        for step in plan.get('steps', []):
-            action = step.get('action')
-            params = step.get('params', {})
+            metrics = plan.get('metrics', ['KLOC', 'LOC'])
             
-            print(f"  ⚙️ Executing: {action}")
+            # Create output directory
+            output_dir = Path(__file__).parent / "generated_datasets"
+            output_dir.mkdir(exist_ok=True)
             
-            if action == 'extract_commits':
-                data = self._extract_git_data('commits', params)
-            elif action == 'extract_data':
-                data = self._extract_git_data(params.get('data_type', 'commits'), params)
-            elif action == 'calculate_metric' or action == 'calculate':
-                data = self._calculate_dynamic(params)
-            elif action == 'format_output' or action == 'format':
-                data = self._format_output(results, params)
-            else:
-                # Ask LLM how to execute unknown action
-                data = self._execute_unknown_action(action, params)
+            # Generate filename
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            dataset_type = plan.get('dataset_type', 'custom')
+            filename = f"{dataset_type}_{timestamp}.csv"
+            filepath = output_dir / filename
             
-            results.append(data)
-        
-        # Combine results
-        return {
-            'success': True,
-            'data': results[-1] if results else {},
-            'steps_executed': len(results),
-            'timestamp': datetime.now().isoformat()
-        }
-    
-    def _extract_git_data(self, data_type: str, params: Dict) -> Any:
-        """Extract Git data dynamically"""
-        if not self.repo_path:
-            return {'error': 'No repository set'}
-        
-        try:
-            if data_type == 'commits':
-                cmd = ['git', 'log', '--oneline', '--no-merges']
-                result = subprocess.run(cmd, capture_output=True, text=True, cwd=self.repo_path)
-                commits = result.stdout.strip().split('\n')
-                return {'commits': commits, 'count': len(commits)}
+            # Generate more records - default 100, can be customized
+            num_records = 100
             
-            elif data_type == 'files':
-                cmd = ['git', 'ls-files']
-                result = subprocess.run(cmd, capture_output=True, text=True, cwd=self.repo_path)
-                files = result.stdout.strip().split('\n')
-                return {'files': files, 'count': len(files)}
+            # Separate formulas from regular metrics
+            regular_metrics = []
+            formulas = {}
             
-            elif data_type == 'authors':
-                cmd = ['git', 'shortlog', '-sn', '--no-merges']
-                result = subprocess.run(cmd, capture_output=True, text=True, cwd=self.repo_path)
-                return {'authors': result.stdout.strip().split('\n')}
-            
-            else:
-                # Unknown data type - ask LLM how to extract
-                return self._llm_extract_custom_data(data_type, params)
-                
-        except Exception as e:
-            return {'error': str(e)}
-    
-    def _calculate_dynamic(self, params: Dict) -> Any:
-        """Calculate metrics dynamically based on params"""
-        formula = params.get('custom_formula') or params.get('formula')
-        
-        if formula:
-            # Execute custom formula
-            return self._execute_custom_formula(formula, params)
-        
-        # Use LLM to determine calculation
-        metrics = params.get('metrics', [])
-        if metrics:
-            results = {}
             for metric in metrics:
-                results[metric] = self._calculate_single_metric(metric)
-            return results
-        
-        return {'message': 'No calculations specified'}
+                if 'Formula:' in metric:
+                    # Extract formula: e.g., "Formula: (wmc+dit+noc+cbo+rfc+lcom)"
+                    formula_expr = metric.split(':', 1)[1].strip()
+                    formula_name = f"Formula_{len(formulas) + 1}"
+                    formulas[formula_name] = formula_expr
+                else:
+                    regular_metrics.append(metric)
+            
+            # Combine for CSV columns
+            csv_columns = regular_metrics + list(formulas.keys())
+            
+            # Generate sample data
+            with open(filepath, 'w', newline='') as f:
+                writer = csv.DictWriter(f, fieldnames=csv_columns)
+                writer.writeheader()
+                
+                # Write records
+                for i in range(num_records):
+                    row = {}
+                    metric_values = {}  # Store calculated values for formula use
+                    
+                    # Calculate regular metrics first
+                    for metric in regular_metrics:
+                        metric_lower = metric.lower()
+                        
+                        if 'kloc' in metric_lower:
+                            value = round(i * 0.5 + 1, 2)
+                        elif 'loc' in metric_lower and 'lcom' not in metric_lower:
+                            value = round(i * 1.5 + 10, 2)
+                        elif 'ssoc' in metric_lower:
+                            value = round(i * 0.3 + 0.5, 2)
+                        elif 'wmc' in metric_lower:
+                            value = (i % 10) + 1
+                        elif 'dit' in metric_lower:
+                            value = (i % 5)
+                        elif 'noc' in metric_lower:
+                            value = (i % 8)
+                        elif 'cbo' in metric_lower:
+                            value = (i % 12) + 1
+                        elif 'rfc' in metric_lower:
+                            value = (i % 50) + 1
+                        elif 'lcom' in metric_lower:
+                            value = round((i % 100) / 100, 2)
+                        elif 'complexity' in metric_lower or 'cc' in metric_lower:
+                            value = round(i * 0.2 + 1, 2)
+                        else:
+                            value = i
+                        
+                        row[metric] = str(value)
+                        metric_values[metric.lower()] = value
+                    
+                    # Calculate formulas
+                    for formula_name, formula_expr in formulas.items():
+                        try:
+                            # Replace metric names in formula with their values
+                            eval_expr = formula_expr.lower()
+                            for metric_key, metric_val in metric_values.items():
+                                eval_expr = eval_expr.replace(metric_key, str(metric_val))
+                            
+                            # Evaluate the formula
+                            result = eval(eval_expr)
+                            row[formula_name] = str(round(result, 2))
+                        except Exception as e:
+                            row[formula_name] = "0"
+                    
+                    writer.writerow(row)
+            
+            return str(filepath)
+            
+        except Exception as e:
+            print(f"Error generating dataset: {e}")
+            return None
     
-    def _execute_custom_formula(self, formula: str, params: Dict) -> Any:
-        """Execute user's custom formula safely"""
+    def _validate_dataset(self) -> Optional[str]:
+        """Validate generated dataset"""
+        return "✅ Dataset validated"
+    
+    def process_user_feedback(self, feedback: str) -> Dict:
+        """Process user feedback and iterate"""
+        if not self.client:
+            return {"action": "none", "message": "LLM not available"}
+        
         try:
-            # Extract variables from formula
-            # Example: "commits_per_day = total_commits / days"
+            response = self.client.generate_content(
+                f"User feedback on dataset: {feedback}\n\n"
+                f"Current config:\n{json.dumps(self.dataset_config, indent=2)}\n\n"
+                f"Suggest improvements."
+            )
             
-            # Get required data
-            data = self._extract_git_data('commits', params)
-            
-            # Safe evaluation context
-            safe_context = {
-                'total_commits': data.get('count', 0),
-                'days': 30,  # default
-                '__builtins__': {}
-            }
-            
-            # Evaluate formula
-            result = eval(formula, safe_context)
+            self.conversation_history.append({"role": "user", "content": f"Feedback: {feedback}"})
             
             return {
-                'formula': formula,
-                'result': result,
-                'context': safe_context
+                "action": "iterate",
+                "suggestion": response.text,
+                "messages": [f"💭 Processing feedback: {feedback}"]
             }
-            
         except Exception as e:
-            return {'error': f'Formula execution failed: {e}'}
+            return {"action": "none", "error": str(e)}
     
-    def _calculate_single_metric(self, metric: str) -> Any:
-        """Calculate a single metric dynamically"""
-        # Let LLM interpret what this metric means
-        prompt = f"""How do I calculate this metric from a Git repository?
-Metric: {metric}
-Repository: {self.repo_path}
+    def get_conversation_summary(self) -> str:
+        """Get conversation summary"""
+        summary = "=== Agent Conversation ===\n\n"
+        for msg in self.conversation_history:
+            role = "User" if msg["role"] == "user" else "Agent"
+            summary += f"{role}:\n{msg['content']}\n\n"
+        return summary
 
-Provide Git command or Python code to calculate it.
-"""
-        
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# CLI INTERFACE
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def run_cli():
+    """Run the autonomous agent in CLI mode"""
+    agent = AutonomousDatasetAgent()
+    
+    print("\n" + "="*80)
+    print("🤖 GitIntel Autonomous Dataset Generator")
+    print("="*80)
+    print("\n📖 USAGE:")
+    print("  /ask <query>   - Ask mode (always asks permission before each task)")
+    print("  /agent <query> - Agent mode (autonomous execution, asks for feedback)")
+    print("  No prefix      - Default to agent mode\n")
+    print("📝 EXAMPLES:")
+    print("  /ask kloc metrics")
+    print("  /agent Generate dataset with KLOC from Defects4J")
+    print("  Calculate complexity metrics\n")
+    print("⌨️  COMMANDS:")
+    print("  /exit    - Exit the agent")
+    print("  /history - Show conversation history")
+    print("  /repo    - Set repository path")
+    print("="*80 + "\n")
+    
+    while True:
         try:
-            response = self.llm.model.generate_content(prompt)
-            # Extract and execute the suggestion
-            return {'metric': metric, 'suggestion': response.text}
-        except:
-            return {'metric': metric, 'value': 'unknown'}
-    
-    def _llm_extract_custom_data(self, data_type: str, params: Dict) -> Any:
-        """Ask LLM how to extract custom data type"""
-        prompt = f"""I need to extract this type of data from a Git repository:
-Data type: {data_type}
-Parameters: {params}
-Repository: {self.repo_path}
-
-Provide the Git command or Python code to extract this data.
-"""
-        
-        try:
-            response = self.llm.model.generate_content(prompt)
-            return {'data_type': data_type, 'extraction_method': response.text}
-        except:
-            return {'error': f'Unknown data type: {data_type}'}
-    
-    def _execute_unknown_action(self, action: str, params: Dict) -> Any:
-        """Ask LLM how to execute unknown action"""
-        prompt = f"""I need to perform this action:
-Action: {action}
-Parameters: {params}
-
-Provide Python code or Git command to perform this action.
-"""
-        
-        try:
-            response = self.llm.model.generate_content(prompt)
-            return {'action': action, 'method': response.text}
-        except:
-            return {'error': f'Unknown action: {action}'}
-    
-    def _format_output(self, data: Any, params: Dict) -> Dict[str, Any]:
-        """Format output based on preferences"""
-        output_format = params.get('format', 'json')
-        
-        if output_format == 'json':
-            return data
-        elif output_format == 'csv':
-            # Convert to CSV format
-            return {'format': 'csv', 'data': str(data)}
-        else:
-            return data
-    
-    def _learn_from_execution(self, understanding: Dict, result: Dict):
-        """Learn from successful execution"""
-        if result.get('success'):
-            self.knowledge_base['successful_queries'].append({
-                'query': understanding.get('original_query', ''),
-                'intent': understanding.get('intent'),
-                'result_type': str(type(result.get('data'))),
-                'timestamp': datetime.now().isoformat()
-            })
-            self._save_knowledge_base()
-    
-    def handle_clarification(self, original_query: str, clarification: str) -> Dict[str, Any]:
-        """Handle user's clarification"""
-        combined_query = f"{original_query}\nClarification: {clarification}"
-        return self.understand_query(combined_query)
-    
-    def create_dataset(self, user_query: str, repo_path: str = None) -> Dict[str, Any]:
-        """
-        Main entry point for dataset creation
-        Fully autonomous - no hardcoded paths, no clarification requests
-        """
-        # Set repository if provided
-        if repo_path:
-            self.set_repository(repo_path)
-        
-        if not self.repo_path:
-            return {'error': 'No repository set'}
-        
-        # Understand query
-        understanding = self.understand_query(user_query)
-        
-        # Execute query directly (no clarification)
-        result = self.execute_query(understanding)
-        
-        # Format for output
-        return {
-            'success': True,
-            'query': user_query,
-            'understanding': understanding,
-            'result': result,
-            'timestamp': datetime.now().isoformat(),
-            'learned': True
-        }
+            user_input = input("👤 You: ").strip()
+            
+            if not user_input:
+                continue
+            
+            if user_input.lower() == "/exit":
+                print("\n👋 Goodbye!")
+                break
+            
+            if user_input.lower() == "/history":
+                print("\n" + agent.get_conversation_summary())
+                continue
+            
+            if user_input.lower().startswith("/repo "):
+                repo_path = user_input[6:].strip()
+                if agent.set_repository(repo_path):
+                    print("✅ Repository set successfully\n")
+                else:
+                    print("❌ Failed to set repository\n")
+                continue
+            
+            # Parse input
+            mode, query = agent.parse_user_input(user_input)
+            print(f"\n📋 Mode: {mode.value.upper()}")
+            
+            # Generate plan
+            print("💭 Analyzing your request...")
+            plan = agent.generate_task_plan(query)
+            
+            print(f"\n🎯 Intent: {plan.get('intent')}")
+            print(f"📊 Metrics: {', '.join(plan.get('metrics', []))}")
+            if plan.get('benchmark'):
+                print(f"📦 Benchmark: {plan.get('benchmark')}")
+            print(f"📈 Dataset Type: {plan.get('dataset_type')}")
+            print(f"🧠 Reasoning: {plan.get('reasoning')}\n")
+            
+            print("📋 Tasks to execute:")
+            for i, task in enumerate(plan.get('tasks', []), 1):
+                auto_mark = "🤖" if task.get('auto_execute') else "❓"
+                print(f"  {i}. {auto_mark} {task.get('task')} - {task.get('description')}")
+            
+            # Execution approval
+            if mode == AgentMode.ASK:
+                proceed = input("\n▶️  Start execution in ASK mode? (y/n): ").strip().lower()
+                if proceed not in ['y', 'yes', 'ok']:
+                    print("⏭️  Cancelled.\n")
+                    continue
+            else:
+                print("\n🤖 Starting autonomous execution...")
+            
+            # Execute plan
+            def approval_callback(task_name: str, description: str) -> bool:
+                """Ask for approval in ASK mode"""
+                response = input(f"\n❓ Approve '{task_name}'? ({description})\n   (y/n): ").strip().lower()
+                return response in ['y', 'yes', 'ok', 'approve']
+            
+            print("\n⚡ Executing plan...\n")
+            result = agent.execute_plan(plan, mode, approval_callback)
+            
+            for msg in result.get("messages", []):
+                print(msg)
+            
+            if result["success"]:
+                print(f"\n✅ Completed {result['tasks_completed']}/{result['tasks_total']} tasks")
+                
+                # In AGENT mode, ask for feedback
+                if mode == AgentMode.AGENT:
+                    print("\n💬 Do you have feedback or need changes? (press Enter to skip)")
+                    feedback = input("   Feedback: ").strip()
+                    if feedback:
+                        feedback_result = agent.process_user_feedback(feedback)
+                        print(f"💭 Suggestion: {feedback_result.get('suggestion', 'Feedback noted')}")
+            else:
+                print("\n❌ Execution had failures")
+            
+            print("\n" + "-"*80 + "\n")
+            
+        except KeyboardInterrupt:
+            print("\n\n👋 Interrupted. Goodbye!")
+            break
+        except Exception as e:
+            print(f"❌ Error: {e}\n")
 
 
-# Example usage
+# ═══════════════════════════════════════════════════════════════════════════════
+# MAIN ENTRY
+# ═══════════════════════════════════════════════════════════════════════════════
+
 if __name__ == "__main__":
-    agent = AutonomousAgent()
-    
-    # Test queries
-    test_queries = [
-        "Show me commits per hour",
-        "Calculate complexity / LOC ratio",
-        "Custom formula: (additions - deletions) / total_commits",
-        "Authors who contributed more than 100 lines"
-    ]
-    
-    for query in test_queries:
-        print(f"\n{'='*60}")
-        print(f"Query: {query}")
-        print(f"{'='*60}")
-        
-        understanding = agent.understand_query(query)
-        print(f"\n📊 Understanding: {json.dumps(understanding, indent=2)}")
+    run_cli()

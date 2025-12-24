@@ -32,8 +32,11 @@ try:
     from metrics_catalog import MetricsCatalog
     from github_autonomous_agent import GitHubAutonomousAgent
     from interactive_dataset_generator import InteractiveDatasetGenerator
+    from autonomous_agent import AutonomousDatasetAgent, AgentMode
+    AGENT_AVAILABLE = True
 except ImportError as e:
     print(f"Warning: Some imports failed: {e}")
+    AGENT_AVAILABLE = False
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -195,6 +198,16 @@ class AgenticDatasetGUI:
         self.agent_panel_visible = True
         self.execution_complete = False
         
+        # Initialize autonomous agent
+        if AGENT_AVAILABLE:
+            try:
+                self.autonomous_agent = AutonomousDatasetAgent()
+            except Exception as e:
+                print(f"⚠️ Autonomous agent initialization failed: {e}")
+                self.autonomous_agent = None
+        else:
+            self.autonomous_agent = None
+        
         # Try to initialize catalog and agent
         try:
             self.catalog = MetricsCatalog()
@@ -313,6 +326,39 @@ class AgenticDatasetGUI:
         
         self.repo_status = ttk.Label(repo_frame, text="", font=('Segoe UI', 9))
         self.repo_status.pack(anchor=tk.W, pady=(5, 0))
+        
+        # ═══════════════════════════════════════════════════════════════════
+        # AUTONOMOUS AGENT INPUT (NEW)
+        # ═══════════════════════════════════════════════════════════════════
+        if AGENT_AVAILABLE:
+            agent_frame = ttk.LabelFrame(self.left_frame, text="🤖 Autonomous Agent", padding=10)
+            agent_frame.pack(fill=tk.X, pady=(0, 10))
+            
+            # Mode selection
+            mode_frame = ttk.Frame(agent_frame)
+            mode_frame.pack(fill=tk.X, pady=(0, 5))
+            
+            ttk.Label(mode_frame, text="Mode:").pack(side=tk.LEFT, padx=5)
+            
+            self.agent_mode_var = tk.StringVar(value="agent")
+            ttk.Radiobutton(mode_frame, text="/ask (Always Ask)", variable=self.agent_mode_var,
+                           value="ask").pack(side=tk.LEFT, padx=5)
+            ttk.Radiobutton(mode_frame, text="/agent (Autonomous)", variable=self.agent_mode_var,
+                           value="agent").pack(side=tk.LEFT, padx=5)
+            
+            # Agent input
+            self.agent_input_var = tk.StringVar()
+            self.agent_input = ttk.Entry(agent_frame, textvariable=self.agent_input_var,
+                                          font=('Segoe UI', 10))
+            self.agent_input.pack(fill=tk.X, pady=(0, 5))
+            self.agent_input.insert(0, "e.g., 'kloc metrics' or 'complexity for Defects4J'")
+            self.agent_input.bind('<FocusIn>', lambda e: self._clear_agent_input_placeholder())
+            self.agent_input.bind('<Return>', lambda e: self.process_agent_query())
+            
+            # Agent button
+            ttk.Button(agent_frame, text="🚀 Execute Agent Plan",
+                      command=self.process_agent_query,
+                      style='Accent.TButton').pack(fill=tk.X)
         
         # ═══════════════════════════════════════════════════════════════════
         # QUICK ACTIONS (Natural Language Input)
@@ -2029,10 +2075,140 @@ Click **▶ Start Execution** to begin.
         # Enable start button
         self.root.after(0, lambda: self.start_btn.config(state=tk.NORMAL))
 
+    # ═══════════════════════════════════════════════════════════════════════════════
+    # AUTONOMOUS AGENT METHODS
+    # ═══════════════════════════════════════════════════════════════════════════════
+    
+    def _clear_agent_input_placeholder(self):
+        """Clear placeholder text from agent input"""
+        if 'e.g.' in self.agent_input.get():
+            self.agent_input.delete(0, tk.END)
+    
+    def process_agent_query(self):
+        """Process autonomous agent query"""
+        if not self.autonomous_agent:
+            self.add_agent_message(MessageType.ERROR, "❌ Autonomous agent not available")
+            return
+        
+        query = self.agent_input.get().strip()
+        if not query:
+            return
+        
+        # Show user message
+        self.add_agent_message(MessageType.USER, query)
+        self.agent_input.delete(0, tk.END)
+        
+        # Process in separate thread
+        thread = threading.Thread(target=self._execute_agent_query, args=(query,))
+        thread.daemon = True
+        thread.start()
+    
+    def _execute_agent_query(self, query: str):
+        """Execute agent query in background thread"""
+        try:
+            # Parse mode from query
+            mode_str = self.agent_mode_var.get()
+            mode = AgentMode.ASK if mode_str == "ask" else AgentMode.AGENT
+            
+            # Add thinking message
+            self.add_agent_message(MessageType.THINKING, f"💭 Analyzing: {query}")
+            
+            # Parse input
+            actual_mode, actual_query = self.autonomous_agent.parse_user_input(
+                f"/{mode_str} {query}" if mode_str == "ask" else query
+            )
+            
+            # Generate plan
+            self.add_agent_message(MessageType.ACTION, "📋 Generating task plan...")
+            plan = self.autonomous_agent.generate_task_plan(actual_query)
+            
+            # Show plan details
+            self.add_agent_message(MessageType.INFO, 
+                f"🎯 Intent: {plan.get('intent')}\n"
+                f"📊 Metrics: {', '.join(plan.get('metrics', []))}\n"
+                f"📈 Type: {plan.get('dataset_type')}"
+            )
+            
+            # Show tasks
+            tasks_text = "📋 Tasks:\n"
+            for i, task in enumerate(plan.get('tasks', []), 1):
+                auto = "🤖" if task.get('auto_execute') else "❓"
+                tasks_text += f"  {i}. {auto} {task.get('task')}\n"
+            self.add_agent_message(MessageType.INFO, tasks_text)
+            
+            # Execute based on mode
+            if mode == AgentMode.ASK:
+                self._execute_agent_ask_mode(plan)
+            else:
+                self._execute_agent_autonomous_mode(plan)
+                
+        except Exception as e:
+            self.add_agent_message(MessageType.ERROR, f"❌ Error: {str(e)}")
+    
+    def _execute_agent_ask_mode(self, plan: dict):
+        """Execute agent in ASK mode"""
+        self.add_agent_message(MessageType.ACTION, 
+            "▶️ ASK MODE - Permission required for each task\n\n"
+            "Approval workflow initiated. Check task panel for approval buttons."
+        )
+        
+        # Create tasks in task manager
+        self.task_manager.clear_tasks()
+        for task_data in plan.get('tasks', []):
+            self.task_manager.add_task(
+                title=task_data.get('task', 'Task'),
+                description=task_data.get('description', ''),
+                requires_approval=True
+            )
+        
+        # Update UI
+        self.root.after(0, lambda: self.start_btn.config(state=tk.NORMAL))
+        self.add_agent_message(MessageType.INFO, 
+            "✅ Plan ready. Click ▶ Start Execution in task panel."
+        )
+    
+    def _execute_agent_autonomous_mode(self, plan: dict):
+        """Execute agent in AGENT mode (autonomous)"""
+        self.add_agent_message(MessageType.ACTION, 
+            "🤖 AGENT MODE - Autonomous execution started"
+        )
+        
+        # Execute plan
+        result = self.autonomous_agent.execute_plan(plan, AgentMode.AGENT)
+        
+        # Show execution messages
+        for msg in result.get('messages', []):
+            self.add_agent_message(MessageType.ACTION, msg)
+        
+        # Show result
+        if result['success']:
+            self.add_agent_message(MessageType.SUCCESS,
+                f"✅ Completed {result['tasks_completed']}/{result['tasks_total']} tasks"
+            )
+            
+            # Show output file if generated
+            if result.get('output_file'):
+                import os
+                file_size = os.path.getsize(result['output_file']) if os.path.exists(result['output_file']) else 0
+                self.add_agent_message(MessageType.INFO,
+                    f"📁 **Output Dataset:**\n"
+                    f"   File: {result['output_file']}\n"
+                    f"   Size: {file_size:,} bytes"
+                )
+            
+            # Ask for feedback
+            self.add_agent_message(MessageType.QUESTION,
+                "💬 Do you have feedback or need changes?\n\n"
+                "Type your feedback in the agent input field and press Enter."
+            )
+        else:
+            self.add_agent_message(MessageType.ERROR,
+                f"❌ Execution had failures\n"
+                f"Completed: {result['tasks_completed']}/{result['tasks_total']}"
+            )
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# MAIN ENTRY POINT
-# ═══════════════════════════════════════════════════════════════════════════════
+
+
 
 def main():
     """Main entry point"""
