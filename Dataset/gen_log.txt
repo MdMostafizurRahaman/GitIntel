@@ -1,0 +1,208 @@
+2025-12-26 02:28:16,002 - INFO - Starting professional dataset generation...
+2025-12-26 02:28:16,002 - INFO - Generating Defects4J-style dataset...
+2025-12-26 02:28:16,004 - INFO - Processing repo for Defects4J dataset...
+2025-12-26 02:28:16,044 - INFO - Repository has 1009 commits available
+Exception in thread Thread-35 (_readerthread):
+Traceback (most recent call last):
+  File "C:\Users\USER\AppData\Local\Programs\Python\Python313\Lib\threading.py", line 1041, in _bootstrap_inner
+    self.run()
+    ~~~~~~~~^^
+  File "C:\Users\USER\AppData\Local\Programs\Python\Python313\Lib\threading.py", line 992, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\USER\AppData\Local\Programs\Python\Python313\Lib\subprocess.py", line 1612, in _readerthread
+    buffer.append(fh.read())
+                  ~~~~~~~^^
+  File "C:\Users\USER\AppData\Local\Programs\Python\Python313\Lib\encodings\cp1252.py", line 23, in decode
+    return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeDecodeError: 'charmap' codec can't decode byte 0x81 in position 1739: character maps to <undefined>
+Exception in thread Thread-155 (_readerthread):
+Traceback (most recent call last):
+  File "C:\Users\USER\AppData\Local\Programs\Python\Python313\Lib\threading.py", line 1041, in _bootstrap_inner
+    self.run()
+    ~~~~~~~~^^
+  File "C:\Users\USER\AppData\Local\Programs\Python\Python313\Lib\threading.py", line 992, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\USER\AppData\Local\Programs\Python\Python313\Lib\subprocess.py", line 1612, in _readerthread
+    buffer.append(fh.read())
+                  ~~~~~~~^^
+  File "C:\Users\USER\AppData\Local\Programs\Python\Python313\Lib\encodings\cp1252.py", line 23, in decode
+    return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeDecodeError: 'charmap' codec can't decode byte 0x9d in position 63: character maps to <undefined>
+Exception in thread Thread-531 (_readerthread):
+Traceback (most recent call last):
+  File "C:\Users\USER\AppData\Local\Programs\Python\Python313\Lib\threading.py", line 1041, in _bootstrap_inner
+    self.run()
+    ~~~~~~~~^^
+  File "C:\Users\USER\AppData\Local\Programs\Python\Python313\Lib\threading.py", line 992, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\USER\AppData\Local\Programs\Python\Python313\Lib\subprocess.py", line 1612, in _readerthread
+    buffer.append(fh.read())
+                  ~~~~~~~^^
+  File "C:\Users\USER\AppData\Local\Programs\Python\Python313\Lib\encodings\cp1252.py", line 23, in decode
+    return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeDecodeError: 'charmap' codec can't decode byte 0x9d in position 454: character maps to <undefined>
+2025-12-26 02:28:28,080 - INFO - Found 100 bug-fixing commits
+2025-12-26 02:28:28,090 - WARNING - Bug repo_bug_001 has NO valid Java files. Removing directories.
+2025-12-26 02:28:28,095 - WARNING - Bug repo_bug_001 has NO valid Java files. Removing directories.
+2025-12-26 02:28:28,096 - WARNING - Bug repo_bug_001 has NO valid Java files. Removing directories.
+2025-12-26 02:28:28,097 - WARNING - Bug repo_bug_001 has NO valid Java files. Removing directories.
+2025-12-26 02:28:28,292 - WARNING - Bug repo_bug_003 has NO valid Java files. Removing directories.
+2025-12-26 02:28:28,853 - WARNING - Bug repo_bug_006 has NO valid Java files. Removing directories.
+2025-12-26 02:28:28,854 - WARNING - Bug repo_bug_006 has NO valid Java files. Removing directories.
+2025-12-26 02:28:28,856 - WARNING - Bug repo_bug_006 has NO valid Java files. Removing directories.
+2025-12-26 02:28:29,101 - WARNING - Bug repo_bug_008 has NO valid Java files. Removing directories.
+2025-12-26 02:28:29,209 - WARNING - Bug repo_bug_009 has NO valid Java files. Removing directories.
+2025-12-26 02:28:29,210 - WARNING - Bug repo_bug_009 has NO valid Java files. Removing directories.
+2025-12-26 02:28:29,211 - WARNING - Bug repo_bug_009 has NO valid Java files. Removing directories.
+2025-12-26 02:28:29,212 - WARNING - Bug repo_bug_009 has NO valid Java files. Removing directories.
+2025-12-26 02:28:29,212 - WARNING - Bug repo_bug_009 has NO valid Java files. Removing directories.
+2025-12-26 02:28:29,589 - WARNING - Bug repo_bug_010 has NO valid Java files. Removing directories.
+2025-12-26 02:28:29,590 - WARNING - Bug repo_bug_010 has NO valid Java files. Removing directories.
+2025-12-26 02:28:29,590 - WARNING - Bug repo_bug_010 has NO valid Java files. Removing directories.
+2025-12-26 02:28:29,591 - WARNING - Bug repo_bug_010 has NO valid Java files. Removing directories.
+2025-12-26 02:28:29,591 - WARNING - Bug repo_bug_010 has NO valid Java files. Removing directories.
+2025-12-26 02:28:29,592 - WARNING - Bug repo_bug_010 has NO valid Java files. Removing directories.
+2025-12-26 02:28:29,592 - WARNING - Bug repo_bug_010 has NO valid Java files. Removing directories.
+2025-12-26 02:28:29,593 - WARNING - Bug repo_bug_010 has NO valid Java files. Removing directories.
+2025-12-26 02:28:29,593 - WARNING - Bug repo_bug_010 has NO valid Java files. Removing directories.
+2025-12-26 02:28:29,594 - WARNING - Bug repo_bug_010 has NO valid Java files. Removing directories.
+2025-12-26 02:28:29,595 - WARNING - Bug repo_bug_010 has NO valid Java files. Removing directories.
+2025-12-26 02:28:30,204 - WARNING - Bug repo_bug_014 has NO valid Java files. Removing directories.
+2025-12-26 02:28:30,204 - WARNING - Bug repo_bug_014 has NO valid Java files. Removing directories.
+2025-12-26 02:28:30,205 - WARNING - Bug repo_bug_014 has NO valid Java files. Removing directories.
+2025-12-26 02:28:30,206 - WARNING - Bug repo_bug_014 has NO valid Java files. Removing directories.
+2025-12-26 02:28:30,207 - WARNING - Bug repo_bug_014 has NO valid Java files. Removing directories.
+2025-12-26 02:28:30,207 - WARNING - Bug repo_bug_014 has NO valid Java files. Removing directories.
+2025-12-26 02:28:30,208 - WARNING - Bug repo_bug_014 has NO valid Java files. Removing directories.
+2025-12-26 02:28:30,208 - WARNING - Bug repo_bug_014 has NO valid Java files. Removing directories.
+2025-12-26 02:28:30,209 - WARNING - Bug repo_bug_014 has NO valid Java files. Removing directories.
+2025-12-26 02:28:30,209 - WARNING - Bug repo_bug_014 has NO valid Java files. Removing directories.
+2025-12-26 02:28:30,210 - WARNING - Bug repo_bug_014 has NO valid Java files. Removing directories.
+2025-12-26 02:28:30,210 - WARNING - Bug repo_bug_014 has NO valid Java files. Removing directories.
+2025-12-26 02:28:30,211 - INFO - Defects4J dataset saved: 13 bugs -> defects4j_dataset_20251226_022816/
+2025-12-26 02:28:30,211 - INFO - Generating Bugs.jar-style dataset...
+2025-12-26 02:28:30,211 - INFO - Processing repo for Bugs.jar dataset...
+2025-12-26 02:28:30,244 - INFO - Repository has 1009 commits available
+Exception in thread Thread-931 (_readerthread):
+Traceback (most recent call last):
+  File "C:\Users\USER\AppData\Local\Programs\Python\Python313\Lib\threading.py", line 1041, in _bootstrap_inner
+    self.run()
+    ~~~~~~~~^^
+  File "C:\Users\USER\AppData\Local\Programs\Python\Python313\Lib\threading.py", line 992, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\USER\AppData\Local\Programs\Python\Python313\Lib\subprocess.py", line 1612, in _readerthread
+    buffer.append(fh.read())
+                  ~~~~~~~^^
+  File "C:\Users\USER\AppData\Local\Programs\Python\Python313\Lib\encodings\cp1252.py", line 23, in decode
+    return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeDecodeError: 'charmap' codec can't decode byte 0x81 in position 1739: character maps to <undefined>
+Exception in thread Thread-1051 (_readerthread):
+Traceback (most recent call last):
+  File "C:\Users\USER\AppData\Local\Programs\Python\Python313\Lib\threading.py", line 1041, in _bootstrap_inner
+    self.run()
+    ~~~~~~~~^^
+  File "C:\Users\USER\AppData\Local\Programs\Python\Python313\Lib\threading.py", line 992, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\USER\AppData\Local\Programs\Python\Python313\Lib\subprocess.py", line 1612, in _readerthread
+    buffer.append(fh.read())
+                  ~~~~~~~^^
+  File "C:\Users\USER\AppData\Local\Programs\Python\Python313\Lib\encodings\cp1252.py", line 23, in decode
+    return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeDecodeError: 'charmap' codec can't decode byte 0x9d in position 63: character maps to <undefined>
+Exception in thread Thread-1427 (_readerthread):
+Traceback (most recent call last):
+  File "C:\Users\USER\AppData\Local\Programs\Python\Python313\Lib\threading.py", line 1041, in _bootstrap_inner
+    self.run()
+    ~~~~~~~~^^
+  File "C:\Users\USER\AppData\Local\Programs\Python\Python313\Lib\threading.py", line 992, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\USER\AppData\Local\Programs\Python\Python313\Lib\subprocess.py", line 1612, in _readerthread
+    buffer.append(fh.read())
+                  ~~~~~~~^^
+  File "C:\Users\USER\AppData\Local\Programs\Python\Python313\Lib\encodings\cp1252.py", line 23, in decode
+    return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeDecodeError: 'charmap' codec can't decode byte 0x9d in position 454: character maps to <undefined>
+2025-12-26 02:28:42,567 - INFO - Found 100 bug-fixing commits
+2025-12-26 02:28:44,363 - INFO - Bugs.jar dataset saved: 56 records -> bugs_jar_dataset_20251226_022816.json
+2025-12-26 02:28:44,363 - INFO - Generating CodeXGLUE-style dataset...
+2025-12-26 02:28:44,363 - INFO - Processing repo for CodeXGLUE dataset...
+2025-12-26 02:28:44,365 - INFO - Found 47 Java files
+2025-12-26 02:28:44,376 - INFO - CodeXGLUE dataset saved: 92 records -> codexglue_dataset_20251226_022816.json
+2025-12-26 02:28:44,376 - INFO - Generating CodeSearchNet-style dataset...
+2025-12-26 02:28:44,376 - INFO - Processing repo for CodeSearchNet dataset...
+2025-12-26 02:28:44,378 - INFO - Found 47 Java files
+2025-12-26 02:28:44,399 - INFO - CodeSearchNet dataset saved: 47 records -> codesearchnet_dataset_20251226_022816.json
+2025-12-26 02:28:44,400 - INFO - Generating Sourcerer-style dataset...
+2025-12-26 02:28:44,400 - INFO - Processing repo for Sourcerer dataset...
+2025-12-26 02:28:44,401 - INFO - Found 47 Java files
+2025-12-26 02:28:44,410 - INFO - Sourcerer dataset saved: 47 records -> sourcerer_dataset_20251226_022816.json
+2025-12-26 02:28:44,410 - INFO - Generating PROMISE-style dataset...
+2025-12-26 02:28:44,410 - INFO - Processing repo for PROMISE dataset...
+2025-12-26 02:28:44,412 - INFO - Found 47 Java files
+2025-12-26 02:28:44,828 - INFO - PROMISE dataset saved: 47 records -> promise_dataset_20251226_022816.csv
+2025-12-26 02:28:44,828 - INFO - Generating ManySStuBs4J-style dataset...
+2025-12-26 02:28:44,828 - INFO - Processing repo for ManySStuBs4J dataset...
+2025-12-26 02:28:44,864 - INFO - Repository has 1009 commits available
+Exception in thread Thread-1857 (_readerthread):
+Traceback (most recent call last):
+  File "C:\Users\USER\AppData\Local\Programs\Python\Python313\Lib\threading.py", line 1041, in _bootstrap_inner
+    self.run()
+    ~~~~~~~~^^
+  File "C:\Users\USER\AppData\Local\Programs\Python\Python313\Lib\threading.py", line 992, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\USER\AppData\Local\Programs\Python\Python313\Lib\subprocess.py", line 1612, in _readerthread
+    buffer.append(fh.read())
+                  ~~~~~~~^^
+  File "C:\Users\USER\AppData\Local\Programs\Python\Python313\Lib\encodings\cp1252.py", line 23, in decode
+    return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeDecodeError: 'charmap' codec can't decode byte 0x81 in position 1739: character maps to <undefined>
+Exception in thread Thread-1977 (_readerthread):
+Traceback (most recent call last):
+  File "C:\Users\USER\AppData\Local\Programs\Python\Python313\Lib\threading.py", line 1041, in _bootstrap_inner
+    self.run()
+    ~~~~~~~~^^
+  File "C:\Users\USER\AppData\Local\Programs\Python\Python313\Lib\threading.py", line 992, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\USER\AppData\Local\Programs\Python\Python313\Lib\subprocess.py", line 1612, in _readerthread
+    buffer.append(fh.read())
+                  ~~~~~~~^^
+  File "C:\Users\USER\AppData\Local\Programs\Python\Python313\Lib\encodings\cp1252.py", line 23, in decode
+    return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeDecodeError: 'charmap' codec can't decode byte 0x9d in position 63: character maps to <undefined>
+Exception in thread Thread-2353 (_readerthread):
+Traceback (most recent call last):
+  File "C:\Users\USER\AppData\Local\Programs\Python\Python313\Lib\threading.py", line 1041, in _bootstrap_inner
+    self.run()
+    ~~~~~~~~^^
+  File "C:\Users\USER\AppData\Local\Programs\Python\Python313\Lib\threading.py", line 992, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\USER\AppData\Local\Programs\Python\Python313\Lib\subprocess.py", line 1612, in _readerthread
+    buffer.append(fh.read())
+                  ~~~~~~~^^
+  File "C:\Users\USER\AppData\Local\Programs\Python\Python313\Lib\encodings\cp1252.py", line 23, in decode
+    return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeDecodeError: 'charmap' codec can't decode byte 0x9d in position 454: character maps to <undefined>
+2025-12-26 02:28:57,784 - INFO - Found 100 bug-fixing commits
+2025-12-26 02:28:58,413 - INFO - ManySStuBs4J dataset saved: 22 records -> manystubs4j_dataset_20251226_022816.json
+2025-12-26 02:28:58,414 - INFO - All datasets generated successfully!
+≡ƒôé Using workspace: d:\GitIntel
+≡ƒÄë All professional datasets generated successfully!
+≡ƒôü Check the output directory: d:\GitIntel\GitIntelProject\Dataset\generated_datasets

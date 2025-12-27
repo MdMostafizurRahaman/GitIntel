@@ -25,6 +25,7 @@ from enum import Enum
 import subprocess
 import ast
 import re
+import random
 from pathlib import Path
 
 # Load environment variables from .env
@@ -62,6 +63,14 @@ try:
     LLM_AVAILABLE = True
 except ImportError:
     LLM_AVAILABLE = False
+
+# Import metrics database from conversational_agent
+try:
+    from conversational_agent import METRICS_DATABASE
+    METRICS_AVAILABLE = True
+except ImportError:
+    METRICS_AVAILABLE = False
+    METRICS_DATABASE = {}
 
 logger = logging.getLogger(__name__)
 
@@ -108,6 +117,187 @@ class AutonomousDatasetAgent:
                 print("✅ LLMGitAnalyzer initialized as fallback")
             except Exception as e:
                 print(f"⚠️ LLMGitAnalyzer initialization failed: {e}")
+    
+    def _enrich_unknown_metrics(self, unknown_metrics: List[str]) -> Dict:
+        """Query Gemini to get definitions and calculation methods for unknown metrics"""
+        if not self.client:
+            print("[WARN] Gemini not available for unknown metric enrichment")
+            return self._fallback_metric_enrichment(unknown_metrics)
+        
+        enriched = {}
+        
+        for metric in unknown_metrics:
+            try:
+                prompt = f"""You are a software engineering metrics expert. 
+                
+A user wants to include '{metric}' in their dataset.
+
+Please provide:
+1. Definition: What does this metric measure?
+2. Calculation: How is it calculated? (formula or method)
+3. Range: What are realistic values? (min-max, average)
+4. Unit: What unit is it measured in? (percentage, count, ratio, etc.)
+
+Respond in JSON format:
+{{
+    "definition": "...",
+    "calculation": "...",
+    "range": {{"min": 0, "max": 100, "average": 50}},
+    "unit": "percentage"
+}}
+"""
+                
+                response = self.client.generate_content(
+                    prompt,
+                    generation_config={"response_mime_type": "application/json"}
+                )
+                
+                metric_info = json.loads(response.text)
+                enriched[metric] = metric_info
+                
+                print(f"[OK] Enriched '{metric}':")
+                print(f"     Definition: {metric_info['definition'][:60]}...")
+                print(f"     Range: {metric_info['range']}")
+                
+            except Exception as e:
+                print(f"[WARN] Failed to enrich '{metric}': {e}")
+                # Use fallback
+                enriched[metric] = self._fallback_single_metric(metric)
+        
+        return enriched
+    
+    def _fallback_metric_enrichment(self, unknown_metrics: List[str]) -> Dict:
+        """Fallback enrichment when Gemini unavailable"""
+        enriched = {}
+        for metric in unknown_metrics:
+            enriched[metric] = self._fallback_single_metric(metric)
+        return enriched
+    
+    def _fallback_single_metric(self, metric: str) -> Dict:
+        """Generate fallback info for a single unknown metric"""
+        metric_lower = metric.lower()
+        
+        # Pattern matching for common metric types
+        if 'density' in metric_lower or 'ratio' in metric_lower:
+            return {
+                "definition": f"{metric} (ratio-based metric)",
+                "calculation": "Calculated as a percentage or ratio",
+                "range": {"min": 0, "max": 100, "average": 50},
+                "unit": "percentage"
+            }
+        elif 'time' in metric_lower or 'duration' in metric_lower:
+            return {
+                "definition": f"{metric} (time-based metric)",
+                "calculation": "Measured in time units",
+                "range": {"min": 0, "max": 1000, "average": 100},
+                "unit": "hours"
+            }
+        elif 'count' in metric_lower or 'number' in metric_lower:
+            return {
+                "definition": f"{metric} (count-based metric)",
+                "calculation": "Simple count or enumeration",
+                "range": {"min": 0, "max": 100, "average": 10},
+                "unit": "count"
+            }
+        else:
+            return {
+                "definition": f"{metric} (custom metric)",
+                "calculation": "User-defined calculation",
+                "range": {"min": 0, "max": 100, "average": 50},
+                "unit": "units"
+            }
+    
+    def generate_formula_based_dataset(self, formula: str, available_metrics: List[str]) -> Dict:
+        """
+        Use LLM to interpret user formula and generate dataset
+        
+        Args:
+            formula: User-provided formula (e.g., "KLOC + Complexity / 2")
+            available_metrics: List of available metric names
+            
+        Returns:
+            Dataset generation plan with interpreted formula
+        """
+        if not self.client:
+            return self._fallback_formula_parsing(formula, available_metrics)
+        
+        prompt = f"""
+You are an expert in software metrics and dataset generation. A user wants to create a custom dataset using a formula.
+
+Available metrics: {', '.join(available_metrics)}
+
+User formula: "{formula}"
+
+Your task:
+1. Parse the formula and identify which metrics are referenced
+2. Suggest how to calculate the formula using available metrics
+3. If some metrics are not available, suggest alternatives
+4. Provide the calculation logic in Python code
+5. Explain the formula interpretation
+
+Respond with JSON:
+{{
+    "interpreted_formula": "Clear interpretation",
+    "required_metrics": ["metric1", "metric2"],
+    "missing_metrics": ["missing1"],
+    "suggested_alternatives": {{"missing1": "alternative_metric"}},
+    "python_calculation": "def calculate_custom_metric(row): return row['KLOC'] + row['Complexity'] / 2",
+    "explanation": "How the formula works",
+    "confidence": 0.9
+}}
+"""
+        
+        try:
+            response = self.client.generate_content(
+                prompt,
+                generation_config={"response_mime_type": "application/json"}
+            )
+            
+            interpretation = json.loads(response.text)
+            
+            # Generate dataset plan
+            plan = {
+                "intent": f"Generate dataset using formula: {formula}",
+                "metrics": interpretation.get("required_metrics", []),
+                "custom_formula": interpretation.get("python_calculation", ""),
+                "dataset_type": "custom_formula",
+                "confidence": interpretation.get("confidence", 0.8),
+                "reasoning": interpretation.get("explanation", ""),
+                "tasks": [
+                    {"task": "Parse Formula", "description": "Interpret user formula", "auto_execute": True},
+                    {"task": "Validate Metrics", "description": "Check metric availability", "auto_execute": True},
+                    {"task": "Generate Dataset", "description": "Create dataset with formula", "auto_execute": True}
+                ]
+            }
+            
+            return plan
+            
+        except Exception as e:
+            print(f"❌ Formula interpretation failed: {e}")
+            return self._fallback_formula_parsing(formula, available_metrics)
+    
+    def _fallback_formula_parsing(self, formula: str, available_metrics: List[str]) -> Dict:
+        """Fallback formula parsing without LLM"""
+        # Simple pattern matching for common formulas
+        formula_lower = formula.lower()
+        
+        required_metrics = []
+        for metric in available_metrics:
+            if metric.lower() in formula_lower:
+                required_metrics.append(metric)
+        
+        return {
+            "intent": f"Generate dataset using formula: {formula}",
+            "metrics": required_metrics,
+            "custom_formula": f"# Custom formula: {formula}",
+            "dataset_type": "custom_formula",
+            "confidence": 0.6,
+            "reasoning": f"Found metrics: {', '.join(required_metrics)}",
+            "tasks": [
+                {"task": "Parse Formula", "description": "Basic formula parsing", "auto_execute": True},
+                {"task": "Generate Dataset", "description": "Create dataset with formula", "auto_execute": True}
+            ]
+        }
     
     def parse_user_input(self, user_input: str) -> Tuple[AgentMode, str]:
         """
@@ -267,10 +457,34 @@ Respond with JSON:
                 if metric_name not in metrics:
                     metrics.append(metric_name)
         
+        # Detect unknown metrics (capitalized phrases not in database)
+        # Look for patterns like "Code Smell Density", "Technical Debt Ratio"
+        potential_metrics = re.findall(r'([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)', user_query)
+        unknown_metrics = []
+        for metric in potential_metrics:
+            metric_upper = metric.replace(' ', '_').upper()
+            if metric_upper not in METRICS_DATABASE and metric_upper not in metrics:
+                unknown_metrics.append(metric_upper)
+        
+        # Also look for lowercase multi-word patterns
+        lowercase_patterns = re.findall(r'([a-z]+\s+[a-z]+\s+(?:density|ratio|index|score|count|time|coverage))', query_lower)
+        for pattern in lowercase_patterns:
+            metric_upper = pattern.replace(' ', '_').upper()
+            if metric_upper not in METRICS_DATABASE and metric_upper not in metrics and metric_upper not in unknown_metrics:
+                unknown_metrics.append(metric_upper)
+        
+        # Enrich unknown metrics
+        enriched_unknown = {}
+        if unknown_metrics:
+            enriched_unknown = self._enrich_unknown_metrics(unknown_metrics)
+            for metric in unknown_metrics:
+                if metric in enriched_unknown:
+                    metrics.append(metric)
+                    print(f"[INFO] Added unknown metric: {metric}")
+        
         # Detect custom formula
         custom_formula = None
         # Look for mathematical expressions like (x+y+z)/3, x/y, etc.
-        import re
         # More comprehensive formula pattern
         formula_pattern = r'\([\w\+\-\*/\s]+\)'
         formula_matches = re.findall(formula_pattern, query_lower)
@@ -299,7 +513,8 @@ Respond with JSON:
             "dataset_type": dataset_type,
             "confidence": 0.8,  # Increased confidence for better auto-execute
             "reasoning": reasoning,
-            "tasks": base_tasks
+            "tasks": base_tasks,
+            "unknown_metrics": enriched_unknown  # Add enriched unknown metrics
         }
     
     def execute_plan(self, plan: Dict, mode: AgentMode, approval_callback=None) -> Dict:
@@ -404,6 +619,8 @@ Respond with JSON:
         """Generate actual dataset CSV file with configurable record count"""
         try:
             metrics = plan.get('metrics', ['KLOC', 'LOC'])
+            unknown_metrics = plan.get('unknown_metrics', {})
+            custom_formula = plan.get('custom_formula', '')
             
             # Create output directory
             output_dir = Path(__file__).parent / "generated_datasets"
@@ -431,6 +648,20 @@ Respond with JSON:
                 else:
                     regular_metrics.append(metric)
             
+            # Add custom formula if provided
+            if custom_formula and custom_formula.startswith('def calculate_custom_metric'):
+                # Extract the calculation logic
+                try:
+                    # Parse the function definition
+                    tree = ast.parse(custom_formula)
+                    func_def = tree.body[0]
+                    formula_name = "Custom_Metric"
+                    # For now, store the function for later execution
+                    formulas[formula_name] = custom_formula
+                except:
+                    # Fallback to simple expression
+                    formulas["Custom_Metric"] = custom_formula
+            
             # Combine for CSV columns
             csv_columns = regular_metrics + list(formulas.keys())
             
@@ -448,7 +679,20 @@ Respond with JSON:
                     for metric in regular_metrics:
                         metric_lower = metric.lower()
                         
-                        if 'kloc' in metric_lower:
+                        # Check if it's an unknown metric
+                        if metric in unknown_metrics:
+                            metric_info = unknown_metrics[metric]
+                            range_info = metric_info.get('range', {})
+                            min_val = range_info.get('min', 0)
+                            max_val = range_info.get('max', 100)
+                            avg_val = range_info.get('average', 50)
+                            
+                            # Generate value around average with some variation
+                            import random
+                            variation = (max_val - min_val) * 0.2  # 20% variation
+                            value = round(random.uniform(avg_val - variation, avg_val + variation), 2)
+                            value = max(min_val, min(max_val, value))  # Clamp to range
+                        elif 'kloc' in metric_lower:
                             value = round(i * 0.5 + 1, 2)
                         elif 'loc' in metric_lower and 'lcom' not in metric_lower:
                             value = round(i * 1.5 + 10, 2)
@@ -477,15 +721,23 @@ Respond with JSON:
                     # Calculate formulas
                     for formula_name, formula_expr in formulas.items():
                         try:
-                            # Replace metric names in formula with their values
-                            eval_expr = formula_expr.lower()
-                            for metric_key, metric_val in metric_values.items():
-                                eval_expr = eval_expr.replace(metric_key, str(metric_val))
+                            if formula_expr.startswith('def calculate_custom_metric'):
+                                # Execute custom function
+                                local_vars = {'row': metric_values}
+                                exec(formula_expr, {}, local_vars)
+                                result = local_vars['calculate_custom_metric'](metric_values)
+                            else:
+                                # Replace metric names in formula with their values
+                                eval_expr = formula_expr.lower()
+                                for metric_key, metric_val in metric_values.items():
+                                    eval_expr = eval_expr.replace(metric_key, str(metric_val))
+                                
+                                # Evaluate the formula
+                                result = eval(eval_expr)
                             
-                            # Evaluate the formula
-                            result = eval(eval_expr)
                             row[formula_name] = str(round(result, 2))
                         except Exception as e:
+                            print(f"Formula calculation error for {formula_name}: {e}")
                             row[formula_name] = "0"
                     
                     writer.writerow(row)

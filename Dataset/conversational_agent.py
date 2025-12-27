@@ -256,27 +256,51 @@ Please provide these details and I'll generate your dataset!"""
         # Parse feedback to extract config
         config = self._parse_user_intent(feedback)
         
-        # Validate metrics
-        invalid_metrics = []
-        for metric in config['metrics']:
-            if metric not in METRICS_DATABASE:
-                matches = self.get_metrics_by_keyword(metric)
-                if not matches:
-                    invalid_metrics.append(metric)
-                else:
-                    print(f"[INFO] '{metric}' → suggesting {matches}")
+        # Validate metrics - Handle known + unknown
+        unknown_metrics = []
+        known_metrics = []
         
-        if invalid_metrics:
-            return {
-                "status": "clarify_metrics",
-                "invalid": invalid_metrics,
-                "message": f"Unknown metrics: {invalid_metrics}. Did you mean one of these?\n" + 
-                          self._suggest_metrics(invalid_metrics[0])
-            }
+        for metric in config['metrics']:
+            if metric in METRICS_DATABASE:
+                known_metrics.append(metric)
+            else:
+                # Check if similar exists
+                matches = self.get_metrics_by_keyword(metric)
+                if matches:
+                    print(f"[INFO] '{metric}' → suggesting {matches}")
+                    # Ask user if they meant these
+                    return {
+                        "status": "clarify_similar",
+                        "original": metric,
+                        "suggestions": matches,
+                        "message": f"Did you mean one of these for '{metric}'?\n" + 
+                                  "\n".join([f"  - {m}: {METRICS_DATABASE[m]['name']}" for m in matches[:3]])
+                    }
+                else:
+                    unknown_metrics.append(metric)
+        
+        # Handle unknown metrics with Gemini
+        if unknown_metrics:
+            print(f"[AGENT] Unknown metrics detected: {unknown_metrics}")
+            print(f"[AGENT] Querying Gemini for definitions...")
+            
+            enriched_metrics = self._enrich_unknown_metrics(unknown_metrics)
+            
+            if not enriched_metrics:
+                return {
+                    "status": "unknown_metrics_failed",
+                    "message": f"Could not understand these metrics: {unknown_metrics}\n" +
+                              "Please describe what they measure or provide calculation methods."
+                }
+            
+            # Add enriched unknown metrics to config
+            config['unknown_metrics'] = enriched_metrics
+            print(f"[OK] Successfully enriched {len(enriched_metrics)} unknown metrics")
         
         # Validate formula
         if config.get('formula'):
-            is_valid, msg = self.is_valid_formula(config['formula'], config['metrics'])
+            all_metrics = config['metrics']
+            is_valid, msg = self.is_valid_formula(config['formula'], all_metrics)
             if not is_valid:
                 return {
                     "status": "clarify_formula",
@@ -305,10 +329,26 @@ Please provide these details and I'll generate your dataset!"""
         
         feedback_lower = feedback.lower()
         
-        # Extract metrics
+        # Extract known metrics from database
         for metric_id in METRICS_DATABASE.keys():
             if metric_id.lower() in feedback_lower:
                 config['metrics'].append(metric_id)
+        
+        # Extract unknown metrics (capitalized phrases not in database)
+        # Look for patterns like "Code Smell Density", "Technical Debt Ratio"
+        import re
+        potential_metrics = re.findall(r'([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)', feedback)
+        for metric in potential_metrics:
+            metric_upper = metric.replace(' ', '_').upper()
+            if metric_upper not in METRICS_DATABASE and metric_upper not in config['metrics']:
+                config['metrics'].append(metric_upper)
+        
+        # Also look for lowercase multi-word patterns
+        lowercase_patterns = re.findall(r'([a-z]+\s+[a-z]+\s+(?:density|ratio|index|score|count|time|coverage))', feedback_lower)
+        for pattern in lowercase_patterns:
+            metric_upper = pattern.replace(' ', '_').upper()
+            if metric_upper not in METRICS_DATABASE and metric_upper not in config['metrics']:
+                config['metrics'].append(metric_upper)
         
         # Extract formula
         formula_match = re.search(r'\(([^)]+)\)', feedback)
@@ -321,6 +361,95 @@ Please provide these details and I'll generate your dataset!"""
             config['records'] = int(num_match.group(1))
         
         return config
+    
+    def _enrich_unknown_metrics(self, unknown_metrics: List[str]) -> Dict:
+        """Query Gemini to get definitions and calculation methods for unknown metrics"""
+        if not self.client:
+            print("[WARN] Gemini not available for unknown metric enrichment")
+            return self._fallback_metric_enrichment(unknown_metrics)
+        
+        enriched = {}
+        
+        for metric in unknown_metrics:
+            try:
+                prompt = f"""You are a software engineering metrics expert. 
+                
+A user wants to include '{metric}' in their dataset.
+
+Please provide:
+1. Definition: What does this metric measure?
+2. Calculation: How is it calculated? (formula or method)
+3. Range: What are realistic values? (min-max, average)
+4. Unit: What unit is it measured in? (percentage, count, ratio, etc.)
+
+Respond in JSON format:
+{{
+    "definition": "...",
+    "calculation": "...",
+    "range": {{"min": 0, "max": 100, "average": 50}},
+    "unit": "percentage"
+}}
+"""
+                
+                response = self.client.generate_content(
+                    prompt,
+                    generation_config={"response_mime_type": "application/json"}
+                )
+                
+                metric_info = json.loads(response.text)
+                enriched[metric] = metric_info
+                
+                print(f"[OK] Enriched '{metric}':")
+                print(f"     Definition: {metric_info['definition'][:60]}...")
+                print(f"     Range: {metric_info['range']}")
+                
+            except Exception as e:
+                print(f"[WARN] Failed to enrich '{metric}': {e}")
+                # Use fallback
+                enriched[metric] = self._fallback_single_metric(metric)
+        
+        return enriched
+    
+    def _fallback_metric_enrichment(self, unknown_metrics: List[str]) -> Dict:
+        """Fallback enrichment when Gemini unavailable"""
+        enriched = {}
+        for metric in unknown_metrics:
+            enriched[metric] = self._fallback_single_metric(metric)
+        return enriched
+    
+    def _fallback_single_metric(self, metric: str) -> Dict:
+        """Generate fallback info for a single unknown metric"""
+        metric_lower = metric.lower()
+        
+        # Pattern matching for common metric types
+        if 'density' in metric_lower or 'ratio' in metric_lower:
+            return {
+                "definition": f"{metric} (ratio-based metric)",
+                "calculation": "Calculated as a percentage or ratio",
+                "range": {"min": 0, "max": 100, "average": 50},
+                "unit": "percentage"
+            }
+        elif 'time' in metric_lower or 'duration' in metric_lower:
+            return {
+                "definition": f"{metric} (time-based metric)",
+                "calculation": "Measured in time units",
+                "range": {"min": 0, "max": 1000, "average": 100},
+                "unit": "hours"
+            }
+        elif 'count' in metric_lower or 'number' in metric_lower:
+            return {
+                "definition": f"{metric} (count-based metric)",
+                "calculation": "Simple count or enumeration",
+                "range": {"min": 0, "max": 100, "average": 10},
+                "unit": "count"
+            }
+        else:
+            return {
+                "definition": f"{metric} (custom metric)",
+                "calculation": "User-defined calculation",
+                "range": {"min": 0, "max": 100, "average": 50},
+                "unit": "units"
+            }
     
     def _suggest_metrics(self, unknown_metric: str) -> str:
         """Suggest similar metrics"""
@@ -361,6 +490,7 @@ Ready to generate? [YES/NO/MODIFY]"""
         num_records = config.get('records', 100)
         metrics = config['metrics']
         formula = config.get('formula')
+        unknown_metrics = config.get('unknown_metrics', {})
         
         csv_columns = metrics.copy()
         if formula:
@@ -374,9 +504,22 @@ Ready to generate? [YES/NO/MODIFY]"""
                 row = {}
                 metric_values = {}
                 
-                # Generate metric values
+                # Generate metric values (known + unknown)
                 for metric in metrics:
-                    value = self._generate_metric_value(metric, i)
+                    if metric in METRICS_DATABASE:
+                        # Known metric - use built-in generation
+                        value = self._generate_metric_value(metric, i)
+                    elif metric in unknown_metrics:
+                        # Unknown metric - use Gemini-enriched info
+                        value = self._generate_unknown_metric_value(
+                            metric, 
+                            unknown_metrics[metric], 
+                            i
+                        )
+                    else:
+                        # Fallback
+                        value = round(i * 0.5 + 1, 2)
+                    
                     row[metric] = str(value)
                     metric_values[metric] = value
                 
@@ -394,6 +537,24 @@ Ready to generate? [YES/NO/MODIFY]"""
                 writer.writerow(row)
         
         return str(filepath)
+    
+    def _generate_unknown_metric_value(self, metric_name: str, metric_info: Dict, index: int) -> float:
+        """Generate realistic value for unknown metric based on Gemini enrichment"""
+        import random
+        
+        range_info = metric_info.get('range', {"min": 0, "max": 100, "average": 50})
+        min_val = range_info.get('min', 0)
+        max_val = range_info.get('max', 100)
+        avg_val = range_info.get('average', 50)
+        
+        # Generate with variation around average
+        variation = (max_val - min_val) * 0.2
+        value = avg_val + random.uniform(-variation, variation)
+        
+        # Clamp to range
+        value = max(min_val, min(max_val, value))
+        
+        return round(value, 2)
     
     def _generate_metric_value(self, metric: str, index: int) -> float:
         """Generate realistic value for metric"""

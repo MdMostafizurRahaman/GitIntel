@@ -33,6 +33,7 @@ try:
     from github_autonomous_agent import GitHubAutonomousAgent
     from interactive_dataset_generator import InteractiveDatasetGenerator
     from autonomous_agent import AutonomousDatasetAgent, AgentMode
+    from enhanced_agentic_system import EnhancedAgenticSystem, AgentMode as EnhancedMode
     AGENT_AVAILABLE = True
 except ImportError as e:
     print(f"Warning: Some imports failed: {e}")
@@ -202,11 +203,14 @@ class AgenticDatasetGUI:
         if AGENT_AVAILABLE:
             try:
                 self.autonomous_agent = AutonomousDatasetAgent()
+                self.enhanced_system = EnhancedAgenticSystem(mode=EnhancedMode.ASK)
             except Exception as e:
                 print(f"⚠️ Autonomous agent initialization failed: {e}")
                 self.autonomous_agent = None
+                self.enhanced_system = None
         else:
             self.autonomous_agent = None
+            self.enhanced_system = None
         
         # Try to initialize catalog and agent
         try:
@@ -667,22 +671,312 @@ class AgenticDatasetGUI:
     # ═══════════════════════════════════════════════════════════════════════════
     
     def process_natural_language(self):
-        """Process natural language input and create a task plan"""
-        user_input = self.nl_input_var.get().strip()
-        if not user_input or 'e.g.' in user_input:
+        """Process natural language input - DUAL MODE"""
+        query = self.nl_input_var.get().strip()
+        
+        if not query or 'e.g.' in query:
             messagebox.showwarning("Input Required", "Please describe what you want to create")
             return
-            
+        
         # Show user message
-        self.add_agent_message(MessageType.USER, user_input)
+        self.add_agent_message(MessageType.USER, query)
+        self.nl_input_var.set("")
         
         # Show thinking
         self.add_agent_message(MessageType.THINKING, "Analyzing your request...")
         
-        # Parse and create plan
-        threading.Thread(target=self._create_plan_from_input, 
-                        args=(user_input,), daemon=True).start()
+        # CHECK: Is this a request for BENCHMARK dataset or REAL repo analysis?
+        query_lower = query.lower()
+        is_benchmark_request = any(b.lower() in query_lower for b in self.BENCHMARK_DATASETS.keys())
         
+        if is_benchmark_request:
+            # USE ORIGINAL: Benchmark dataset generation (predefined formats)
+            self.add_agent_message(MessageType.INFO, 
+                "🎯 Detected benchmark dataset request. Using predefined format generation.")
+            threading.Thread(target=self._create_plan_from_input, 
+                            args=(query,), daemon=True).start()
+        else:
+            # USE ENHANCED: Real repository analysis with LLM
+            if not self.repo_path:
+                self.add_agent_message(MessageType.ERROR, 
+                    "❌ Real repository analysis requires a repository to be set first.")
+                messagebox.showwarning("Repository Required", 
+                    "For custom metrics analysis, please set a repository first.\n\n"
+                    "Or use benchmark datasets (Defects4J, Bugs.jar, etc.) which don't need a repo.")
+                return
+            
+            if self.enhanced_system:
+                self.add_agent_message(MessageType.INFO, 
+                    "🔬 Using AI-powered repository analysis with LLM.")
+                self._process_with_enhanced_system(query)
+            else:
+                # Fallback to basic
+                threading.Thread(target=self._create_plan_from_input, 
+                                args=(query,), daemon=True).start()
+    
+    def _process_with_enhanced_system(self, query: str):
+        """Process using EnhancedAgenticSystem"""
+        # Set repository if not already set
+        if not self.enhanced_system.repo_path or str(self.enhanced_system.repo_path) != str(self.repo_path):
+            try:
+                self.add_agent_message(MessageType.THINKING, 
+                    "🔍 Setting up repository and discovering metrics...")
+                
+                repo_info = self.enhanced_system.set_repository(self.repo_path)
+                
+                # Show discovered metrics
+                metrics_text = "📊 **Available Metrics Discovered:**\n\n"
+                for category, metrics in self.enhanced_system.available_metrics.items():
+                    metrics_text += f"**{category.upper()}** ({len(metrics)} metrics)\n"
+                    metrics_text += "  • " + ", ".join(metrics[:5])
+                    if len(metrics) > 5:
+                        metrics_text += f", ... (+{len(metrics)-5} more)"
+                    metrics_text += "\n\n"
+                
+                self.add_agent_message(MessageType.SUCCESS, metrics_text)
+                
+            except Exception as e:
+                self.add_agent_message(MessageType.ERROR, 
+                    f"❌ Repository setup failed: {e}")
+                return
+        
+        # Start conversation in background thread
+        thread = threading.Thread(target=self._enhanced_conversation_thread, args=(query,))
+        thread.daemon = True
+        thread.start()
+    
+    def _enhanced_conversation_thread(self, query: str):
+        """Handle enhanced system conversation in background"""
+        try:
+            # Start conversation
+            result = self.enhanced_system.start_conversation(query)
+            
+            # Display conversation messages
+            self._display_enhanced_messages()
+            
+            # Handle result status
+            while result['status'] in ['needs_clarification', 'needs_approval_for_formula_generation', 
+                                       'awaiting_approval', 'awaiting_final_approval']:
+                
+                if result['status'] == 'needs_clarification':
+                    # Wait for user response
+                    question = result['question']
+                    self.root.after(0, lambda: self._setup_enhanced_input_handler(question))
+                    break
+                    
+                elif result['status'] == 'needs_approval_for_formula_generation':
+                    # Show formulas that need to be generated
+                    formulas_text = "🔧 **New Formulas Needed:**\n\n"
+                    for formula_name in result['missing_formulas']:
+                        formulas_text += f"  • {formula_name}\n"
+                    formulas_text += "\nLLM will generate Python code for these. Approve?"
+                    
+                    self.root.after(0, lambda: self.add_agent_message(MessageType.QUESTION, formulas_text))
+                    self.root.after(0, lambda: self._setup_approval_buttons(
+                        on_approve=lambda: self._approve_formula_generation(result),
+                        on_reject=lambda: self._reject_formula_generation()
+                    ))
+                    break
+                    
+                elif result['status'] == 'awaiting_approval':
+                    # Show plan approval buttons
+                    self.root.after(0, lambda: self._setup_approval_buttons(
+                        on_approve=lambda: self._approve_plan(),
+                        on_reject=lambda: self._reject_plan(),
+                        on_modify=lambda: self._modify_plan()
+                    ))
+                    break
+                    
+                elif result['status'] == 'awaiting_final_approval':
+                    # Show final approval after preview
+                    preview_text = f"👁️ **Preview Ready!**\n\n"
+                    preview_text += f"**Total Rows:** {result['total_rows']}\n"
+                    preview_text += f"**Columns:** {len(result['preview'])}\n\n"
+                    
+                    for col_preview in result['preview']:
+                        preview_text += f"**{col_preview.column_name}** ({col_preview.data_type})\n"
+                        preview_text += f"  📐 Formula: {col_preview.formula}\n"
+                        preview_text += f"  📊 Sample: {col_preview.sample_values[:3]}\n"
+                        if col_preview.min_value is not None:
+                            preview_text += f"  📈 Range: [{col_preview.min_value:.2f} - {col_preview.max_value:.2f}]\n"
+                        preview_text += f"  🔢 Unique: {col_preview.unique_count}\n\n"
+                    
+                    self.root.after(0, lambda: self.add_agent_message(MessageType.PREVIEW, preview_text))
+                    self.root.after(0, lambda: self._setup_final_approval_buttons(
+                        on_confirm=lambda: self._confirm_generation(),
+                        on_cancel=lambda: self._cancel_generation()
+                    ))
+                    break
+            
+            # If completed, show result
+            if result['status'] == 'completed':
+                success_text = f"✅ **Dataset Generated!**\n\n"
+                success_text += f"📁 **Files:**\n"
+                success_text += f"  • CSV: {result['csv_file']}\n"
+                success_text += f"  • JSON: {result['json_file']}\n"
+                success_text += f"  • Metadata: {result['metadata_file']}\n\n"
+                success_text += f"📊 **Statistics:**\n"
+                success_text += f"  • Rows: {result['rows']:,}\n"
+                success_text += f"  • Columns: {result['columns']}\n"
+                
+                self.root.after(0, lambda: self.add_agent_message(MessageType.SUCCESS, success_text))
+                
+        except Exception as e:
+            error_msg = f"❌ **Error:** {str(e)}"
+            self.root.after(0, lambda: self.add_agent_message(MessageType.ERROR, error_msg))
+    
+    def _display_enhanced_messages(self):
+        """Display messages from enhanced system"""
+        # Get conversation history
+        history = self.enhanced_system.get_conversation_history()
+        
+        # Display new messages (skip already displayed ones)
+        displayed_count = getattr(self, '_displayed_message_count', 0)
+        new_messages = history[displayed_count:]
+        
+        for msg in new_messages:
+            msg_type_str = msg['type']
+            content = msg['content']
+            
+            # Map enhanced message types to GUI message types
+            type_mapping = {
+                'system': MessageType.SYSTEM,
+                'user': MessageType.USER,
+                'agent': MessageType.INFO,
+                'thinking': MessageType.THINKING,
+                'plan': MessageType.INFO,
+                'question': MessageType.QUESTION,
+                'preview': MessageType.INFO,
+                'success': MessageType.SUCCESS,
+                'error': MessageType.ERROR
+            }
+            
+            gui_type = type_mapping.get(msg_type_str, MessageType.INFO)
+            self.root.after(0, lambda c=content, t=gui_type: self.add_agent_message(t, c))
+        
+        self._displayed_message_count = len(history)
+    
+    def _setup_enhanced_input_handler(self, question: str):
+        """Setup input handler for clarification question"""
+        # Enable agent input for response
+        if hasattr(self, 'agent_input'):
+            self.agent_input.config(state=tk.NORMAL)
+            self.agent_input.delete(0, tk.END)
+            self.agent_input.insert(0, "Type your answer here...")
+            self.agent_input.bind('<Return>', 
+                lambda e: self._handle_clarification_response(self.agent_input.get()))
+    
+    def _handle_clarification_response(self, response: str):
+        """Handle user's clarification response"""
+        if not response or 'Type your answer' in response:
+            return
+        
+        self.add_agent_message(MessageType.USER, f"💬 {response}")
+        
+        # Continue conversation in background
+        thread = threading.Thread(target=self._continue_enhanced_conversation, args=(response,))
+        thread.daemon = True
+        thread.start()
+    
+    def _continue_enhanced_conversation(self, response: str):
+        """Continue the enhanced conversation"""
+        try:
+            result = self.enhanced_system.continue_conversation(response)
+            self._display_enhanced_messages()
+            
+            # Handle new status (similar to initial conversation)
+            # Reuse the logic from _enhanced_conversation_thread
+            
+        except Exception as e:
+            self.root.after(0, lambda: self.add_agent_message(MessageType.ERROR, 
+                f"❌ Error: {str(e)}"))
+    
+    def _approve_formula_generation(self, result):
+        """Approve formula generation"""
+        self.add_agent_message(MessageType.SUCCESS, "✅ Formula generation approved")
+        # Continue processing...
+        self.enhanced_system._generate_missing_formulas()
+        self._display_enhanced_messages()
+    
+    def _reject_formula_generation(self):
+        """Reject formula generation"""
+        self.add_agent_message(MessageType.ERROR, "❌ Formula generation rejected. Operation cancelled.")
+    
+    def _approve_plan(self):
+        """Approve the plan and generate preview"""
+        self.add_agent_message(MessageType.SUCCESS, "✅ Plan approved. Generating preview...")
+        thread = threading.Thread(target=self._generate_preview_thread)
+        thread.daemon = True
+        thread.start()
+    
+    def _generate_preview_thread(self):
+        """Generate preview in background"""
+        try:
+            result = self.enhanced_system.generate_preview()
+            self._display_enhanced_messages()
+            
+            # Show preview in GUI (handled by _enhanced_conversation_thread logic)
+            
+        except Exception as e:
+            self.root.after(0, lambda: self.add_agent_message(MessageType.ERROR, 
+                f"❌ Preview generation failed: {str(e)}"))
+    
+    def _reject_plan(self):
+        """Reject the plan"""
+        self.add_agent_message(MessageType.ERROR, "❌ Plan rejected. Describe what you need differently.")
+    
+    def _modify_plan(self):
+        """Modify the plan"""
+        self.add_agent_message(MessageType.QUESTION, 
+            "💬 What would you like to change? Describe the modifications:")
+        self._setup_enhanced_input_handler("Modifications")
+    
+    def _confirm_generation(self):
+        """Confirm final dataset generation"""
+        self.add_agent_message(MessageType.SUCCESS, "✅ Confirmed. Generating full dataset...")
+        thread = threading.Thread(target=self._generate_full_dataset_thread)
+        thread.daemon = True
+        thread.start()
+    
+    def _generate_full_dataset_thread(self):
+        """Generate full dataset in background"""
+        try:
+            result = self.enhanced_system.generate_full_dataset()
+            self._display_enhanced_messages()
+            
+        except Exception as e:
+            self.root.after(0, lambda: self.add_agent_message(MessageType.ERROR, 
+                f"❌ Generation failed: {str(e)}"))
+    
+    def _cancel_generation(self):
+        """Cancel dataset generation"""
+        self.add_agent_message(MessageType.ERROR, "❌ Generation cancelled.")
+    
+    def _setup_approval_buttons(self, on_approve, on_reject, on_modify=None):
+        """Setup approval buttons in agent panel"""
+        # Create button frame
+        btn_frame = ttk.Frame(self.right_frame)
+        btn_frame.pack(fill=tk.X, pady=5)
+        
+        ttk.Button(btn_frame, text="✅ Approve", command=on_approve,
+                   style='Approve.TButton').pack(side=tk.LEFT, padx=5)
+        ttk.Button(btn_frame, text="❌ Reject", command=on_reject,
+                   style='Reject.TButton').pack(side=tk.LEFT, padx=5)
+        
+        if on_modify:
+            ttk.Button(btn_frame, text="✏️ Modify", command=on_modify).pack(side=tk.LEFT, padx=5)
+    
+    def _setup_final_approval_buttons(self, on_confirm, on_cancel):
+        """Setup final approval buttons"""
+        btn_frame = ttk.Frame(self.right_frame)
+        btn_frame.pack(fill=tk.X, pady=5)
+        
+        ttk.Button(btn_frame, text="✅ Confirm & Generate", command=on_confirm,
+                   style='Approve.TButton').pack(side=tk.LEFT, padx=5)
+        ttk.Button(btn_frame, text="❌ Cancel", command=on_cancel,
+                   style='Reject.TButton').pack(side=tk.LEFT, padx=5)
+    
+
     def _create_plan_from_input(self, user_input: str):
         """Parse user input and create a task plan"""
         user_lower = user_input.lower()
@@ -851,36 +1145,14 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
         threading.Thread(target=self._execute_tasks, daemon=True).start()
         
     def _execute_tasks(self):
-        """Execute tasks one by one with approval"""
+        """Execute tasks one by one - NO per-task approval"""
         for task in self.task_manager.tasks:
             if not self.task_manager.is_running:
                 break
-                
-            # Update task status
-            if task.requires_approval:
-                self.task_manager.set_task_status(task.id, TaskStatus.WAITING_APPROVAL)
-                
-                # Show approval request
-                self.root.after(0, lambda t=task: self.show_approval_request(t))
-                
-                # Wait for approval
-                approval = self.task_manager.approval_queue.get()
-                
-                if approval == "skip":
-                    self.task_manager.set_task_status(task.id, TaskStatus.SKIPPED,
-                                                       result="Skipped by user")
-                    self.add_agent_message(MessageType.INFO, f"⏭️ Skipped: {task.title}")
-                    continue
-                elif not approval:
-                    self.task_manager.set_task_status(task.id, TaskStatus.FAILED,
-                                                       error="Rejected by user")
-                    self.add_agent_message(MessageType.ERROR, 
-                        f"❌ Task rejected: {task.title}\n\nPlease modify the plan if needed.")
-                    break
                     
-            # Execute task
+            # Execute task directly
             self.task_manager.set_task_status(task.id, TaskStatus.IN_PROGRESS)
-            self.add_agent_message(MessageType.ACTION, f"Executing: {task.title}...")
+            self.add_agent_message(MessageType.ACTION, f"⚡ Executing: {task.title}...")
             
             try:
                 if task.action:
@@ -1376,7 +1648,10 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
         return f"Extracted {feature_count} features from {len(benchmarks)} benchmark(s)"
     
     def task_generate_benchmark_output(self, benchmarks: List[str]):
-        """Generate realistic defect datasets matching real benchmark structures"""
+        """Generate benchmark datasets using ORIGINAL DatasetGenerator formats"""
+        if not self.repo_path:
+            return "❌ Error: Repository not set! Please set repository first."
+            
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         output_dir = os.path.join(base_dir, "generated_datasets")
         
@@ -1388,130 +1663,94 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         
         try:
-            import csv
-            import json
-            import random
+            import sys
+            from pathlib import Path
             
-            total_records = 0
+            # Import ORIGINAL ProfessionalDatasetGenerator with proper benchmark formats
+            sys.path.insert(0, str(Path(__file__).parent.parent))
+            from dataset_generator import ProfessionalDatasetGenerator
+            
+            self.add_agent_message(MessageType.THINKING, 
+                f"🔍 Using ORIGINAL benchmark generator for: {self.repo_path}")
+            
+            # Get commit limit from dataset config (None = ALL commits)
+            commit_limit = self.dataset_config.get('class_limit')  # Reuse as commit_limit
+            if commit_limit:
+                self.add_agent_message(MessageType.INFO, 
+                    f"📊 Limiting to {commit_limit} commits per benchmark")
+            else:
+                self.add_agent_message(MessageType.INFO, 
+                    "📊 Processing ALL commits from repository")
+            
+            # Initialize generator with repository path, commit limit, and timestamp
+            # Use the ACTUAL repository loaded in GUI (not parent, not hardcoded path)
+            workspace_path = str(self.repo_path)  # Use user's loaded repository
+            
+            self.add_agent_message(MessageType.INFO, 
+                f"📂 Generating datasets from YOUR repository: {Path(workspace_path).name}")
+            
+            generator = ProfessionalDatasetGenerator(
+                workspace_path=workspace_path,
+                commit_limit=commit_limit,
+                timestamp=timestamp
+            )
+            
+            # Generate each benchmark using ORIGINAL methods with PROPER formats
+            generated_files = []
             
             for benchmark in benchmarks:
+                self.add_agent_message(MessageType.ACTION, 
+                    f"📊 Generating {benchmark} with ORIGINAL format...")
+                
                 if benchmark == 'Defects4J':
-                    # Defects4J: CSV with bug metadata
-                    output_file = os.path.join(output_dir, f"defects4j_{timestamp}.csv")
-                    fieldnames = ['bug_id', 'project', 'buggy_version', 'fixed_version', 'test_class', 'test_method', 'lang', 'lines_fixed']
+                    generator.generate_defects4j_dataset()
+                    generated_files.append(f"defects4j_dataset_{timestamp}/ (folder structure + JSON)")
+                    self.add_agent_message(MessageType.SUCCESS, 
+                        "✅ Defects4J: Folder structure (bug_NNN/buggy.java, fixed.java) + JSON metadata")
                     
-                    with open(output_file, 'w', newline='', encoding='utf-8') as f:
-                        writer = csv.DictWriter(f, fieldnames=fieldnames)
-                        writer.writeheader()
-                        for i in range(50):
-                            writer.writerow({
-                                'bug_id': f'D4J-{i:03d}',
-                                'project': random.choice(['commons-lang', 'commons-math', 'jfreechart', 'closure']),
-                                'buggy_version': f'v{random.randint(1, 20)}',
-                                'fixed_version': f'v{random.randint(21, 40)}',
-                                'test_class': f'Test{i}',
-                                'test_method': f'test_method_{i}',
-                                'lang': 'Java',
-                                'lines_fixed': random.randint(1, 20)
-                            })
-                    total_records += 50
-                
                 elif benchmark == 'Bugs.jar':
-                    # Bugs.jar: JSON format
-                    output_file = os.path.join(output_dir, f"bugs_jar_{timestamp}.json")
-                    records = []
-                    for i in range(50):
-                        records.append({
-                            'id': f'BJ-{i:05d}',
-                            'project': random.choice(['commons-lang', 'commons-math', 'mockito']),
-                            'bug_type': random.choice(['NPE', 'ArrayIndexOutOfBounds', 'ClassCastException', 'LogicError']),
-                            'severity': random.choice(['critical', 'high', 'medium']),
-                            'lines_of_code': random.randint(50, 500),
-                            'cyclomatic_complexity': random.randint(2, 15),
-                            'fixed': i % 2 == 0
-                        })
-                    with open(output_file, 'w', encoding='utf-8') as f:
-                        json.dump(records, f, indent=2)
-                    total_records += 50
-                
-                elif benchmark == 'CodeXGLUE':
-                    # CodeXGLUE: JSONL format (one JSON per line)
-                    output_file = os.path.join(output_dir, f"codexglue_devign_{timestamp}.jsonl")
-                    with open(output_file, 'w', encoding='utf-8') as f:
-                        for i in range(100):
-                            record = {
-                                'idx': i,
-                                'func': f'function_{i}_source_code_here',
-                                'target': 1 if i % 5 == 0 else 0,  # 20% vulnerable
-                                'vulnerability': 'use-after-free' if i % 5 == 0 else 'none'
-                            }
-                            f.write(json.dumps(record) + '\n')
-                    total_records += 100
-                
-                elif benchmark == 'CodeSearchNet':
-                    # CodeSearchNet: JSONL with code-doc pairs
-                    output_file = os.path.join(output_dir, f"codesearchnet_{timestamp}.jsonl")
-                    with open(output_file, 'w', encoding='utf-8') as f:
-                        for i in range(80):
-                            record = {
-                                'idx': i,
-                                'repo': 'github_repo_' + str(i),
-                                'path': f'src/main/java/File{i}.java',
-                                'func_name': f'function_{i}',
-                                'code_tokens': ['public', 'void', 'method', '(', ')', '{', '}'],
-                                'docstring_tokens': ['This', 'method', 'does', 'something'],
-                                'language': 'java'
-                            }
-                            f.write(json.dumps(record) + '\n')
-                    total_records += 80
-                
-                elif benchmark == 'PROMISE':
-                    # PROMISE: CSV with code metrics and defect labels
-                    output_file = os.path.join(output_dir, f"promise_metrics_{timestamp}.csv")
-                    fieldnames = ['class', 'wmc', 'dit', 'noc', 'cbo', 'rfc', 'lcom', 'loc', 'bug']
+                    generator.generate_bugs_jar_dataset()
+                    generated_files.append(f"bugs_jar_dataset_{timestamp}.json")
+                    self.add_agent_message(MessageType.SUCCESS, 
+                        "✅ Bugs.jar: JSON with metrics (from GIT commits)")
                     
-                    with open(output_file, 'w', newline='', encoding='utf-8') as f:
-                        writer = csv.DictWriter(f, fieldnames=fieldnames)
-                        writer.writeheader()
-                        for i in range(60):
-                            has_bug = 1 if random.random() < 0.3 else 0
-                            writer.writerow({
-                                'class': f'Class{i}',
-                                'wmc': random.randint(1, 20) + (10 if has_bug else 0),
-                                'dit': random.randint(0, 5),
-                                'noc': random.randint(0, 10),
-                                'cbo': random.randint(0, 20) + (8 if has_bug else 0),
-                                'rfc': random.randint(5, 50),
-                                'lcom': round(random.uniform(0, 1), 2),
-                                'loc': random.randint(100, 1000),
-                                'bug': has_bug
-                            })
-                    total_records += 60
-                
+                elif benchmark == 'PROMISE':
+                    generator.generate_promise_dataset()
+                    generated_files.append(f"promise_dataset_{timestamp}.csv")
+                    self.add_agent_message(MessageType.SUCCESS, 
+                        "✅ PROMISE: CSV with 42 comprehensive columns (from GIT commits)")
+                    
+                elif benchmark == 'CodeXGLUE':
+                    generator.generate_codexglue_dataset()
+                    generated_files.append(f"codexglue_dataset_{timestamp}.json")
+                    self.add_agent_message(MessageType.SUCCESS, 
+                        "✅ CodeXGLUE: JSON with code snippets + complexity (from GIT commits)")
+                    
+                elif benchmark == 'CodeSearchNet':
+                    generator.generate_codesearchnet_dataset()
+                    generated_files.append(f"codesearchnet_dataset_{timestamp}.json")
+                    self.add_agent_message(MessageType.SUCCESS, 
+                        "✅ CodeSearchNet: JSON with code + docstrings + tokens (from GIT commits)")
+                    
                 elif benchmark in ['ManySStuBs4J', 'Sourcerer']:
-                    # Generic multi-bug format
-                    output_file = os.path.join(output_dir, f"{benchmark.lower()}_{timestamp}.jsonl")
-                    with open(output_file, 'w', encoding='utf-8') as f:
-                        for i in range(70):
-                            record = {
-                                'id': f'{benchmark[:4]}-{i:05d}',
-                                'source_file': f'src/File{i}.java',
-                                'bugs': [
-                                    {'type': 'LogicError', 'line': random.randint(10, 100)}
-                                ] if random.random() < 0.25 else [],
-                                'metrics': {
-                                    'loc': random.randint(100, 800),
-                                    'complexity': random.randint(2, 15),
-                                    'coupling': random.randint(0, 10)
-                                }
-                            }
-                            f.write(json.dumps(record) + '\n')
-                    total_records += 70
+                    if benchmark == 'ManySStuBs4J':
+                        generator.generate_manystubs4j_dataset()
+                        generated_files.append(f"manystubs4j_dataset_{timestamp}.json")
+                        self.add_agent_message(MessageType.SUCCESS, 
+                            "✅ ManySStuBs4J: JSON with issue arrays (from GIT commits)")
+                    else:
+                        generator.generate_sourcerer_dataset()
+                        generated_files.append(f"sourcerer_dataset_{timestamp}.json")
+                        self.add_agent_message(MessageType.SUCCESS, 
+                            "✅ Sourcerer: JSON with full code (from GIT commits)")
             
-            return f"✅ Real defect datasets created!\n\nGenerated {len(benchmarks)} benchmark datasets\nTotal Records: {total_records}\nLocation: {output_dir}\n\nFormats:\n- Defects4J: CSV (bug metadata)\n- Bugs.jar: JSON (bug info)\n- CodeXGLUE: JSONL (func + label)\n- CodeSearchNet: JSONL (code-doc pairs)\n- PROMISE: CSV (metrics + label)\n- Others: JSONL (multi-bug)"
+            commit_info = f"📊 Commits: {'ALL' if not commit_limit else commit_limit}"
+            return f"✅ Generated {len(benchmarks)} benchmark datasets with ORIGINAL formats!\n\n{commit_info}\n📁 Files: {', '.join(generated_files)}\n📂 Location: {output_dir}\n\n✅ Using PROPER benchmark formats with REAL GIT COMMIT data!"
             
         except Exception as e:
-            return f"❌ Error generating datasets: {str(e)}"
+            import traceback
+            error_details = traceback.format_exc()
+            return f"❌ Error: {str(e)}\n\nDetails:\n{error_details}"
         
     # ═══════════════════════════════════════════════════════════════════════════
     # UI HELPERS
@@ -1617,6 +1856,35 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         
         # ═══════════════════════════════════════════════════════════════════
+        # CLASS LIMIT INPUT
+        # ═══════════════════════════════════════════════════════════════════
+        limit_frame = ttk.LabelFrame(benchmark_window, text="⚙️ Dataset Size", padding=10)
+        limit_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
+        
+        ttk.Label(limit_frame, text="How many classes to analyze?",
+                 font=('Segoe UI', 9, 'bold')).pack(anchor=tk.W)
+        
+        limit_subframe = ttk.Frame(limit_frame)
+        limit_subframe.pack(fill=tk.X, pady=5)
+        
+        class_limit_var = tk.StringVar(value="all")
+        
+        ttk.Radiobutton(limit_subframe, text="All classes in repository",
+                       variable=class_limit_var, value="all").pack(anchor=tk.W)
+        
+        custom_frame = ttk.Frame(limit_subframe)
+        custom_frame.pack(anchor=tk.W, pady=2)
+        
+        ttk.Radiobutton(custom_frame, text="First",
+                       variable=class_limit_var, value="custom").pack(side=tk.LEFT)
+        
+        class_count_var = tk.StringVar(value="100")
+        class_count_entry = ttk.Entry(custom_frame, textvariable=class_count_var, width=10)
+        class_count_entry.pack(side=tk.LEFT, padx=5)
+        
+        ttk.Label(custom_frame, text="classes").pack(side=tk.LEFT)
+        
+        # ═══════════════════════════════════════════════════════════════════
         # QUICK SELECT BUTTONS
         # ═══════════════════════════════════════════════════════════════════
         quick_frame = ttk.LabelFrame(benchmark_window, text="Quick Select", padding=10)
@@ -1666,24 +1934,38 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
                 messagebox.showwarning("Warning", "Please select at least one benchmark")
                 return
             
+            # Get class limit
+            if class_limit_var.get() == "all":
+                class_limit = None  # All classes
+            else:
+                try:
+                    class_limit = int(class_count_var.get())
+                except:
+                    messagebox.showerror("Error", "Invalid class count. Please enter a number.")
+                    return
+            
             # Save to config
             self.dataset_config['selected_benchmarks'] = selected
+            self.dataset_config['class_limit'] = class_limit
             
-            # Show message
+            benchmark_window.destroy()
+            
+            # DIRECTLY GENERATE - NO PLAN, NO APPROVAL!
             benchmark_str = ', '.join(selected[:3])
             if len(selected) > 3:
                 benchmark_str += f", ... and {len(selected)-3} more"
             
-            self.add_agent_message(MessageType.SUCCESS,
-                f"✅ Benchmarks Selected!\n\n"
-                f"**Selected {len(selected)} benchmark(s):**\n"
-                f"{benchmark_str}"
+            self.add_agent_message(MessageType.SYSTEM,
+                f"🚀 Generating {len(selected)} benchmark dataset(s)...\n"
+                f"Benchmarks: {benchmark_str}"
             )
             
-            # CREATE PLAN FROM SELECTED BENCHMARKS
-            self._create_plan_from_benchmarks(selected)
+            # Generate directly in thread
+            def generate():
+                result = self.task_generate_benchmark_output(selected)
+                self.root.after(0, lambda: self.add_agent_message(MessageType.SUCCESS, result))
             
-            benchmark_window.destroy()
+            threading.Thread(target=generate, daemon=True).start()
         
         ttk.Button(button_frame, text="✅ Apply Selection",
                   command=apply_benchmarks, style='Accent.TButton').pack(side=tk.LEFT, padx=2)
@@ -1927,45 +2209,31 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
         self.add_agent_message(MessageType.SYSTEM,
             f"Creating plan for benchmark dataset with {len(selected_benchmarks)} benchmark(s)...")
         
-        # Create tasks for benchmarks
+        # Create tasks for benchmarks - NO individual approvals
         self.task_manager.add_task(
             "Verify Repository",
             "Check if the repository is valid and accessible",
             action=self.task_verify_repo,
-            requires_approval=True
+            requires_approval=False
         )
         
         self.task_manager.add_task(
-            "Download Benchmarks",
-            f"Download {len(selected_benchmarks)} benchmark dataset(s)",
-            action=lambda: self.task_download_benchmarks(selected_benchmarks),
-            requires_approval=True
-        )
-        
-        self.task_manager.add_task(
-            "Analyze Benchmarks",
-            "Analyze benchmark data and extract metrics",
+            "Analyze Repository",
+            f"Extract REAL metrics from repository",
             action=lambda: self.task_analyze_benchmarks(selected_benchmarks),
-            requires_approval=True
-        )
-        
-        self.task_manager.add_task(
-            "Extract Features",
-            "Extract features and labels from benchmark",
-            action=lambda: self.task_extract_features(selected_benchmarks),
-            requires_approval=True
+            requires_approval=False
         )
         
         self.task_manager.add_task(
             "Generate Dataset",
-            "Create output dataset file",
+            f"Create {len(selected_benchmarks)} benchmark dataset(s) with REAL data",
             action=lambda: self.task_generate_benchmark_output(selected_benchmarks),
-            requires_approval=True
+            requires_approval=False
         )
         
         self.task_manager.add_task(
-            "Validate Dataset",
-            "Check the generated dataset for completeness",
+            "Save to Output",
+            "Save generated datasets to output folder",
             action=self.task_validate,
             requires_approval=False
         )
