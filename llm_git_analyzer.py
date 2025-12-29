@@ -77,9 +77,11 @@ class LLMGitAnalyzer:
         
     def setup_gemini(self):
         """Setup Google Gemini AI"""
-        api_key = os.getenv('GEMINI_API_KEY')
+        # Try both environment variable names
+        api_key = os.getenv('GOOGLE_API_KEY') or os.getenv('GEMINI_API_KEY')
         if not api_key:
-            raise ValueError("GEMINI_API_KEY not found in environment variables")
+            raise ValueError("❌ API Key not found. Please pass a valid API key.\n"
+                           "Set GOOGLE_API_KEY or GEMINI_API_KEY environment variable.")
         
         genai.configure(api_key=api_key)
         # Try different model names for compatibility (in order of preference)

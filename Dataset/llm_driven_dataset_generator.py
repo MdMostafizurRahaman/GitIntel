@@ -37,11 +37,11 @@ class LLMDrivenDatasetGenerator:
         genai.configure(api_key=self.api_key)
         # Use the latest Gemini model
         try:
-            self.model = genai.GenerativeModel('gemini-1.5-flash')
+            self.model = genai.GenerativeModel('gemini-flash-latest')
         except:
             # Fallback to other available models
             try:
-                self.model = genai.GenerativeModel('gemini-1.5-pro')
+                self.model = genai.GenerativeModel('gemini-2.5-flash')
             except:
                 self.model = genai.GenerativeModel('models/gemini-pro')
         

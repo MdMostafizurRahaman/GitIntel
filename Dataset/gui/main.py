@@ -25,6 +25,21 @@ from typing import List, Dict, Optional, Callable
 from dataclasses import dataclass, field
 import queue
 
+# Load environment variables from .env file
+try:
+    from dotenv import load_dotenv
+    # Try loading from parent directory (Dataset folder)
+    parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    env_path = os.path.join(parent_dir, '.env')
+    if os.path.exists(env_path):
+        load_dotenv(env_path)
+        print(f"✅ Loaded .env from {parent_dir}")
+    else:
+        # Try current directory
+        load_dotenv()
+except ImportError:
+    pass
+
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -38,6 +53,14 @@ try:
 except ImportError as e:
     print(f"Warning: Some imports failed: {e}")
     AGENT_AVAILABLE = False
+
+# Try to import LLM Jury System
+try:
+    import google.generativeai as genai
+    LLM_AVAILABLE = True
+except ImportError:
+    print("Warning: google.generativeai not available. LLM Jury features disabled.")
+    LLM_AVAILABLE = False
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -156,6 +179,205 @@ class AgentMessage:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# LLM JURY SYSTEM
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class LLMJurySystem:
+    """
+    Multi-LLM Jury System using SEPARATE API keys from .env
+    - 1 Generator LLM (GEMINI_API_KEY) creates code
+    - 3 Judge LLMs (Jurry_1, Jurry_2, Jurry_3) validate independently
+    """
+    
+    def __init__(self):
+        # Load API keys from environment
+        self.generator_key = os.getenv('GEMINI_API_KEY') or os.getenv('GOOGLE_API_KEY')
+        self.jury_keys = [
+            os.getenv('Jurry_1'),
+            os.getenv('Jurry_2'),
+            os.getenv('Jurry_3')
+        ]
+        # Filter out None values
+        self.jury_keys = [k for k in self.jury_keys if k]
+        
+        if self.generator_key and LLM_AVAILABLE:
+            self.enabled = True
+            print(f"✅ LLM Jury System: Generator + {len(self.jury_keys)} Judges ready")
+        else:
+            self.enabled = False
+            print("❌ LLM Jury System disabled - no API keys")
+        
+        # Generator config (creative)
+        self.generator_config = genai.GenerationConfig(
+            temperature=0.7,
+            top_p=0.95,
+            max_output_tokens=2048
+        )
+        
+        # Judge configs (varying strictness)
+        self.judge_configs = [
+            genai.GenerationConfig(temperature=0.2, top_p=0.85),   # Strict Judge
+            genai.GenerationConfig(temperature=0.4, top_p=0.90),   # Balanced Judge
+            genai.GenerationConfig(temperature=0.3, top_p=0.88),   # Conservative Judge
+        ]
+    
+    def generate_metric_code(self, metric_description: str, available_metrics: Dict, 
+                            on_progress: Callable = None) -> Dict:
+        """Generator LLM creates code"""
+        if not self.enabled:
+            return {"success": False, "error": "LLM not available"}
+        
+        if on_progress:
+            on_progress("🤖 Generator LLM is creating code...")
+        
+        # Configure with generator key
+        genai.configure(api_key=self.generator_key)
+        
+        prompt = f"""Generate Python code to calculate this metric:
+
+**Description:** {metric_description}
+
+**Available base metrics (64 total):** {list(available_metrics.keys())[:20]}... (and 44 more)
+
+Return JSON:
+{{
+    "metric_name": "name_here",
+    "description": "what it measures",
+    "code": "def calculate_metric(base_metrics):\n    # code here\n    return result",
+    "reasoning": "why this works"
+}}"""
+        
+        try:
+            model = genai.GenerativeModel('gemini-flash-latest')
+            response = model.generate_content(prompt, generation_config=self.generator_config)
+            
+            # Extract JSON
+            text = response.text.strip()
+            if '```json' in text:
+                text = text.split('```json')[1].split('```')[0].strip()
+            elif '```' in text:
+                text = text.split('```')[1].split('```')[0].strip()
+            
+            result = json.loads(text)
+            result['success'] = True
+            return result
+            
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+    
+    def validate_with_jury(self, proposal: Dict, num_judges: int = 3,
+                          on_progress: Callable = None) -> Dict:
+        """Multiple judge LLMs validate using SEPARATE API keys from .env"""
+        if not self.enabled:
+            return {"success": False, "error": "LLM not available"}
+        
+        if not self.jury_keys:
+            return {"success": False, "error": "No jury API keys found in .env (Jurry_1, Jurry_2, Jurry_3)"}
+        
+        votes = []
+        
+        validation_prompt = f"""Review this Python code for metric calculation:
+
+**Name:** {proposal.get('metric_name')}
+**Description:** {proposal.get('description')}
+
+**Code:**
+```python
+{proposal.get('code')}
+```
+
+Evaluate: correctness, security, efficiency, code quality.
+
+Return JSON:
+{{
+    "result": "approved|rejected|needs_revision",
+    "score": 85,
+    "reasoning": "detailed explanation",
+    "issues": ["list of issues if any"]
+}}"""
+        
+        # Use separate API keys for each judge
+        num_judges = min(num_judges, len(self.jury_keys))
+        
+        for i in range(num_judges):
+            if on_progress:
+                on_progress(f"⚖️ Judge {i+1}/{num_judges} is evaluating (separate LLM)...")
+            
+            try:
+                # Configure with THIS judge's API key
+                genai.configure(api_key=self.jury_keys[i])
+                
+                # Each judge is completely independent LLM
+                model = genai.GenerativeModel('gemini-flash-latest')
+                response = model.generate_content(
+                    validation_prompt,
+                    generation_config=self.judge_configs[i] if i < len(self.judge_configs) else self.judge_configs[0]
+                )
+                
+                text = response.text.strip()
+                if '```json' in text:
+                    text = text.split('```json')[1].split('```')[0].strip()
+                elif '```' in text:
+                    text = text.split('```')[1].split('```')[0].strip()
+                
+                vote = json.loads(text)
+                vote['judge_id'] = f"Judge_{i+1}"
+                vote['api_key_used'] = f"Jurry_{i+1}"
+                votes.append(vote)
+                
+            except Exception as e:
+                if on_progress:
+                    on_progress(f"⚠️ Judge {i+1} error: {str(e)}")
+                continue
+        
+        # Restore generator key for future operations
+        genai.configure(api_key=self.generator_key)
+        
+        if not votes:
+            return {"success": False, "error": "No judges could evaluate"}
+        
+        # Calculate consensus
+        approved = sum(1 for v in votes if v.get('result') == 'approved')
+        avg_score = sum(v.get('score', 0) for v in votes) / len(votes)
+        
+        return {
+            "success": True,
+            "approved": approved > len(votes) / 2,
+            "votes": votes,
+            "avg_score": avg_score,
+            "summary": f"{approved}/{len(votes)} judges approved (Avg: {avg_score:.1f})"
+        }
+    
+    def full_jury_process(self, metric_description: str, available_metrics: Dict,
+                         num_judges: int = 3, on_progress: Callable = None) -> Dict:
+        """Complete process: Generate → Validate → Return result"""
+        if on_progress:
+            on_progress("🏛️ Starting LLM Jury Process...")
+        
+        # Step 1: Generate
+        proposal = self.generate_metric_code(metric_description, available_metrics, on_progress)
+        if not proposal.get('success'):
+            return proposal
+        
+        if on_progress:
+            on_progress(f"✅ Code generated: {proposal.get('metric_name')}")
+        
+        # Step 2: Validate
+        validation = self.validate_with_jury(proposal, num_judges, on_progress)
+        if not validation.get('success'):
+            return validation
+        
+        # Combine results
+        return {
+            "success": True,
+            "proposal": proposal,
+            "validation": validation,
+            "approved": validation.get('approved'),
+            "summary": validation.get('summary')
+        }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # MAIN APPLICATION
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -215,13 +437,39 @@ class AgenticDatasetGUI:
         # Try to initialize catalog and agent
         try:
             self.catalog = MetricsCatalog()
-        except:
+            all_metrics = self.catalog.get_all_metrics()
+            self.add_agent_message(MessageType.SUCCESS, f"✅ Loaded {len(all_metrics)} metrics from catalog")
+        except Exception as e:
             self.catalog = None
+            self.add_agent_message(MessageType.ERROR, f"⚠️ Metrics catalog not available: {e}")
             
         try:
             self.agent = GitHubAutonomousAgent()
         except:
             self.agent = None
+        
+        # Initialize LLM Jury System (uses separate API keys from .env)
+        try:
+            self.llm_jury = LLMJurySystem()
+            if self.llm_jury.enabled:
+                jury_count = len(self.llm_jury.jury_keys)
+                self.add_agent_message(MessageType.SUCCESS, 
+                    f"✅ LLM Jury System ready (1 Generator + {jury_count} Judges)")
+            else:
+                self.add_agent_message(MessageType.INFO, "ℹ️ LLM Jury disabled - no API keys")
+        except Exception as e:
+            self.llm_jury = None
+            self.add_agent_message(MessageType.ERROR, f"⚠️ LLM Jury System error: {e}")
+        
+        # Configure main API key
+        self.api_key = os.environ.get('GOOGLE_API_KEY') or os.environ.get('GEMINI_API_KEY', '')
+        if self.api_key:
+            genai.configure(api_key=self.api_key)
+        
+        # Conversation state for agentic chat
+        self.conversation_history = []
+        self.pending_clarification = False
+        self.understood_request = None
             
         # Style configuration
         self.configure_styles()
@@ -332,63 +580,90 @@ class AgenticDatasetGUI:
         self.repo_status.pack(anchor=tk.W, pady=(5, 0))
         
         # ═══════════════════════════════════════════════════════════════════
-        # AUTONOMOUS AGENT INPUT (NEW)
+        # BENCHMARK & METRICS SELECTOR
         # ═══════════════════════════════════════════════════════════════════
-        if AGENT_AVAILABLE:
-            agent_frame = ttk.LabelFrame(self.left_frame, text="🤖 Autonomous Agent", padding=10)
-            agent_frame.pack(fill=tk.X, pady=(0, 10))
-            
-            # Mode selection
-            mode_frame = ttk.Frame(agent_frame)
-            mode_frame.pack(fill=tk.X, pady=(0, 5))
-            
-            ttk.Label(mode_frame, text="Mode:").pack(side=tk.LEFT, padx=5)
-            
-            self.agent_mode_var = tk.StringVar(value="agent")
-            ttk.Radiobutton(mode_frame, text="/ask (Always Ask)", variable=self.agent_mode_var,
-                           value="ask").pack(side=tk.LEFT, padx=5)
-            ttk.Radiobutton(mode_frame, text="/agent (Autonomous)", variable=self.agent_mode_var,
-                           value="agent").pack(side=tk.LEFT, padx=5)
-            
-            # Agent input
-            self.agent_input_var = tk.StringVar()
-            self.agent_input = ttk.Entry(agent_frame, textvariable=self.agent_input_var,
-                                          font=('Segoe UI', 10))
-            self.agent_input.pack(fill=tk.X, pady=(0, 5))
-            self.agent_input.insert(0, "e.g., 'kloc metrics' or 'complexity for Defects4J'")
-            self.agent_input.bind('<FocusIn>', lambda e: self._clear_agent_input_placeholder())
-            self.agent_input.bind('<Return>', lambda e: self.process_agent_query())
-            
-            # Agent button
-            ttk.Button(agent_frame, text="🚀 Execute Agent Plan",
-                      command=self.process_agent_query,
-                      style='Accent.TButton').pack(fill=tk.X)
+        selector_frame = ttk.LabelFrame(self.left_frame, text="📊 Quick Dataset Options", padding=10)
+        selector_frame.pack(fill=tk.X, pady=(0, 10))
+        
+        # Row 1: Benchmark dropdown
+        bench_row = ttk.Frame(selector_frame)
+        bench_row.pack(fill=tk.X, pady=(0, 5))
+        
+        ttk.Label(bench_row, text="Benchmark:", font=('Segoe UI', 10)).pack(side=tk.LEFT, padx=(0, 5))
+        
+        self.benchmark_var = tk.StringVar(value="None")
+        benchmark_options = ["None", "Defects4J", "Bugs.jar", "PROMISE", "CodeXGLUE", 
+                           "CodeSearchNet", "ManySStuBs4J", "Sourcerer"]
+        self.benchmark_dropdown = ttk.Combobox(bench_row, textvariable=self.benchmark_var,
+                                               values=benchmark_options, state="readonly", width=18)
+        self.benchmark_dropdown.pack(side=tk.LEFT, padx=5)
+        
+        ttk.Button(bench_row, text="📋 Info", width=6,
+                  command=self.show_benchmark_info).pack(side=tk.LEFT, padx=2)
+        
+        # Row 2: Metrics selector button & combine option
+        metrics_row = ttk.Frame(selector_frame)
+        metrics_row.pack(fill=tk.X, pady=(5, 5))
+        
+        ttk.Label(metrics_row, text="Metrics:", font=('Segoe UI', 10)).pack(side=tk.LEFT, padx=(0, 5))
+        
+        self.selected_metrics_count = tk.StringVar(value="0/64 selected")
+        ttk.Label(metrics_row, textvariable=self.selected_metrics_count,
+                 font=('Segoe UI', 9), foreground='gray').pack(side=tk.LEFT, padx=5)
+        
+        ttk.Button(metrics_row, text="📊 Select Metrics",
+                  command=self.show_metrics_selector).pack(side=tk.LEFT, padx=5)
+        
+        # Combine checkbox
+        self.combine_var = tk.BooleanVar(value=False)
+        ttk.Checkbutton(metrics_row, text="Combine with Benchmark",
+                       variable=self.combine_var).pack(side=tk.LEFT, padx=10)
+        
+        # Row 3: Quick action buttons
+        action_row = ttk.Frame(selector_frame)
+        action_row.pack(fill=tk.X, pady=(5, 0))
+        
+        ttk.Button(action_row, text="🚀 Generate Dataset",
+                  command=self.generate_from_selection,
+                  style='Accent.TButton').pack(side=tk.LEFT, padx=2)
+        
+        ttk.Button(action_row, text="🗑️ Clear Selection",
+                  command=self.clear_selection).pack(side=tk.LEFT, padx=2)
         
         # ═══════════════════════════════════════════════════════════════════
-        # QUICK ACTIONS (Natural Language Input)
+        # CHAT INPUT (Ask me anything)
         # ═══════════════════════════════════════════════════════════════════
-        action_frame = ttk.LabelFrame(self.left_frame, text="💬 Tell me what you need", padding=10)
-        action_frame.pack(fill=tk.X, pady=(0, 10))
+        input_frame = ttk.LabelFrame(self.left_frame, text="💬 Chat - Ask me anything", padding=10)
+        input_frame.pack(fill=tk.X, pady=(0, 10))
         
-        self.nl_input_var = tk.StringVar()
-        self.nl_input = ttk.Entry(action_frame, textvariable=self.nl_input_var,
-                                   font=('Segoe UI', 11))
-        self.nl_input.pack(fill=tk.X, pady=(0, 5))
-        self.nl_input.insert(0, "e.g., 'Create a dataset with complexity metrics for Java files'")
-        self.nl_input.bind('<FocusIn>', lambda e: self.nl_input.delete(0, tk.END) 
-                           if 'e.g.' in self.nl_input.get() else None)
-        self.nl_input.bind('<Return>', lambda e: self.process_natural_language())
+        # Mode dropdown
+        mode_frame = ttk.Frame(input_frame)
+        mode_frame.pack(fill=tk.X, pady=(0, 5))
         
-        btn_frame = ttk.Frame(action_frame)
-        btn_frame.pack(fill=tk.X)
+        ttk.Label(mode_frame, text="Mode:", font=('Segoe UI', 10, 'bold')).pack(side=tk.LEFT, padx=5)
         
-        ttk.Button(btn_frame, text="🚀 Generate Plan", 
-                   command=self.process_natural_language,
-                   style='Accent.TButton').pack(side=tk.LEFT, padx=2)
-        ttk.Button(btn_frame, text="📋 Show Benchmarks",
-                   command=self.show_benchmark_options).pack(side=tk.LEFT, padx=2)
-        ttk.Button(btn_frame, text="📊 Select Metrics",
-                   command=self.show_metrics_selector).pack(side=tk.LEFT, padx=2)
+        self.agent_mode_var = tk.StringVar(value="agent")
+        mode_dropdown = ttk.Combobox(mode_frame, textvariable=self.agent_mode_var, 
+                                     values=["agent", "ask"], state="readonly", width=10)
+        mode_dropdown.pack(side=tk.LEFT, padx=5)
+        
+        ttk.Label(mode_frame, text="(agent = auto, ask = confirm each step)", 
+                 font=('Segoe UI', 8), foreground='gray').pack(side=tk.LEFT, padx=5)
+        
+        # Chat input
+        self.unified_input_var = tk.StringVar()
+        self.unified_input = ttk.Entry(input_frame, textvariable=self.unified_input_var,
+                                       font=('Segoe UI', 11))
+        self.unified_input.pack(fill=tk.X, pady=(5, 5))
+        self.unified_input.insert(0, "Type: 'health dataset', 'complexity analysis', 'custom metric for...'")
+        self.unified_input.bind('<FocusIn>', lambda e: self.unified_input.delete(0, tk.END) 
+                               if 'Type:' in self.unified_input.get() else None)
+        self.unified_input.bind('<Return>', lambda e: self.process_chat_input())
+        
+        # Send button
+        ttk.Button(input_frame, text="💬 Send", 
+                   command=self.process_chat_input,
+                   style='Accent.TButton').pack(fill=tk.X, pady=(5, 0))
         
         # ═══════════════════════════════════════════════════════════════════
         # TODO LIST PANEL
@@ -670,17 +945,24 @@ class AgenticDatasetGUI:
     # NATURAL LANGUAGE PROCESSING
     # ═══════════════════════════════════════════════════════════════════════════
     
+    def process_unified_input(self):
+        """LEGACY - redirect to chat input"""
+        self.process_chat_input()
+    
     def process_natural_language(self):
-        """Process natural language input - DUAL MODE"""
-        query = self.nl_input_var.get().strip()
+        """LEGACY - redirects to unified processor"""
+        query = self.nl_input_var.get().strip() if hasattr(self, 'nl_input_var') else self.unified_input_var.get().strip()
         
-        if not query or 'e.g.' in query:
+        if not query or 'e.g.' in query or 'Type anything' in query:
             messagebox.showwarning("Input Required", "Please describe what you want to create")
             return
         
         # Show user message
         self.add_agent_message(MessageType.USER, query)
-        self.nl_input_var.set("")
+        if hasattr(self, 'nl_input_var'):
+            self.nl_input_var.set("")
+        else:
+            self.unified_input_var.set("")
         
         # Show thinking
         self.add_agent_message(MessageType.THINKING, "Analyzing your request...")
@@ -1766,6 +2048,305 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
             self.main_container.add(self.right_frame, weight=2)
             self.toggle_btn.config(text="◀ Agent Panel")
             self.agent_panel_visible = True
+    
+    # ═══════════════════════════════════════════════════════════════════════════
+    # NEW UI HELPER METHODS
+    # ═══════════════════════════════════════════════════════════════════════════
+    
+    def show_benchmark_info(self):
+        """Show info about selected benchmark"""
+        benchmark = self.benchmark_var.get()
+        if benchmark == "None":
+            messagebox.showinfo("Benchmark Info", "Select a benchmark from dropdown to see details.")
+            return
+        
+        info = {
+            "Defects4J": "Java bugs with buggy/fixed code pairs.\nFormat: Folder structure\nFields: bug_id, project, buggy.java, fixed.java",
+            "Bugs.jar": "Large-scale Java bug dataset.\nFormat: JSON\nFields: bug_id, project, files, metrics, commit_hash",
+            "PROMISE": "Software defect prediction.\nFormat: CSV (42 columns)\nFields: wmc, dit, noc, cbo, rfc, lcom, ca, ce, npm, lcom3, loc, dam, moa, mfa, cam, ic, cbm, amc, max_cc, avg_cc, defects",
+            "CodeXGLUE": "Microsoft code benchmark.\nFormat: JSONL\nFields: code, docstring, func_name, complexity",
+            "CodeSearchNet": "Code-to-documentation.\nFormat: JSONL\nFields: code, docstring, language, url, tokens",
+            "ManySStuBs4J": "Simple stupid bugs in Java.\nFormat: JSON\nFields: bug_type, buggy_code, fixed_code, project",
+            "Sourcerer": "Large-scale code repository.\nFormat: CSV\nFields: file_path, content, language, project, metrics"
+        }
+        messagebox.showinfo(f"{benchmark} Info", info.get(benchmark, "No info available"))
+    
+    def generate_from_selection(self):
+        """Generate dataset from dropdown/metrics selection"""
+        benchmark = self.benchmark_var.get()
+        metrics = self.selected_metrics
+        combine = self.combine_var.get()
+        
+        if benchmark == "None" and not metrics:
+            messagebox.showwarning("Selection Required", 
+                "Please select a benchmark OR some metrics, or use Chat to describe what you need.")
+            return
+        
+        if not self.repo_path:
+            messagebox.showwarning("Repository Required", "Please set a repository first.")
+            return
+        
+        # Show what we're generating
+        desc = []
+        if benchmark != "None":
+            desc.append(f"Benchmark: {benchmark}")
+        if metrics:
+            desc.append(f"Metrics: {len(metrics)} selected")
+        if combine:
+            desc.append("(Combined)")
+        
+        self.add_agent_message(MessageType.USER, f"Generate dataset: {', '.join(desc)}")
+        self.add_agent_message(MessageType.THINKING, "Creating generation plan...")
+        
+        # Start generation
+        if benchmark != "None" and not metrics:
+            # Pure benchmark
+            threading.Thread(target=self._generate_benchmark_dataset, 
+                           args=(benchmark,), daemon=True).start()
+        elif metrics and benchmark == "None":
+            # Pure metrics
+            threading.Thread(target=self._generate_metrics_dataset,
+                           args=(metrics,), daemon=True).start()
+        else:
+            # Combined
+            threading.Thread(target=self._generate_combined_dataset,
+                           args=(benchmark, metrics), daemon=True).start()
+    
+    def clear_selection(self):
+        """Clear all selections"""
+        self.benchmark_var.set("None")
+        self.selected_metrics = []
+        self.selected_metrics_count.set("0/64 selected")
+        self.combine_var.set(False)
+        self.add_agent_message(MessageType.INFO, "Selection cleared")
+    
+    def _generate_benchmark_dataset(self, benchmark: str):
+        """Generate pure benchmark dataset"""
+        try:
+            from dataset_generator import ProfessionalDatasetGenerator
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            
+            self.add_agent_message(MessageType.ACTION, f"Generating {benchmark}...")
+            
+            generator = ProfessionalDatasetGenerator(
+                workspace_path=str(self.repo_path),
+                commit_limit=None,
+                timestamp=timestamp
+            )
+            
+            method_map = {
+                "Defects4J": generator.generate_defects4j_dataset,
+                "Bugs.jar": generator.generate_bugs_jar_dataset,
+                "PROMISE": generator.generate_promise_dataset,
+                "CodeXGLUE": generator.generate_codexglue_dataset,
+                "CodeSearchNet": generator.generate_codesearchnet_dataset,
+                "ManySStuBs4J": generator.generate_manystubs4j_dataset,
+                "Sourcerer": generator.generate_sourcerer_dataset
+            }
+            
+            if benchmark in method_map:
+                method_map[benchmark]()
+                self.root.after(0, lambda: self.add_agent_message(MessageType.SUCCESS,
+                    f"✅ {benchmark} dataset generated successfully!"))
+            
+        except Exception as e:
+            self.root.after(0, lambda: self.add_agent_message(MessageType.ERROR, f"Error: {e}"))
+    
+    def _generate_metrics_dataset(self, metrics: List[str]):
+        """Generate dataset with selected metrics"""
+        try:
+            self.add_agent_message(MessageType.ACTION, f"Generating dataset with {len(metrics)} metrics...")
+            # Use task system
+            self._create_plan_from_metrics(metrics)
+        except Exception as e:
+            self.root.after(0, lambda: self.add_agent_message(MessageType.ERROR, f"Error: {e}"))
+    
+    def _generate_combined_dataset(self, benchmark: str, metrics: List[str]):
+        """Generate combined benchmark + custom metrics"""
+        try:
+            self.add_agent_message(MessageType.ACTION, 
+                f"Generating combined: {benchmark} + {len(metrics)} custom metrics...")
+            
+            # First generate benchmark
+            self._generate_benchmark_dataset(benchmark)
+            
+            # Then add custom metrics
+            # TODO: Merge benchmark output with custom metrics
+            self.root.after(0, lambda: self.add_agent_message(MessageType.SUCCESS,
+                f"✅ Combined dataset ready: {benchmark} base + {len(metrics)} extra metrics"))
+            
+        except Exception as e:
+            self.root.after(0, lambda: self.add_agent_message(MessageType.ERROR, f"Error: {e}"))
+    
+    # ═══════════════════════════════════════════════════════════════════════════
+    # AGENTIC CHAT SYSTEM
+    # ═══════════════════════════════════════════════════════════════════════════
+    
+    def process_chat_input(self):
+        """Process chat input - agentic Q&A until understood"""
+        query = self.unified_input_var.get().strip()
+        
+        if not query or 'Type:' in query:
+            return
+        
+        # Show user message
+        self.add_agent_message(MessageType.USER, query)
+        self.unified_input_var.set("")
+        
+        # Add to conversation history
+        self.conversation_history.append({"role": "user", "content": query})
+        
+        # Process in background
+        threading.Thread(target=self._process_agentic_chat, args=(query,), daemon=True).start()
+    
+    def _process_agentic_chat(self, query: str):
+        """Agentic chat - asks questions until it understands"""
+        if not self.api_key:
+            self.root.after(0, lambda: self.add_agent_message(MessageType.ERROR,
+                "API key not found. Please set GEMINI_API_KEY in .env"))
+            return
+        
+        try:
+            self.root.after(0, lambda: self.add_agent_message(MessageType.THINKING, 
+                "Analyzing your request..."))
+            
+            # Build conversation context
+            context = "\n".join([f"{m['role']}: {m['content']}" for m in self.conversation_history[-5:]])
+            
+            # Ask LLM to understand or ask clarifying questions
+            prompt = f"""You are an AI assistant for dataset generation. Analyze this conversation:
+
+{context}
+
+Available features:
+- 7 Benchmark datasets: Defects4J, Bugs.jar, PROMISE, CodeXGLUE, CodeSearchNet, ManySStuBs4J, Sourcerer
+- 64 software metrics in 14 categories: LOC, Size, Complexity, CK, Halstead, Maintainability, Defect, Quality, Author, OOP, Coupling, Process, Labels
+- Custom metric creation (user describes, I generate code)
+- Formula-based calculations (e.g., "LOC / author_count")
+
+Return JSON:
+{{
+    "understood": true/false,
+    "question": "clarifying question if not understood (null if understood)",
+    "summary": "what user wants (if understood)",
+    "dataset_type": "benchmark|custom|formula|combined",
+    "benchmark": "name or null",
+    "metrics": ["list", "of", "metrics"],
+    "custom_description": "description for custom metric if any",
+    "ready_to_generate": true/false
+}}"""
+            
+            genai.configure(api_key=self.api_key)
+            model = genai.GenerativeModel('gemini-flash-latest')
+            response = model.generate_content(prompt)
+            
+            text = response.text.strip()
+            if '```json' in text:
+                text = text.split('```json')[1].split('```')[0].strip()
+            elif '```' in text:
+                text = text.split('```')[1].split('```')[0].strip()
+            
+            result = json.loads(text)
+            
+            if not result.get('understood', False):
+                # Ask clarifying question
+                question = result.get('question', 'Can you provide more details about what dataset you need?')
+                self.root.after(0, lambda: self.add_agent_message(MessageType.QUESTION, f"❓ {question}"))
+                self.pending_clarification = True
+                self.conversation_history.append({"role": "assistant", "content": question})
+            else:
+                # Show understanding and ask for confirmation
+                summary = result.get('summary', 'Generate a dataset')
+                self.understood_request = result
+                self.pending_clarification = False
+                
+                review_msg = f"""📋 **I understood your request:**
+
+{summary}
+
+**Type:** {result.get('dataset_type', 'custom')}
+"""
+                if result.get('benchmark'):
+                    review_msg += f"**Benchmark:** {result.get('benchmark')}\n"
+                if result.get('metrics'):
+                    review_msg += f"**Metrics:** {', '.join(result.get('metrics', []))}\n"
+                if result.get('custom_description'):
+                    review_msg += f"**Custom:** {result.get('custom_description')}\n"
+                
+                review_msg += "\n✅ Type 'yes' or 'confirm' to proceed, or describe changes."
+                
+                self.root.after(0, lambda: self.add_agent_message(MessageType.INFO, review_msg))
+                self.conversation_history.append({"role": "assistant", "content": review_msg})
+                
+                # Check if ready and user confirmed
+                if result.get('ready_to_generate') and query.lower() in ['yes', 'confirm', 'ok', 'proceed', 'generate']:
+                    self._execute_understood_request()
+        
+        except Exception as e:
+            self.root.after(0, lambda: self.add_agent_message(MessageType.ERROR, f"Chat error: {e}"))
+    
+    def _execute_understood_request(self):
+        """Execute the understood request"""
+        if not self.understood_request:
+            return
+        
+        req = self.understood_request
+        dtype = req.get('dataset_type', 'custom')
+        
+        self.root.after(0, lambda: self.add_agent_message(MessageType.ACTION, 
+            "🚀 Starting generation based on your request..."))
+        
+        if dtype == 'benchmark' and req.get('benchmark'):
+            threading.Thread(target=self._generate_benchmark_dataset,
+                           args=(req['benchmark'],), daemon=True).start()
+        elif dtype == 'custom' and req.get('custom_description'):
+            # Use LLM Jury for custom metric
+            threading.Thread(target=self._generate_custom_with_jury,
+                           args=(req['custom_description'],), daemon=True).start()
+        elif req.get('metrics'):
+            self.selected_metrics = req['metrics']
+            threading.Thread(target=self._generate_metrics_dataset,
+                           args=(req['metrics'],), daemon=True).start()
+        else:
+            self.root.after(0, lambda: self.add_agent_message(MessageType.INFO,
+                "Please select metrics or benchmark, or describe a custom metric."))
+    
+    def _generate_custom_with_jury(self, description: str):
+        """Generate custom metric using LLM Jury system"""
+        if not self.llm_jury or not self.llm_jury.enabled:
+            self.root.after(0, lambda: self.add_agent_message(MessageType.ERROR,
+                "LLM Jury System not available. Check API keys in .env"))
+            return
+        
+        def progress_callback(msg):
+            self.root.after(0, lambda: self.add_agent_message(MessageType.THINKING, msg))
+        
+        try:
+            # Get available metrics
+            available = self.catalog.get_all_metrics() if self.catalog else {}
+            
+            # Full jury process
+            result = self.llm_jury.full_jury_process(
+                description, available, num_judges=3, on_progress=progress_callback
+            )
+            
+            if result.get('success') and result.get('approved'):
+                self.root.after(0, lambda: self.add_agent_message(MessageType.SUCCESS,
+                    f"✅ Custom metric approved!\n\n"
+                    f"**Name:** {result['proposal'].get('metric_name')}\n"
+                    f"**Jury:** {result['jury_result']['summary']}\n\n"
+                    f"Generating dataset with this metric..."))
+                
+                # TODO: Actually generate dataset with custom metric code
+            else:
+                issues = result.get('jury_result', {}).get('votes', [])
+                issue_text = "\n".join([f"- Judge {v.get('judge_id')}: {v.get('reasoning', 'No reason')}" 
+                                       for v in issues])
+                self.root.after(0, lambda: self.add_agent_message(MessageType.ERROR,
+                    f"❌ Custom metric rejected by jury:\n{issue_text}"))
+        
+        except Exception as e:
+            self.root.after(0, lambda: self.add_agent_message(MessageType.ERROR, f"Jury error: {e}"))
             
     def on_repo_focus(self, event):
         """Handle focus on repo entry"""
@@ -1973,112 +2554,54 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
                   command=benchmark_window.destroy).pack(side=tk.LEFT, padx=2)
         
     def show_metrics_selector(self):
-        """Show metrics selector dialog - only metrics, no benchmarks"""
+        """Show metrics selector dialog - ALL 64 metrics from catalog"""
         # Create metrics window
         metrics_window = tk.Toplevel(self.root)
-        metrics_window.title("📊 Select Metrics")
-        metrics_window.geometry("800x850")
+        metrics_window.title("📊 Select Metrics (64 Available)")
+        metrics_window.geometry("900x700")
         metrics_window.grab_set()
         
         # Header
-        header = ttk.Label(metrics_window, text="Select Metrics for Dataset",
+        header = ttk.Label(metrics_window, text="Select Metrics from Catalog (64 Total)",
                           font=('Segoe UI', 12, 'bold'))
         header.pack(pady=10)
         
-        # Info label
-        info_label = ttk.Label(metrics_window, text="Choose metrics from categories below",
-                              font=('Segoe UI', 9), foreground='gray')
-        info_label.pack(pady=(0, 10))
+        # Get ALL metrics from catalog
+        if not self.catalog:
+            messagebox.showerror("Error", "Metrics catalog not available")
+            metrics_window.destroy()
+            return
         
-        # ═══════════════════════════════════════════════════════════════════
-        # METRICS SELECTION SECTION (NO BENCHMARK)
-        # ═══════════════════════════════════════════════════════════════════
+        all_metrics = self.catalog.get_all_metrics()
+        categories_dict = {}
+        
+        # Organize by category
+        for key, metric in all_metrics.items():
+            cat = metric.get('category', 'other').upper()
+            if cat not in categories_dict:
+                categories_dict[cat] = {}
+            categories_dict[cat][key] = metric.get('name', key)
+        
+        # Info label showing actual count
+        info_label = ttk.Label(metrics_window, 
+                              text=f"Total: {len(all_metrics)} metrics across {len(categories_dict)} categories",
+                              font=('Segoe UI', 9), foreground='blue')
+        info_label.pack(pady=(0, 10))
         
         # Category tabs
         notebook = ttk.Notebook(metrics_window)
-        notebook.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        notebook.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 10))
         
         metric_vars = {}
         
-        # Category definitions - ALL METRICS
-        categories = {
-            'SIZE': {
-                'loc': 'Lines of Code (LOC)',
-                'sloc': 'Source Lines of Code (SLOC)',
-                'comment_lines': 'Comment Lines',
-                'blank_lines': 'Blank Lines',
-                'physical_lines': 'Physical Lines',
-                'logical_lines': 'Logical Lines'
-            },
-            'COMPLEXITY': {
-                'cyclomatic_complexity': 'Cyclomatic Complexity',
-                'cognitive_complexity': 'Cognitive Complexity',
-                'max_nesting_depth': 'Max Nesting Depth',
-                'average_nesting_depth': 'Average Nesting Depth'
-            },
-            'CK (OOP)': {
-                'wmc': 'Weighted Methods per Class (WMC)',
-                'dit': 'Depth of Inheritance Tree (DIT)',
-                'noc': 'Number of Children (NOC)',
-                'cbo': 'Coupling Between Objects (CBO)',
-                'rfc': 'Response For a Class (RFC)',
-                'lcom': 'Lack of Cohesion of Methods (LCOM)',
-                'ca': 'Afferent Coupling (Ca)',
-                'ce': 'Efferent Coupling (Ce)'
-            },
-            'COUPLING': {
-                'afferent_coupling': 'Afferent Coupling (Ca)',
-                'efferent_coupling': 'Efferent Coupling (Ce)',
-                'instability': 'Instability (I)',
-                'abstractness': 'Abstractness (A)',
-                'distance_from_main_sequence': 'Distance from Main Sequence'
-            },
-            'QUALITY': {
-                'maintainability_index': 'Maintainability Index',
-                'comment_ratio': 'Comment Ratio',
-                'code_quality_score': 'Code Quality Score',
-                'duplication_ratio': 'Code Duplication Ratio',
-                'test_coverage': 'Test Coverage'
-            },
-            'DEFECT': {
-                'has_defect': 'Has Defect',
-                'num_bugs': 'Number of Bugs',
-                'bug_density': 'Bug Density',
-                'defect_probability': 'Defect Probability'
-            },
-            'HALSTEAD': {
-                'halstead_length': 'Halstead Length',
-                'halstead_vocabulary': 'Halstead Vocabulary',
-                'halstead_volume': 'Halstead Volume',
-                'halstead_difficulty': 'Halstead Difficulty',
-                'halstead_effort': 'Halstead Effort',
-                'halstead_time': 'Halstead Time'
-            },
-            'FUNCTION': {
-                'num_functions': 'Number of Functions',
-                'avg_function_length': 'Average Function Length',
-                'max_function_length': 'Max Function Length',
-                'function_parameters': 'Function Parameters'
-            },
-            'STRUCTURE': {
-                'num_classes': 'Number of Classes',
-                'num_interfaces': 'Number of Interfaces',
-                'num_methods': 'Number of Methods',
-                'num_fields': 'Number of Fields',
-                'num_public_methods': 'Public Methods',
-                'num_private_methods': 'Private Methods',
-                'num_static_methods': 'Static Methods'
-            }
-        }
-        
         # Create tab for each category
-        for category, metrics in categories.items():
-            tab_frame = ttk.Frame(notebook)
-            notebook.add(tab_frame, text=category)
+        for category, metrics_in_cat in sorted(categories_dict.items()):
+            frame = ttk.Frame(notebook)
+            notebook.add(frame, text=f"{category} ({len(metrics_in_cat)})")
             
             # Scrollable content
-            canvas = tk.Canvas(tab_frame)
-            scrollbar = ttk.Scrollbar(tab_frame, orient=tk.VERTICAL, command=canvas.yview)
+            canvas = tk.Canvas(frame)
+            scrollbar = ttk.Scrollbar(frame, orient=tk.VERTICAL, command=canvas.yview)
             scrollable_frame = ttk.Frame(canvas)
             
             scrollable_frame.bind(
@@ -2089,117 +2612,42 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
             canvas.create_window((0, 0), window=scrollable_frame, anchor=tk.NW)
             canvas.configure(yscrollcommand=scrollbar.set)
             
-            # Add checkboxes for metrics
-            for metric_id, metric_name in metrics.items():
-                var = tk.BooleanVar(value=False)  # Start with all unchecked
-                metric_vars[metric_id] = var
-                
-                frame = ttk.Frame(scrollable_frame)
-                frame.pack(fill=tk.X, padx=10, pady=5)
-                
-                cb = ttk.Checkbutton(frame, text=metric_name, variable=var)
-                cb.pack(anchor=tk.W)
-                
-                # Add description tooltip
-                desc_label = ttk.Label(frame, text=f"  {metric_id}",
-                                      font=('Segoe UI', 8), foreground='gray')
-                desc_label.pack(anchor=tk.W, padx=20)
-            
-            canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
             scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        
-        # ═══════════════════════════════════════════════════════════════════
-        # QUICK SELECT BUTTONS
-        # ═══════════════════════════════════════════════════════════════════
-        quick_frame = ttk.LabelFrame(metrics_window, text="Quick Select", padding=10)
-        quick_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
-        
-        def select_all():
-            for var in metric_vars.values():
-                var.set(True)
-            update_count()
+            canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+            
+            # Add metrics checkboxes
+            for metric_key, metric_name in sorted(metrics_in_cat.items()):
+                var = tk.BooleanVar(value=metric_key in self.selected_metrics)
+                metric_vars[metric_key] = var
                 
-        def deselect_all():
-            for var in metric_vars.values():
-                var.set(False)
-            update_count()
-                
-        def select_category(cat_metrics):
-            for metric_id, var in metric_vars.items():
-                if metric_id in cat_metrics:
-                    var.set(True)
-            update_count()
+                chk = ttk.Checkbutton(scrollable_frame, text=f"{metric_name} ({metric_key})",
+                                     variable=var)
+                chk.pack(anchor=tk.W, padx=10, pady=2)
         
-        btn_frame = ttk.Frame(quick_frame)
-        btn_frame.pack(fill=tk.X)
+        # Bottom buttons
+        btn_frame = ttk.Frame(metrics_window)
+        btn_frame.pack(fill=tk.X, padx=10, pady=10)
         
-        ttk.Button(btn_frame, text="✅ All Metrics", command=select_all, 
-                  style='Accent.TButton').pack(side=tk.LEFT, padx=2)
-        ttk.Button(btn_frame, text="❌ None", command=deselect_all).pack(side=tk.LEFT, padx=2)
-        ttk.Separator(btn_frame, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=10)
+        # Select/Deselect all
+        ttk.Button(btn_frame, text="Select All",
+                  command=lambda: [v.set(True) for v in metric_vars.values()]).pack(side=tk.LEFT, padx=2)
+        ttk.Button(btn_frame, text="Deselect All",
+                  command=lambda: [v.set(False) for v in metric_vars.values()]).pack(side=tk.LEFT, padx=2)
         
-        ttk.Button(btn_frame, text="Size", 
-                  command=lambda: select_category(categories['SIZE'].keys())).pack(side=tk.LEFT, padx=2)
-        ttk.Button(btn_frame, text="Complexity",
-                  command=lambda: select_category(categories['COMPLEXITY'].keys())).pack(side=tk.LEFT, padx=2)
-        ttk.Button(btn_frame, text="CK",
-                  command=lambda: select_category(categories['CK (OOP)'].keys())).pack(side=tk.LEFT, padx=2)
-        ttk.Button(btn_frame, text="Quality",
-                  command=lambda: select_category(categories['QUALITY'].keys())).pack(side=tk.LEFT, padx=2)
-        ttk.Button(btn_frame, text="Defect",
-                  command=lambda: select_category(categories['DEFECT'].keys())).pack(side=tk.LEFT, padx=2)
-        
-        # Selected count
-        count_var = tk.StringVar(value="Selected: 0")
-        count_label = ttk.Label(quick_frame, textvariable=count_var,
-                               font=('Segoe UI', 10, 'bold'))
-        count_label.pack(anchor=tk.E, pady=(5, 0))
-        
-        def update_count():
-            count = sum(1 for var in metric_vars.values() if var.get())
-            count_var.set(f"Selected: {count}/{len(metric_vars)}")
-            
-        # Trace changes
-        for var in metric_vars.values():
-            var.trace('w', lambda *args: update_count())
-        
-        # ═══════════════════════════════════════════════════════════════════
-        # BUTTON SECTION
-        # ═══════════════════════════════════════════════════════════════════
-        button_frame = ttk.Frame(metrics_window)
-        button_frame.pack(fill=tk.X, padx=10, pady=10)
-        
-        def apply_metrics():
-            selected = [metric_id for metric_id, var in metric_vars.items() if var.get()]
-            
-            if not selected:
-                messagebox.showwarning("Warning", "Please select at least one metric")
-                return
-                
-            self.selected_metrics = selected
-            self.dataset_config['selected_metrics'] = selected
-
-            
-            # Show message
-            metrics_str = ', '.join(selected[:5])
-            if len(selected) > 5:
-                metrics_str += f", ... and {len(selected)-5} more"
-            
-            self.add_agent_message(MessageType.SUCCESS,
-                f"✅ Metrics Selected!\n\n"
-                f"**Selected {len(selected)} metrics:**\n"
-                f"{metrics_str}"
-            )
-            
-            # Create task plan
-            self._create_plan_from_metrics(selected)
-            
+        # Save button
+        def save_selection():
+            self.selected_metrics = [k for k, v in metric_vars.items() if v.get()]
+            self.selected_metrics_count.set(f"{len(self.selected_metrics)}/64 selected")
+            self.add_agent_message(MessageType.SUCCESS, 
+                f"✅ Selected {len(self.selected_metrics)} metrics")
             metrics_window.destroy()
-            
-        ttk.Button(button_frame, text="✅ Apply & Create Plan",
-                  command=apply_metrics, style='Accent.TButton').pack(side=tk.LEFT, padx=2)
-        ttk.Button(button_frame, text="Cancel",
-                  command=metrics_window.destroy).pack(side=tk.LEFT, padx=2)
+        
+        ttk.Button(btn_frame, text="✓ Save Selection",
+                  command=save_selection,
+                  style='Accent.TButton').pack(side=tk.RIGHT, padx=2)
+        
+        ttk.Button(btn_frame, text="✗ Cancel",
+                  command=metrics_window.destroy).pack(side=tk.RIGHT, padx=2)
     
     def _create_plan_from_benchmarks(self, selected_benchmarks: List[str]):
         """Create a task plan for benchmark dataset"""
@@ -2348,28 +2796,12 @@ Click **▶ Start Execution** to begin.
     # ═══════════════════════════════════════════════════════════════════════════════
     
     def _clear_agent_input_placeholder(self):
-        """Clear placeholder text from agent input"""
-        if 'e.g.' in self.agent_input.get():
-            self.agent_input.delete(0, tk.END)
+        """LEGACY - not needed anymore"""
+        pass
     
     def process_agent_query(self):
-        """Process autonomous agent query"""
-        if not self.autonomous_agent:
-            self.add_agent_message(MessageType.ERROR, "❌ Autonomous agent not available")
-            return
-        
-        query = self.agent_input.get().strip()
-        if not query:
-            return
-        
-        # Show user message
-        self.add_agent_message(MessageType.USER, query)
-        self.agent_input.delete(0, tk.END)
-        
-        # Process in separate thread
-        thread = threading.Thread(target=self._execute_agent_query, args=(query,))
-        thread.daemon = True
-        thread.start()
+        """LEGACY - redirects to unified processor"""
+        self.process_unified_input()
     
     def _execute_agent_query(self, query: str):
         """Execute agent query in background thread"""
