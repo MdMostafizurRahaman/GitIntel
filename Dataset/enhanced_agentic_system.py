@@ -370,6 +370,11 @@ Respond in JSON format:
         try:
             response = self.model.generate_content(prompt)
             result = json.loads(self._extract_json(response.text))
+            
+            # Convert requirement dict to DatasetRequirement object if present
+            if result.get('requirement') and isinstance(result['requirement'], dict):
+                result['requirement'] = DatasetRequirement(**result['requirement'])
+            
             return result
         except Exception as e:
             self._add_message(MessageType.ERROR, 

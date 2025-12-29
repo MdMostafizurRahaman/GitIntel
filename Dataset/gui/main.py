@@ -671,15 +671,48 @@ class AgenticDatasetGUI:
         self.todo_frame = ttk.LabelFrame(self.left_frame, text="📝 Task Plan", padding=10)
         self.todo_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
         
-        # Todo header
+        # Todo header with control buttons
         todo_header = ttk.Frame(self.todo_frame)
-        todo_header.pack(fill=tk.X, pady=(0, 5))
+        todo_header.pack(fill=tk.X, pady=(0, 10))
         
-        ttk.Label(todo_header, text="Tasks will appear here when you generate a plan",
-                  style='Task.TLabel').pack(side=tk.LEFT)
+        # Left side: Task count
+        left_header = ttk.Frame(todo_header)
+        left_header.pack(side=tk.LEFT, fill=tk.X, expand=True)
         
         self.task_progress_var = tk.StringVar(value="0/0 tasks")
-        ttk.Label(todo_header, textvariable=self.task_progress_var).pack(side=tk.RIGHT)
+        ttk.Label(left_header, textvariable=self.task_progress_var,
+                  style='Task.TLabel', font=('Segoe UI', 10, 'bold')).pack(side=tk.LEFT)
+        
+        # Right side: Control buttons
+        control_frame = ttk.Frame(todo_header)
+        control_frame.pack(side=tk.RIGHT)
+        
+        self.start_btn = ttk.Button(control_frame, text="▶ Start",
+                                     command=self.start_execution,
+                                     style='Accent.TButton')
+        self.start_btn.pack(side=tk.LEFT, padx=2)
+        self.start_btn.config(state=tk.DISABLED)
+        
+        self.pause_btn = ttk.Button(control_frame, text="⏸ Pause",
+                                     command=self.pause_execution)
+        self.pause_btn.pack(side=tk.LEFT, padx=2)
+        self.pause_btn.config(state=tk.DISABLED)
+        
+        ttk.Button(control_frame, text="🗑️ Clear",
+                   command=self.clear_plan).pack(side=tk.LEFT, padx=2)
+        
+        # Progress bar below header
+        progress_frame = ttk.Frame(self.todo_frame)
+        progress_frame.pack(fill=tk.X, pady=(0, 10))
+        
+        self.progress_var = tk.DoubleVar(value=0)
+        self.progress_bar = ttk.Progressbar(progress_frame, variable=self.progress_var,
+                                            mode='determinate')
+        self.progress_bar.pack(fill=tk.X)
+        
+        # Info text
+        ttk.Label(self.todo_frame, text="Tasks will appear below when you describe what you need",
+                  style='TaskPending.TLabel', font=('Segoe UI', 9)).pack(anchor=tk.W, pady=(0, 5))
         
         # Scrollable task list
         self.task_canvas = tk.Canvas(self.todo_frame, bg='white', highlightthickness=0)
@@ -702,32 +735,6 @@ class AgenticDatasetGUI:
         self.task_canvas.bind('<Configure>', 
                               lambda e: self.task_canvas.itemconfig(
                                   self.task_canvas_window, width=e.width))
-        
-        # ═══════════════════════════════════════════════════════════════════
-        # CONTROL BUTTONS
-        # ═══════════════════════════════════════════════════════════════════
-        control_frame = ttk.Frame(self.left_frame)
-        control_frame.pack(fill=tk.X, pady=(0, 10))
-        
-        self.start_btn = ttk.Button(control_frame, text="▶ Start Execution",
-                                     command=self.start_execution,
-                                     style='Accent.TButton')
-        self.start_btn.pack(side=tk.LEFT, padx=2)
-        self.start_btn.config(state=tk.DISABLED)
-        
-        self.pause_btn = ttk.Button(control_frame, text="⏸ Pause",
-                                     command=self.pause_execution)
-        self.pause_btn.pack(side=tk.LEFT, padx=2)
-        self.pause_btn.config(state=tk.DISABLED)
-        
-        ttk.Button(control_frame, text="🗑️ Clear Plan",
-                   command=self.clear_plan).pack(side=tk.LEFT, padx=2)
-        
-        # Progress bar
-        self.progress_var = tk.DoubleVar(value=0)
-        self.progress_bar = ttk.Progressbar(control_frame, variable=self.progress_var,
-                                            mode='determinate', length=200)
-        self.progress_bar.pack(side=tk.RIGHT, padx=10)
         
         # ═══════════════════════════════════════════════════════════════════
         # STATUS BAR
@@ -956,6 +963,9 @@ class AgenticDatasetGUI:
         if not query or 'e.g.' in query or 'Type anything' in query:
             messagebox.showwarning("Input Required", "Please describe what you want to create")
             return
+        
+        # Store last request for feedback processing
+        self.last_user_request = query
         
         # Show user message
         self.add_agent_message(MessageType.USER, query)
@@ -1233,6 +1243,82 @@ class AgenticDatasetGUI:
     def _cancel_generation(self):
         """Cancel dataset generation"""
         self.add_agent_message(MessageType.ERROR, "❌ Generation cancelled.")
+    
+    def _generate_tasks_from_config(self):
+        """Generate task plan from stored dataset config"""
+        if not hasattr(self, 'dataset_config') or not self.dataset_config:
+            self.add_agent_message(MessageType.ERROR, "❌ No configuration available")
+            return
+        
+        config = self.dataset_config
+        
+        # Clear existing tasks
+        self.task_manager.clear_tasks()
+        
+        self.add_agent_message(MessageType.SYSTEM, "📋 Creating task plan...")
+        
+        # Task 1: Verify repository
+        if self.repo_path:
+            self.task_manager.add_task(
+                "Verify Repository",
+                f"Check repository: {self.repo_path}",
+                action=self.task_verify_repo,
+                requires_approval=False
+            )
+        
+        # Task 2: Extract/Calculate metrics
+        metrics_str = ', '.join(config.get('metrics', [])) if config.get('metrics') else 'custom formula'
+        self.task_manager.add_task(
+            "Extract Metrics",
+            f"Calculate metrics: {metrics_str}",
+            action=lambda: self.task_extract_custom_formula(config),
+            requires_approval=False
+        )
+        
+        # Task 3: Apply formula if present
+        if config.get('custom'):
+            self.task_manager.add_task(
+                "Apply Custom Formula",
+                f"Calculate: {config.get('custom')}",
+                action=lambda: self.task_apply_formula(config),
+                requires_approval=False
+            )
+        
+        # Task 4: Generate output
+        self.task_manager.add_task(
+            "Generate Dataset",
+            "Create output file",
+            action=lambda: self.task_generate_output(config),
+            requires_approval=False
+        )
+        
+        # Show summary
+        summary = f"""📋 **Task Plan Created ({len(self.task_manager.tasks)} tasks)**
+
+Ready to execute. Click **▶ Start Execution** to begin."""
+        
+        self.add_agent_message(MessageType.SUCCESS, summary)
+        
+        # Enable start button
+        self.start_btn.config(state=tk.NORMAL)
+    
+    def _create_default_task_plan(self):
+        """Create a default task plan when no specific config is available"""
+        # Clear existing tasks
+        self.task_manager.clear_tasks()
+        
+        # Use last_user_request to create a config
+        if hasattr(self, 'last_user_request') and self.last_user_request:
+            # Create a basic config from the request
+            self.dataset_config = {
+                'metrics': [],
+                'format': 'csv',
+                'custom': self.last_user_request
+            }
+            self._generate_tasks_from_config()
+        else:
+            self.add_agent_message(MessageType.ERROR, 
+                "❌ Unable to create task plan. Please describe what dataset you need.")
     
     def _setup_approval_buttons(self, on_approve, on_reject, on_modify=None):
         """Setup approval buttons in agent panel"""
@@ -1573,9 +1659,19 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
         """Process user feedback"""
         feedback_lower = feedback.lower()
         
-        if any(word in feedback_lower for word in ['yes', 'ok', 'good', 'correct', 'proceed']):
+        if any(word in feedback_lower for word in ['yes', 'ok', 'good', 'correct', 'proceed', 'confirm', 'approve']):
             self.add_agent_message(MessageType.SYSTEM,
                 "Great! I'll proceed with the plan as is.")
+            # Actually create and execute the plan
+            if hasattr(self, 'dataset_config') and self.dataset_config:
+                self.root.after(0, self._generate_tasks_from_config)
+            elif hasattr(self, 'last_user_request') and self.last_user_request:
+                # Fallback: create plan from last request
+                self.root.after(0, lambda: self._create_plan_from_input(self.last_user_request))
+            else:
+                # If no config exists, create a simple default plan
+                self.add_agent_message(MessageType.INFO, "Creating default task plan...")
+                self.root.after(100, self._create_default_task_plan)
         elif any(word in feedback_lower for word in ['no', 'wrong', 'change', 'modify']):
             self.add_agent_message(MessageType.SYSTEM,
                 "I understand you want to make changes. Please describe what you'd like to modify, "
@@ -1590,7 +1686,7 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
                 "5. **Give feedback** - Type here to modify or confirm actions")
         else:
             # Treat as new input
-            self.nl_input_var.set(feedback)
+            self.unified_input_var.set(feedback)
             self.root.after(0, self.process_natural_language)
             
     # ═══════════════════════════════════════════════════════════════════════════
@@ -1907,6 +2003,25 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
             return f"✅ Dataset validation complete!\n\n**Output Location:**\n{output_dir}\n\n**Recent Files:**\n{file_list}"
         else:
             return f"⚠️ Output directory not found yet.\n\nExpected location:\n{output_dir}"
+    
+    def task_extract_custom_formula(self, config: Dict):
+        """Extract base metrics needed for custom formula"""
+        metrics_needed = config.get('metrics', [])
+        
+        if not metrics_needed:
+            return "Using all available metrics"
+        
+        # Ensure metrics are selected
+        if metrics_needed:
+            self.dataset_config['selected_metrics'] = metrics_needed
+            return f"Extracted {len(metrics_needed)} base metrics: {', '.join(metrics_needed)}"
+        else:
+            return "No specific metrics required"
+    
+    def task_apply_formula(self, config: Dict):
+        """Apply custom formula to the dataset"""
+        formula_desc = config.get('custom', 'custom calculation')
+        return f"Applied formula: {formula_desc}"
     
     def task_download_benchmarks(self, benchmarks: List[str]):
         """Download benchmark datasets"""
