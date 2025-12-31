@@ -39,10 +39,14 @@ except ImportError:
     GEMINI_AVAILABLE = False
     print("⚠️ google-generativeai not installed")
 
+# For Git clone support
+import subprocess
+
 # Import existing analyzers
 try:
     from unified_metrics_analyzer import UnifiedMetricsAnalyzer
     from ck_metrics_analyzer import CKMetricsAnalyzer
+    from dataset_generator import ProfessionalDatasetGenerator
     ANALYZERS_AVAILABLE = True
 except ImportError:
     ANALYZERS_AVAILABLE = False
@@ -138,6 +142,10 @@ class EnhancedAgenticSystem:
         self.current_requirement: Optional[DatasetRequirement] = None
         self.generated_formulas: List[FormulaDefinition] = []
         self.preview_data: Optional[pd.DataFrame] = None
+        self.sample_data: Optional[pd.DataFrame] = None
+        self.sample_generated: bool = False
+        self.user_accepted: bool = False
+        self.feedback_iterations: int = 0
         
         # Initialize Gemini
         if GEMINI_AVAILABLE:
@@ -160,20 +168,30 @@ class EnhancedAgenticSystem:
         else:
             self.model = None
             
-    def set_repository(self, repo_path: str) -> Dict[str, Any]:
+    def set_repository(self, repo_path_or_url: str) -> Dict[str, Any]:
         """
-        Set repository and discover available metrics
+        Set repository from path OR Git URL (auto-clones if URL)
         
         Args:
-            repo_path: Path to Git repository
+            repo_path_or_url: Local path OR GitHub URL (https://github.com/...)
             
         Returns:
             Repository info with discovered metrics
         """
-        self.repo_path = Path(repo_path)
+        input_str = repo_path_or_url.strip()
+        
+        # Check if it's a GitHub URL - clone it first
+        if 'github.com' in input_str or input_str.startswith('https://') or input_str.startswith('http://'):
+            clone_result = self._clone_repository(input_str)
+            if not clone_result['success']:
+                raise ValueError(clone_result['error'])
+            self.repo_path = Path(clone_result['path'])
+        else:
+            # Local path
+            self.repo_path = Path(input_str)
         
         if not self.repo_path.exists():
-            raise ValueError(f"Repository not found: {repo_path}")
+            raise ValueError(f"Repository not found: {self.repo_path}")
             
         self._add_message(MessageType.SYSTEM, 
             f"📁 Repository set: {self.repo_path}")
@@ -187,6 +205,74 @@ class EnhancedAgenticSystem:
             'metrics_discovered': len(self.available_metrics),
             'categories': list(self.available_metrics.keys())
         }
+    
+    def _clone_repository(self, url: str) -> Dict[str, Any]:
+        """
+        Clone GitHub repository to temp location
+        
+        Args:
+            url: GitHub repository URL
+            
+        Returns:
+            Result dict with success status and cloned path
+        """
+        try:
+            # Extract repo name from URL
+            repo_name = url.rstrip('/').split('/')[-1].replace('.git', '')
+            
+            # Clone to Dataset/cloned_repos/<repo_name>
+            clone_base = Path(__file__).parent / 'cloned_repos'
+            clone_base.mkdir(parents=True, exist_ok=True)
+            clone_path = clone_base / repo_name
+            
+            # Check if already cloned
+            if clone_path.exists():
+                self._add_message(MessageType.SYSTEM, 
+                    f"📁 Repository already cloned: {clone_path}")
+                return {
+                    'success': True,
+                    'path': str(clone_path),
+                    'already_existed': True
+                }
+            
+            # Clone repository
+            self._add_message(MessageType.SYSTEM, 
+                f"📥 Cloning repository from {url}...")
+            
+            result = subprocess.run(
+                ['git', 'clone', url, str(clone_path)],
+                capture_output=True,
+                text=True,
+                timeout=600,  # 10 minute timeout for large repos
+                encoding='utf-8',
+                errors='ignore'
+            )
+            
+            if result.returncode == 0:
+                self._add_message(MessageType.SUCCESS, 
+                    f"✅ Repository cloned successfully to {clone_path}")
+                return {
+                    'success': True,
+                    'path': str(clone_path),
+                    'already_existed': False
+                }
+            else:
+                error_msg = result.stderr or result.stdout or "Unknown clone error"
+                return {
+                    'success': False,
+                    'error': f"Git clone failed: {error_msg}"
+                }
+        
+        except subprocess.TimeoutExpired:
+            return {
+                'success': False,
+                'error': 'Clone timeout (>10 minutes) - repository too large or network slow'
+            }
+        except Exception as e:
+            return {
+                'success': False,
+                'error': f"Clone error: {str(e)}"
+            }
     
     def _discover_metrics(self):
         """Discover available metrics from repository"""
@@ -300,13 +386,60 @@ class EnhancedAgenticSystem:
         """
         self._add_message(MessageType.USER, user_response)
         
-        # Re-understand with new context
-        full_context = "\n".join([
-            msg.content for msg in self.conversation_history 
-            if msg.type in [MessageType.USER, MessageType.QUESTION]
-        ])
+        # Check if this is an approval response (for plan approval)
+        approval_keywords = ['yes', 'approve', 'ok', 'proceed', 'go', 'confirmed', 'hbe', 'hbe bhai']
+        if any(keyword in user_response.lower() for keyword in approval_keywords):
+            # Check last message type
+            last_question = None
+            for msg in reversed(self.conversation_history):
+                if msg.type == MessageType.QUESTION:
+                    last_question = msg.content.lower()
+                    break
+            
+            # If last question was about approval, generate sample
+            if last_question and ('approve' in last_question or 'plan' in last_question):
+                return self.generate_sample()
         
+        # Re-understand with new context - add response to previous question
+        user_messages = [msg.content for msg in self.conversation_history if msg.type == MessageType.USER]
+        questions = [msg.content for msg in self.conversation_history if msg.type == MessageType.QUESTION]
+        
+        # Build enriched context with Q&A pairs
+        full_context = user_messages[0]  # Original request
+        if len(questions) > 0 and len(user_messages) > 1:
+            full_context += "\n\nPrevious clarifications:\n"
+            for i, (q, a) in enumerate(zip(questions, user_messages[1:])):
+                full_context += f"Q{i+1}: {q}\nA{i+1}: {a}\n"
+        
+        # NO LIMIT on clarifications but prevent infinite loops
+        # Detect if same question is being asked repeatedly (infinite loop prevention)
         understanding = self._understand_request(full_context)
+        
+        if understanding.get('needs_clarification') and len(questions) > 0:
+            # Check last 3 questions for repetition
+            recent_questions = [q.lower() for q in questions[-3:]]
+            new_question = understanding.get('question', '').lower()
+            
+            # Extract keywords from new question
+            new_keywords = set(word for word in new_question.split() if len(word) > 4)
+            
+            # Check if we're asking about the same thing
+            repetition_count = 0
+            for prev_q in recent_questions:
+                prev_keywords = set(word for word in prev_q.split() if len(word) > 4)
+                # If >50% keywords overlap, it's repetitive
+                if new_keywords and prev_keywords:
+                    overlap = len(new_keywords & prev_keywords) / len(new_keywords)
+                    if overlap > 0.5:
+                        repetition_count += 1
+            
+            if repetition_count >= 2:  # Same question asked 2+ times
+                self._add_message(MessageType.INFO, 
+                    "ℹ️ Detected repeated question. Proceeding with SAMPLE GENERATION based on available information.")
+                understanding['needs_clarification'] = False
+                # Build requirement from what we have
+                if not understanding.get('requirement'):
+                    understanding['requirement'] = self._build_requirement_from_context(full_context)
         
         if understanding['needs_clarification']:
             self._add_message(MessageType.QUESTION, 
@@ -381,6 +514,41 @@ Respond in JSON format:
                 f"⚠️ LLM understanding error: {e}")
             return self._basic_understanding(request)
     
+    def _build_requirement_from_context(self, context: str) -> 'DatasetRequirement':
+        """Build requirement from conversation context when clarifications exhausted"""
+        # Extract mentioned metrics from context
+        mentioned_metrics = []
+        for category_metrics in self.available_metrics.values():
+            for metric in category_metrics:
+                if metric.lower() in context.lower():
+                    mentioned_metrics.append(metric)
+        
+        # If no metrics mentioned, use common ones
+        if not mentioned_metrics:
+            mentioned_metrics = ['lines_of_code', 'commit_count', 'cyclomatic_complexity']
+        
+        # Parse formula if present (e.g., "health = (churn/1000 commit) + LOC")
+        formulas = {}
+        if '=' in context:
+            # Try to extract custom formula
+            parts = context.split('=')
+            if len(parts) == 2:
+                formula_name = parts[0].strip().split()[-1]  # Get last word before =
+                formula_desc = parts[1].strip()
+                formulas[formula_name] = formula_desc
+        
+        return DatasetRequirement(
+            description=context[:100],
+            columns=mentioned_metrics,
+            formulas=formulas,
+            filters=[],
+            dataset_type='custom',
+            scope='all',
+            estimated_rows=100,
+            requires_new_formulas=len(formulas) > 0,
+            missing_metrics=[]
+        )
+    
     def _basic_understanding(self, request: str) -> Dict[str, Any]:
         """Fallback basic understanding without LLM"""
         # Simple keyword matching
@@ -388,22 +556,33 @@ Respond in JSON format:
         needs_complexity = any(kw in request.lower() for kw in ['complex', 'cyclomatic', 'cognitive'])
         needs_maintainability = any(kw in request.lower() for kw in ['maintain', 'technical debt', 'quality'])
         
+        # Check for custom formula in request
+        has_formula = '=' in request and any(word in request.lower() for word in ['churn', 'loc', 'commit'])
+        
         columns = []
         formulas = {}
         
         # Determine columns based on keywords
-        if needs_defect:
-            columns = ['class_name', 'lines_of_code', 'cbo', 'wmc', 'bug_count']
+        if has_formula:
+            # User provided custom formula - parse it
+            requirement = self._build_requirement_from_context(request)
+            return {
+                'needs_clarification': False,
+                'question': None,
+                'requirement': requirement
+            }
+        elif needs_defect:
+            columns = ['class_name', 'lines_of_code', 'cbo', 'wmc', 'bug_fix_count']
             formulas = {'bug_count': 'Count of bug-fix commits'}
         elif needs_complexity:
             columns = ['class_name', 'cyclomatic_complexity', 'cognitive_complexity', 'lines_of_code']
         elif needs_maintainability:
             columns = ['class_name', 'maintainability_index', 'technical_debt_hours']
         else:
-            # Need clarification
+            # Need clarification - but don't loop indefinitely
             return {
                 'needs_clarification': True,
-                'question': "What type of dataset do you need? (e.g., defect prediction, complexity analysis, maintainability metrics)",
+                'question': "What type of dataset do you need? (e.g., defect prediction, complexity analysis, maintainability metrics). You can also provide a custom formula like: health = (churn/1000) + LOC",
                 'partial_requirement': None
             }
         
@@ -447,14 +626,295 @@ Respond in JSON format:
         
         if self.mode == AgentMode.ASK:
             self._add_message(MessageType.QUESTION, 
-                "❓ Approve this plan? Reply 'yes' to generate preview, 'modify' to change, 'cancel' to stop")
+                "❓ Approve this plan? Reply 'yes' to generate SAMPLE, 'modify' to change, 'cancel' to stop")
             return {
                 'status': 'awaiting_approval',
                 'plan': req
             }
         else:
-            # Auto-proceed in AGENT mode
-            return self.generate_preview()
+            # Auto-proceed in AGENT mode - Generate SAMPLE first
+            return self.generate_sample()
+    
+    def generate_sample(self, num_rows: int = 10) -> Dict[str, Any]:
+        """
+        Generate SAMPLE dataset (5-10 rows) for user review
+        
+        Args:
+            num_rows: Number of sample rows (default 10)
+            
+        Returns:
+            Sample dataset info with preview
+        """
+        if not self.current_requirement:
+            return {'error': 'No dataset requirement set'}
+        
+        self._add_message(MessageType.SYSTEM, 
+            f"📊 Generating {num_rows}-row SAMPLE for review...")
+        
+        try:
+            # Extract sample data from repository
+            data = self._extract_repository_data()
+            data = data[:num_rows]  # Limit to sample size
+            
+            # Apply formulas
+            data = self._apply_formulas(data)
+            
+            # Convert to DataFrame
+            self.sample_data = pd.DataFrame(data)
+            self.sample_generated = True
+            
+            # Show preview to user
+            preview_info = self._format_sample_preview(self.sample_data)
+            self._add_message(MessageType.PREVIEW, 
+                f"\n📋 SAMPLE DATASET PREVIEW ({len(self.sample_data)} rows):\n{preview_info}")
+            
+            self._add_message(MessageType.QUESTION, 
+                "\n💬 Please review the sample. You can:\n"
+                "   • 'accepted' / 'looks good' / 'proceed' → Generate full dataset\n"
+                "   • Provide feedback for changes → I'll modify and regenerate sample\n"
+                "   • 'cancel' / 'stop' → Abort generation")
+            
+            return {
+                'status': 'sample_generated',
+                'sample_rows': len(self.sample_data),
+                'columns': list(self.sample_data.columns),
+                'preview': preview_info,
+                'awaiting_feedback': True
+            }
+            
+        except Exception as e:
+            self._add_message(MessageType.ERROR, f"❌ Sample generation failed: {e}")
+            return {'error': str(e)}
+    
+    def process_feedback(self, feedback: str) -> Dict[str, Any]:
+        """
+        Process user feedback on sample dataset
+        
+        Args:
+            feedback: User's feedback text
+            
+        Returns:
+            Action result (accepted, regenerate, error)
+        """
+        self._add_message(MessageType.USER, feedback)
+        self.feedback_iterations += 1
+        
+        # Check for acceptance keywords
+        acceptance_keywords = ['accept', 'looks good', 'proceed', 'ok', 'correct', 'yes', 'perfect', 'right', 'thik ace', 'valo', 'hbe']
+        feedback_lower = feedback.lower()
+        
+        if any(keyword in feedback_lower for keyword in acceptance_keywords):
+            self.user_accepted = True
+            self._add_message(MessageType.SUCCESS, 
+                "✅ Sample ACCEPTED! Proceeding with FULL dataset generation...")
+            return {
+                'status': 'accepted',
+                'action': 'generate_full',
+                'feedback_iterations': self.feedback_iterations
+            }
+        
+        # Check for cancellation
+        cancel_keywords = ['cancel', 'stop', 'abort', 'no', 'nah', 'band kro']
+        if any(keyword in feedback_lower for keyword in cancel_keywords):
+            self._add_message(MessageType.INFO, "⚠️ Generation cancelled by user.")
+            return {
+                'status': 'cancelled',
+                'action': 'abort'
+            }
+        
+        # User wants changes - analyze feedback
+        self._add_message(MessageType.THINKING, 
+            f"🤔 Analyzing feedback (iteration #{self.feedback_iterations})...")
+        
+        changes = self._analyze_feedback(feedback)
+        
+        if changes.get('understood', False):
+            # Apply changes to requirement
+            self._apply_changes_to_requirement(changes)
+            
+            self._add_message(MessageType.PLAN, 
+                f"📝 Changes identified:\n{changes['summary']}\n\n"
+                "Regenerating sample with modifications...")
+            
+            # Regenerate sample
+            self.sample_generated = False
+            self.user_accepted = False
+            result = self.generate_sample()
+            
+            return {
+                'status': 'modified',
+                'action': 'regenerated_sample',
+                'changes': changes,
+                'feedback_iterations': self.feedback_iterations,
+                'new_sample': result
+            }
+        else:
+            # Need clarification on feedback
+            self._add_message(MessageType.QUESTION, 
+                f"❓ {changes.get('clarification_needed', 'Could you clarify what changes you want?')}")
+            return {
+                'status': 'needs_clarification',
+                'question': changes.get('clarification_needed'),
+                'feedback_iterations': self.feedback_iterations
+            }
+    
+    def _format_sample_preview(self, df: pd.DataFrame) -> str:
+        """Format sample dataframe for display"""
+        if df is None or len(df) == 0:
+            return "(Empty dataset)"
+        
+        # Show first 5 rows with formatted output
+        preview = "\n"
+        preview += "Columns: " + ", ".join(df.columns) + "\n"
+        preview += "-" * 80 + "\n"
+        preview += df.head(min(5, len(df))).to_string(index=False) + "\n"
+        preview += "-" * 80 + "\n"
+        preview += f"Total rows: {len(df)}\n"
+        
+        # Show basic stats for numeric columns
+        numeric_cols = df.select_dtypes(include=[np.number]).columns
+        if len(numeric_cols) > 0:
+            preview += "\nNumeric Summary:\n"
+            for col in numeric_cols:
+                preview += f"  {col}: min={df[col].min():.2f}, max={df[col].max():.2f}, mean={df[col].mean():.2f}\n"
+        
+        return preview
+    
+    def _analyze_feedback(self, feedback: str) -> Dict[str, Any]:
+        """Use LLM to analyze user feedback and identify changes"""
+        if not self.model:
+            # Simple keyword-based analysis
+            return {
+                'understood': False,
+                'clarification_needed': 'Could you specify exactly what needs to change?'
+            }
+        
+        prompt = f"""You are analyzing user feedback on a sample dataset.
+
+Current Dataset Columns:
+{list(self.sample_data.columns) if self.sample_data is not None else []}
+
+Current Requirement:
+{self.current_requirement}
+
+User Feedback:
+{feedback}
+
+Analyze the feedback and determine:
+1. What specific changes are requested?
+2. Which columns need modification/addition/removal?
+3. What filters or calculations need adjustment?
+4. Is the feedback clear enough to make changes?
+
+Respond in JSON:
+{{
+    "understood": true/false,
+    "changes": {{
+        "add_columns": ["col1", ...],
+        "remove_columns": ["col2", ...],
+        "modify_formulas": {{"col_name": "new formula"}},
+        "modify_filters": ["filter description"],
+        "other_changes": "description"
+    }},
+    "summary": "brief summary of changes",
+    "clarification_needed": "question if unclear" or null
+}}"""
+        
+        try:
+            response = self.model.generate_content(prompt)
+            result = json.loads(self._extract_json(response.text))
+            return result
+        except:
+            return {
+                'understood': False,
+                'clarification_needed': 'Could you specify exactly what needs to change?'
+            }
+    
+    def _apply_changes_to_requirement(self, changes: Dict[str, Any]):
+        """Apply feedback changes to current requirement"""
+        if not self.current_requirement or not changes.get('changes'):
+            return
+        
+        mods = changes['changes']
+        
+        # Add columns
+        if 'add_columns' in mods:
+            for col in mods['add_columns']:
+                if col not in self.current_requirement.columns:
+                    self.current_requirement.columns.append(col)
+        
+        # Remove columns
+        if 'remove_columns' in mods:
+            for col in mods['remove_columns']:
+                if col in self.current_requirement.columns:
+                    self.current_requirement.columns.remove(col)
+        
+        # Modify formulas
+        if 'modify_formulas' in mods:
+            self.current_requirement.formulas.update(mods['modify_formulas'])
+        
+        # Modify filters
+        if 'modify_filters' in mods:
+            self.current_requirement.filters.extend(mods['modify_filters'])
+    
+    def _detect_dataset_type(self) -> Optional[str]:
+        """Detect dataset type from conversation history and user request"""
+        # Collect all user messages and requests
+        conversation_text = ""
+        for msg in self.conversation_history:
+            if msg.type in [MessageType.USER, MessageType.QUESTION]:
+                conversation_text += msg.content.lower() + " "
+        
+        if self.current_requirement:
+            conversation_text += self.current_requirement.description.lower()
+        
+        # Dataset type keywords mapping
+        dataset_patterns = {
+            'defects4j': ['defects4j', 'defect4j', 'buggy', 'fixed', 'bug fix', 'bug-fix', 'before after'],
+            'bugsjar': ['bugs.jar', 'bugsjar', 'bugs jar', 'bug jar', 'patch', 'bug record'],
+            'promise': ['promise', 'promise repository'],
+            'codexglue': ['codexglue', 'code-text', 'code text pair', 'ml training', 'code-nl'],
+            'codesearchnet': ['codesearchnet', 'code search', 'documentation', 'docstring', 'code doc'],
+            'manystubs4j': ['manystubs4j', 'manystubs', 'stub', 'bug pattern', 'simple bug'],
+            'sourcerer': ['sourcerer', 'repository stats', 'repo statistics', 'project metrics']
+        }
+        
+        # Check for custom formula keywords (these override benchmark detection)
+        custom_formula_keywords = [
+            'custom formula', 'custom metric', 'calculated metric', 'derived metric',
+            'code smell density', 'test coverage health', 'documentation quality',
+            'release stability', 'duplication risk', 'maintainability risk',
+            'refactoring need', 'change volatility', 'code churn', 'defect density',
+            'technical debt ratio', 'bug fix rate', 'ownership concentration'
+        ]
+        
+        # If custom formulas mentioned, use custom pipeline
+        if any(keyword in conversation_text for keyword in custom_formula_keywords):
+            self._add_message(MessageType.THINKING,
+                "🎯 Detected CUSTOM METRICS request - using custom formula pipeline")
+            return 'custom'
+        
+        # Score each dataset type
+        scores = {}
+        for dataset_type, keywords in dataset_patterns.items():
+            score = 0
+            for keyword in keywords:
+                if keyword in conversation_text:
+                    score += 1
+            if score > 0:
+                scores[dataset_type] = score
+        
+        # Return highest scoring type
+        if scores:
+            detected_type = max(scores, key=scores.get)
+            self._add_message(MessageType.THINKING,
+                f"🎯 Detected dataset type: {detected_type.upper()}")
+            return detected_type
+        
+        # Default to custom if no specific type detected
+        self._add_message(MessageType.THINKING,
+            "🎯 No benchmark detected, using CUSTOM metrics pipeline")
+        return 'custom'
     
     def generate_preview(self) -> Dict[str, Any]:
         """
@@ -465,18 +925,104 @@ Respond in JSON format:
         """
         if not self.current_requirement:
             raise ValueError("No requirement set. Call start_conversation first.")
-            
-        self._add_message(MessageType.THINKING, 
-            "🔄 Extracting data from repository...")
-            
-        # Extract real data
-        extracted_data = self._extract_repository_data()
+        
+        # Detect dataset type
+        dataset_type = self._detect_dataset_type()
         
         self._add_message(MessageType.THINKING, 
-            "🧮 Applying formulas and calculations...")
+            "🔄 Generating professional dataset preview...")
+        
+        try:
+            # Use ProfessionalDatasetGenerator
+            generator = ProfessionalDatasetGenerator(str(self.repo_path))
             
-        # Apply formulas
-        calculated_data = self._apply_formulas(extracted_data)
+            # Generate based on detected type (just get sample rows)
+            if dataset_type == 'defects4j':
+                self._add_message(MessageType.THINKING, 
+                    "📦 Generating Defects4J preview (buggy/fixed pairs)...")
+                result = generator.generate_defects4j_dataset()
+                # Load generated data for preview
+                if result.get('csv_path') and Path(result['csv_path']).exists():
+                    calculated_data = pd.read_csv(result['csv_path']).head(5).to_dict('records')
+                else:
+                    calculated_data = []
+            
+            elif dataset_type == 'bugsjar':
+                self._add_message(MessageType.THINKING, 
+                    "📦 Generating Bugs.jar preview (bug records)...")
+                result = generator.generate_bugsjar_dataset()
+                if result.get('json_path') and Path(result['json_path']).exists():
+                    with open(result['json_path'], 'r') as f:
+                        data = json.load(f)
+                    calculated_data = data[:5]
+                else:
+                    calculated_data = []
+            
+            elif dataset_type == 'promise':
+                self._add_message(MessageType.THINKING, 
+                    "📦 Generating PROMISE preview (comprehensive metrics)...")
+                result = generator.generate_promise_dataset()
+                if result.get('csv_path') and Path(result['csv_path']).exists():
+                    calculated_data = pd.read_csv(result['csv_path']).head(5).to_dict('records')
+                else:
+                    calculated_data = []
+            
+            elif dataset_type == 'codexglue':
+                self._add_message(MessageType.THINKING, 
+                    "📦 Generating CodeXGLUE preview (code-text pairs)...")
+                result = generator.generate_codexglue_dataset()
+                if result.get('json_path') and Path(result['json_path']).exists():
+                    with open(result['json_path'], 'r') as f:
+                        data = json.load(f)
+                    calculated_data = data[:5]
+                else:
+                    calculated_data = []
+            
+            elif dataset_type == 'codesearchnet':
+                self._add_message(MessageType.THINKING, 
+                    "📦 Generating CodeSearchNet preview (code documentation)...")
+                result = generator.generate_codesearchnet_dataset()
+                if result.get('json_path') and Path(result['json_path']).exists():
+                    with open(result['json_path'], 'r') as f:
+                        data = json.load(f)
+                    calculated_data = data[:5]
+                else:
+                    calculated_data = []
+            
+            elif dataset_type == 'manystubs4j':
+                self._add_message(MessageType.THINKING, 
+                    "📦 Generating ManySStuBs4J preview (bug patterns)...")
+                result = generator.generate_manystubs4j_dataset()
+                if result.get('csv_path') and Path(result['csv_path']).exists():
+                    calculated_data = pd.read_csv(result['csv_path']).head(5).to_dict('records')
+                else:
+                    calculated_data = []
+            
+            elif dataset_type == 'sourcerer':
+                self._add_message(MessageType.THINKING, 
+                    "📦 Generating Sourcerer preview (repository stats)...")
+                result = generator.generate_sourcerer_dataset()
+                if result.get('json_path') and Path(result['json_path']).exists():
+                    with open(result['json_path'], 'r') as f:
+                        data = json.load(f)
+                    calculated_data = [data]  # Single record
+                else:
+                    calculated_data = []
+            else:
+                # Fallback to basic extraction
+                extracted_data = self._extract_repository_data()
+                calculated_data = self._apply_formulas(extracted_data)[:5]
+            
+            # Store dataset type for full generation
+            self.detected_dataset_type = dataset_type
+            
+        except Exception as e:
+            self._add_message(MessageType.ERROR, 
+                f"⚠️ Error with professional generator: {e}")
+            # Fallback to basic method
+            extracted_data = self._extract_repository_data()
+            calculated_data = self._apply_formulas(extracted_data)[:5]
+            self.detected_dataset_type = None
         
         # Create preview DataFrame
         self.preview_data = pd.DataFrame(calculated_data[:5])  # First 5 rows
@@ -531,35 +1077,154 @@ Respond in JSON format:
     
     def generate_full_dataset(self) -> Dict[str, Any]:
         """
-        Generate complete dataset
+        Generate complete dataset (ONLY after sample accepted)
+        
+        Workflow enforced:
+        1. Check if sample was generated
+        2. Check if user accepted sample
+        3. Generate full dataset from repository
         
         Returns:
             Generation result with file paths
         """
+        # ENFORCE WORKFLOW: Must generate sample first and get acceptance
+        if not self.sample_generated:
+            self._add_message(MessageType.ERROR, 
+                "❌ Cannot generate full dataset without sample review!\n"
+                "   Please use generate_sample() first.")
+            return {
+                'error': 'sample_required',
+                'message': 'Must generate and review sample before full generation'
+            }
+        
+        if not self.user_accepted:
+            self._add_message(MessageType.ERROR, 
+                "❌ Sample not yet accepted by user!\n"
+                "   Please review sample and provide feedback or acceptance.")
+            return {
+                'error': 'acceptance_required',
+                'message': 'User must accept sample before full generation',
+                'feedback_iterations': self.feedback_iterations
+            }
+        
         self._add_message(MessageType.THINKING, 
-            "🚀 Generating full dataset...")
-            
-        # Extract all data
-        extracted_data = self._extract_repository_data()
-        calculated_data = self._apply_formulas(extracted_data)
+            f"🚀 Generating FULL dataset (after {self.feedback_iterations} feedback iterations)...")
         
-        # Create DataFrame
-        df = pd.DataFrame(calculated_data)
+        # Use detected dataset type or detect now
+        dataset_type = getattr(self, 'detected_dataset_type', None) or self._detect_dataset_type()
         
-        # Save files
+        # Create timestamp and output directory once
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         output_dir = Path('generated_datasets')
         output_dir.mkdir(exist_ok=True)
         
-        csv_path = output_dir / f'dataset_{timestamp}.csv'
-        json_path = output_dir / f'dataset_{timestamp}.json'
+        # SEPARATE PIPELINES: Professional vs Custom
+        if dataset_type == 'custom':
+            # CUSTOM FORMULA PIPELINE - Don't use professional generators
+            self._add_message(MessageType.THINKING,
+                "🔧 Using CUSTOM METRICS pipeline (not professional benchmark)")
+            
+            extracted_data = self._extract_repository_data()
+            calculated_data = self._apply_formulas(extracted_data)
+            df = pd.DataFrame(calculated_data)
+            
+            # Apply custom formulas from conversation
+            df = self._apply_custom_formulas_to_dataframe(df)
+            
+            # Save custom dataset
+            csv_path = output_dir / f'custom_metrics_{timestamp}.csv'
+            json_path = output_dir / f'custom_metrics_{timestamp}.json'
+            
+            df.to_csv(csv_path, index=False)
+            df.to_json(json_path, orient='records', indent=2)
+            
+            self._add_message(MessageType.SUCCESS,
+                f"✅ Custom metrics dataset saved: {csv_path}")
+        
+        else:
+            # PROFESSIONAL BENCHMARK PIPELINE - Keep exact format
+            try:
+                # Use ProfessionalDatasetGenerator
+                generator = ProfessionalDatasetGenerator(str(self.repo_path))
+                
+                # Generate based on detected type
+                if dataset_type == 'defects4j':
+                    self._add_message(MessageType.THINKING, 
+                        "📦 Generating Defects4J dataset (buggy/fixed pairs)...")
+                    result = generator.generate_defects4j_dataset()
+                
+                elif dataset_type == 'bugsjar':
+                    self._add_message(MessageType.THINKING, 
+                        "📦 Generating Bugs.jar dataset (bug records with patches)...")
+                    result = generator.generate_bugsjar_dataset()
+                
+                elif dataset_type == 'promise':
+                    self._add_message(MessageType.THINKING, 
+                        "📦 Generating PROMISE dataset (comprehensive metrics)...")
+                    result = generator.generate_promise_dataset()
+                
+                elif dataset_type == 'codexglue':
+                    self._add_message(MessageType.THINKING, 
+                        "📦 Generating CodeXGLUE dataset (code-text pairs)...")
+                    result = generator.generate_codexglue_dataset()
+                
+                elif dataset_type == 'codesearchnet':
+                    self._add_message(MessageType.THINKING, 
+                        "📦 Generating CodeSearchNet dataset (code documentation)...")
+                    result = generator.generate_codesearchnet_dataset()
+                
+                elif dataset_type == 'manystubs4j':
+                    self._add_message(MessageType.THINKING, 
+                        "📦 Generating ManySStuBs4J dataset (bug patterns)...")
+                    result = generator.generate_manystubs4j_dataset()
+                
+                elif dataset_type == 'sourcerer':
+                    self._add_message(MessageType.THINKING, 
+                        "📦 Generating Sourcerer dataset (repository statistics)...")
+                    result = generator.generate_sourcerer_dataset()
+                
+                else:
+                    raise ValueError(f"Unknown dataset type: {dataset_type}")
+                
+                # Use paths from generator result - DON'T MODIFY PROFESSIONAL FORMATS
+                csv_path = Path(result.get('csv_path', '')) if result.get('csv_path') else None
+                json_path = Path(result.get('json_path', '')) if result.get('json_path') else None
+                
+                # Load data for row count
+                if csv_path and csv_path.exists():
+                    df = pd.read_csv(csv_path)
+                elif json_path and json_path.exists():
+                    with open(json_path, 'r') as f:
+                        data = json.load(f)
+                    df = pd.DataFrame(data if isinstance(data, list) else [data])
+                else:
+                    raise ValueError("No data generated by professional generator")
+                
+                # DON'T apply custom formulas to professional benchmarks
+                self._add_message(MessageType.SUCCESS,
+                    f"✅ Professional {dataset_type.upper()} dataset generated (exact format preserved)")
+                
+            except Exception as e:
+                self._add_message(MessageType.ERROR, 
+                    f"⚠️ Professional generator failed: {e}. Using fallback...")
+                # Fallback to basic method
+                extracted_data = self._extract_repository_data()
+                calculated_data = self._apply_formulas(extracted_data)
+                df = pd.DataFrame(calculated_data)
+                
+                # Save files (fallback)
+                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                output_dir = Path('generated_datasets')
+                output_dir.mkdir(exist_ok=True)
+                
+                csv_path = output_dir / f'dataset_{timestamp}.csv'
+                json_path = output_dir / f'dataset_{timestamp}.json'
+                
+                df.to_csv(csv_path, index=False)
+                df.to_json(json_path, orient='records', indent=2)
+        
+        # Save metadata (timestamp and output_dir already set above)
         meta_path = output_dir / f'dataset_{timestamp}_metadata.json'
-        
-        # Save CSV
-        df.to_csv(csv_path, index=False)
-        
-        # Save JSON
-        df.to_json(json_path, orient='records', indent=2)
         
         # Save metadata
         metadata = {
@@ -570,6 +1235,8 @@ Respond in JSON format:
             'formulas': self.current_requirement.formulas,
             'rows': len(df),
             'mode': self.mode.value,
+            'feedback_iterations': self.feedback_iterations,
+            'sample_accepted': self.user_accepted,
             'conversation_history': [
                 {'type': msg.type.value, 'content': msg.content, 'timestamp': msg.timestamp.isoformat()}
                 for msg in self.conversation_history
@@ -580,6 +1247,11 @@ Respond in JSON format:
             json.dump(metadata, f, indent=2)
         
         success_msg = f"""✅ **Dataset Generated Successfully!**
+
+**Workflow Summary:**
+  • Clarification rounds: {len([m for m in self.conversation_history if m.type == MessageType.QUESTION])}
+  • Feedback iterations: {self.feedback_iterations}
+  • Sample reviewed and accepted: ✅
 
 **Files Created:**
   • CSV: {csv_path}
@@ -697,6 +1369,237 @@ Respond in JSON format:
             else:
                 return 0
         except:
+            return None
+    
+    def _extract_custom_formulas_from_conversation(self) -> Dict[str, str]:
+        """Extract custom formula definitions from conversation using LLM"""
+        if not self.model:
+            return {}
+        
+        # Collect all user messages
+        conversation_text = ""
+        for msg in self.conversation_history:
+            if msg.type == MessageType.USER:
+                conversation_text += msg.content + "\n"
+        
+        # Use LLM to dynamically parse formulas
+        try:
+            prompt = f"""Analyze this user request and extract ALL custom formula definitions.
+
+User Request:
+{conversation_text}
+
+Extract formulas in JSON format:
+{{
+  "formula_name": "mathematical_expression",
+  ...
+}}
+
+Rules:
+- Use snake_case for formula names
+- Keep original mathematical expressions
+- Include ALL formulas mentioned (even if hundreds)
+- If no formulas found, return empty object
+
+Example:
+{{
+  "code_smell_density": "code_smells / (lines_of_code / 1000)",
+  "test_coverage_health": "test_coverage - (bug_count / commit_count) * 10"
+}}
+
+Return ONLY valid JSON, no explanation."""
+
+            response = self.model.generate_content(prompt)
+            
+            # Debug: print response
+            print(f"\n[DEBUG] LLM Response:\n{response.text[:500]}\n")
+            
+            # Parse JSON response
+            import re
+            import json
+            json_match = re.search(r'\{.*\}', response.text, re.DOTALL)
+            if json_match:
+                formulas = json.loads(json_match.group())
+                self._add_message(MessageType.SUCCESS,
+                    f"✓ Extracted {len(formulas)} custom formulas using LLM")
+                return formulas
+            else:
+                print(f"[DEBUG] No JSON found in response")
+            
+        except Exception as e:
+            self._add_message(MessageType.ERROR,
+                f"⚠️ LLM formula extraction failed: {e}")
+            print(f"[DEBUG] Exception: {e}")
+        
+        return {}
+    
+    def _apply_custom_formulas_to_dataframe(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Apply custom formulas - FULLY DYNAMIC using Multi-LLM Jury System"""
+        
+        # Check if Jury System is available
+        if self.jury_system and JURY_SYSTEM_AVAILABLE:
+            self._add_message(MessageType.THINKING,
+                "🤖 Using Multi-LLM Jury System (ZERO hardcoded formulas)...")
+            
+            # Get user's formula request from conversation
+            user_query = ""
+            for msg in self.conversation_history:
+                if msg.type == MessageType.USER:
+                    user_query += msg.content + "\n"
+            
+            if not user_query.strip():
+                self._add_message(MessageType.INFO,
+                    "ℹ️ No formula request in conversation")
+                return df
+            
+            try:
+                # Process with Jury System - completely dynamic!
+                enhanced_df = self.jury_system.process_user_request(user_query, df)
+                
+                new_cols = len(enhanced_df.columns) - len(df.columns)
+                if new_cols > 0:
+                    self._add_message(MessageType.SUCCESS,
+                        f"✅ Jury System added {new_cols} formula columns")
+                    return enhanced_df
+                else:
+                    self._add_message(MessageType.WARNING,
+                        "⚠️ Jury System: No formulas could be applied")
+                    
+            except Exception as e:
+                self._add_message(MessageType.ERROR,
+                    f"❌ Jury System failed: {e}")
+                # Fall through to fallback method
+        
+        # Fallback: Use old LLM extraction method if Jury System unavailable
+        self._add_message(MessageType.INFO,
+            "ℹ️ Using fallback method (LLM extraction)")
+        
+        custom_formulas = self._extract_custom_formulas_from_conversation()
+        
+        if not custom_formulas:
+            self._add_message(MessageType.INFO,
+                "ℹ️ No custom formulas detected in conversation")
+            return df
+        
+        self._add_message(MessageType.THINKING,
+            f"🔧 Processing {len(custom_formulas)} custom formulas...")
+        
+        # Analyze which formulas can be applied
+        available_cols = set(df.columns)
+        applied_count = 0
+        skipped_formulas = []
+        
+        # Apply each formula with intelligent fallback
+        for formula_name, formula_expr in custom_formulas.items():
+            try:
+                # Try to apply formula
+                new_col = self._calculate_formula_column(df, formula_name, formula_expr)
+                if new_col is not None:
+                    df[formula_name] = new_col
+                    applied_count += 1
+                    self._add_message(MessageType.SUCCESS,
+                        f"  ✓ {formula_name}")
+                else:
+                    # Formula failed - identify missing columns
+                    missing_cols = self._identify_missing_columns(formula_expr, available_cols)
+                    skipped_formulas.append((formula_name, formula_expr, missing_cols))
+                    self._add_message(MessageType.WARNING,
+                        f"  ⊘ {formula_name} (missing: {', '.join(missing_cols)})")
+            except Exception as e:
+                self._add_message(MessageType.ERROR,
+                    f"  ✗ {formula_name}: {e}")
+        
+        # Report results
+        if applied_count > 0:
+            self._add_message(MessageType.SUCCESS,
+                f"✅ Applied {applied_count}/{len(custom_formulas)} formulas")
+        
+        # Use LLM to suggest alternatives for skipped formulas
+        if skipped_formulas and self.model:
+            self._suggest_formula_alternatives(df, skipped_formulas)
+        
+        return df
+    
+    def _identify_missing_columns(self, formula_expr: str, available_cols: set) -> list:
+        """Identify missing columns from formula expression"""
+        import re
+        # Extract variable names from formula (basic regex)
+        variables = re.findall(r'\b[a-z_][a-z0-9_]*\b', formula_expr)
+        
+        # Filter out Python keywords and functions
+        keywords = {'sum', 'max', 'min', 'abs', 'len', 'int', 'float', 'str', 'ln', 'log', 'sqrt', 'if', 'else', 'and', 'or', 'not'}
+        candidates = [v for v in variables if v not in keywords]
+        
+        # Check which are missing
+        missing = [c for c in candidates if c not in available_cols]
+        return list(set(missing))  # Unique
+    
+    def _suggest_formula_alternatives(self, df: pd.DataFrame, skipped_formulas: list):
+        """Use LLM to suggest alternatives for skipped formulas"""
+        if not self.model:
+            return
+        
+        available_cols = ', '.join(df.columns)
+        
+        self._add_message(MessageType.THINKING,
+            f"🤔 Asking LLM for alternatives to {len(skipped_formulas)} skipped formulas...")
+        
+        for formula_name, formula_expr, missing_cols in skipped_formulas[:3]:  # Limit to 3
+            try:
+                prompt = f"""This formula cannot be calculated:
+
+Formula: {formula_name} = {formula_expr}
+Missing columns: {', '.join(missing_cols)}
+Available columns: {available_cols}
+
+Suggest an alternative formula using ONLY available columns, or explain why impossible.
+Keep response under 50 words."""
+
+                response = self.model.generate_content(prompt)
+                self._add_message(MessageType.SUGGESTION,
+                    f"💡 {formula_name}: {response.text[:200]}")
+            except:
+                continue
+    
+    def _calculate_formula_column(self, df: pd.DataFrame, name: str, formula: str) -> pd.Series:
+        """Calculate a formula column from a DataFrame"""
+        # Map common column name variations
+        col_mapping = {
+            'lines_of_code': ['lines_of_code', 'loc', 'lines', 'line_count'],
+            'comment_lines': ['comment_lines', 'comments', 'comment_count'],
+            'blank_lines': ['blank_lines', 'blanks'],
+            'cyclomatic_complexity': ['cyclomatic_complexity', 'cc', 'complexity'],
+            'cognitive_complexity': ['cognitive_complexity'],
+            'maintainability_index': ['maintainability_index', 'mi'],
+            'cbo': ['cbo', 'coupling'],
+            'wmc': ['wmc', 'weighted_methods'],
+            'lcom': ['lcom', 'cohesion'],
+            'bug_count': ['bug_count', 'bugs', 'num_bugs', 'defects'],
+            'commit_count': ['commit_count', 'commits'],
+            'bug_fix_count': ['bug_fix_count', 'bug_fixes', 'fixes']
+        }
+        
+        # Find actual column names in DataFrame
+        available_cols = {}
+        for standard_name, variations in col_mapping.items():
+            for var in variations:
+                if var in df.columns:
+                    available_cols[standard_name] = var
+                    break
+        
+        # Replace formula variables with actual column names
+        formula_code = formula
+        for standard_name, actual_col in available_cols.items():
+            # Replace variable name in formula
+            formula_code = formula_code.replace(standard_name, f"df['{actual_col}']")
+        
+        # Safe evaluation with basic operations
+        try:
+            # Use pandas eval for safety
+            result = eval(formula_code, {"df": df, "np": np, "pd": pd, "max": max, "min": min, "sum": sum})
+            return result
+        except Exception as e:
+            # If eval fails, return None column
             return None
     
     def _generate_missing_formulas(self):

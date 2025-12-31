@@ -49,6 +49,7 @@ try:
     from interactive_dataset_generator import InteractiveDatasetGenerator
     from autonomous_agent import AutonomousDatasetAgent, AgentMode
     from enhanced_agentic_system import EnhancedAgenticSystem, AgentMode as EnhancedMode
+    from llm_code_jury_system import LLMCodeJurySystem
     AGENT_AVAILABLE = True
 except ImportError as e:
     print(f"Warning: Some imports failed: {e}")
@@ -57,10 +58,31 @@ except ImportError as e:
 # Try to import LLM Jury System
 try:
     import google.generativeai as genai
+    import time
+    from functools import wraps
     LLM_AVAILABLE = True
 except ImportError:
     print("Warning: google.generativeai not available. LLM Jury features disabled.")
     LLM_AVAILABLE = False
+    
+# Rate Limiting Decorator
+def rate_limited(max_per_minute=10):
+    """Rate limiter for API calls"""
+    min_interval = 60.0 / max_per_minute
+    last_called = [0.0]
+    
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            elapsed = time.time() - last_called[0]
+            left_to_wait = min_interval - elapsed
+            if left_to_wait > 0:
+                time.sleep(left_to_wait)
+            ret = func(*args, **kwargs)
+            last_called[0] = time.time()
+            return ret
+        return wrapper
+    return decorator
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -187,6 +209,8 @@ class LLMJurySystem:
     Multi-LLM Jury System using SEPARATE API keys from .env
     - 1 Generator LLM (GEMINI_API_KEY) creates code
     - 3 Judge LLMs (Jurry_1, Jurry_2, Jurry_3) validate independently
+    
+    🚀 WITH RATE LIMITING & CACHING
     """
     
     def __init__(self):
@@ -207,6 +231,11 @@ class LLMJurySystem:
             self.enabled = False
             print("❌ LLM Jury System disabled - no API keys")
         
+        # Cache configured models to avoid re-configuration
+        self._model_cache = {}
+        self._last_request_time = {}
+        self._min_request_interval = 6.0  # 6 seconds between requests (10 RPM limit)
+        
         # Generator config (creative)
         self.generator_config = genai.GenerationConfig(
             temperature=0.7,
@@ -221,17 +250,36 @@ class LLMJurySystem:
             genai.GenerationConfig(temperature=0.3, top_p=0.88),   # Conservative Judge
         ]
     
+    def _get_or_create_model(self, api_key: str, model_name: str = 'gemini-flash-latest'):
+        """Cache models per API key to avoid re-configuration"""
+        cache_key = f"{api_key[:10]}_{model_name}"
+        
+        if cache_key not in self._model_cache:
+            genai.configure(api_key=api_key)
+            self._model_cache[cache_key] = genai.GenerativeModel(model_name)
+            
+        return self._model_cache[cache_key]
+    
+    def _wait_for_rate_limit(self, api_key: str):
+        """Ensure we don't exceed rate limits"""
+        key_hash = api_key[:10]
+        
+        if key_hash in self._last_request_time:
+            elapsed = time.time() - self._last_request_time[key_hash]
+            if elapsed < self._min_request_interval:
+                wait_time = self._min_request_interval - elapsed
+                time.sleep(wait_time)
+        
+        self._last_request_time[key_hash] = time.time()
+    
     def generate_metric_code(self, metric_description: str, available_metrics: Dict, 
                             on_progress: Callable = None) -> Dict:
-        """Generator LLM creates code"""
+        """Generator LLM creates code WITH RATE LIMITING"""
         if not self.enabled:
             return {"success": False, "error": "LLM not available"}
         
         if on_progress:
             on_progress("🤖 Generator LLM is creating code...")
-        
-        # Configure with generator key
-        genai.configure(api_key=self.generator_key)
         
         prompt = f"""Generate Python code to calculate this metric:
 
@@ -248,7 +296,10 @@ Return JSON:
 }}"""
         
         try:
-            model = genai.GenerativeModel('gemini-flash-latest')
+            # Use cached model + rate limiting
+            self._wait_for_rate_limit(self.generator_key)
+            model = self._get_or_create_model(self.generator_key)
+            
             response = model.generate_content(prompt, generation_config=self.generator_config)
             
             # Extract JSON
@@ -267,7 +318,7 @@ Return JSON:
     
     def validate_with_jury(self, proposal: Dict, num_judges: int = 3,
                           on_progress: Callable = None) -> Dict:
-        """Multiple judge LLMs validate using SEPARATE API keys from .env"""
+        """Multiple judge LLMs validate using SEPARATE API keys WITH RATE LIMITING"""
         if not self.enabled:
             return {"success": False, "error": "LLM not available"}
         
@@ -301,14 +352,16 @@ Return JSON:
         
         for i in range(num_judges):
             if on_progress:
-                on_progress(f"⚖️ Judge {i+1}/{num_judges} is evaluating (separate LLM)...")
+                on_progress(f"⚖️ Judge {i+1}/{num_judges} evaluating (waiting for rate limit)...")
             
             try:
-                # Configure with THIS judge's API key
-                genai.configure(api_key=self.jury_keys[i])
+                # Use cached model + rate limiting for THIS judge
+                judge_key = self.jury_keys[i]
+                self._wait_for_rate_limit(judge_key)
+                
+                model = self._get_or_create_model(judge_key)
                 
                 # Each judge is completely independent LLM
-                model = genai.GenerativeModel('gemini-flash-latest')
                 response = model.generate_content(
                     validation_prompt,
                     generation_config=self.judge_configs[i] if i < len(self.judge_configs) else self.judge_configs[0]
@@ -329,9 +382,6 @@ Return JSON:
                 if on_progress:
                     on_progress(f"⚠️ Judge {i+1} error: {str(e)}")
                 continue
-        
-        # Restore generator key for future operations
-        genai.configure(api_key=self.generator_key)
         
         if not votes:
             return {"success": False, "error": "No judges could evaluate"}
@@ -426,13 +476,54 @@ class AgenticDatasetGUI:
             try:
                 self.autonomous_agent = AutonomousDatasetAgent()
                 self.enhanced_system = EnhancedAgenticSystem(mode=EnhancedMode.ASK)
+                
+                # Initialize LLMCodeJurySystem with 4 API keys
+                generator_key = os.environ.get('GEMINI_API_KEY', '')
+                jury_keys = [
+                    os.environ.get('Jurry_1', ''),
+                    os.environ.get('Jurry_2', ''),
+                    os.environ.get('Jurry_3', '')
+                ]
+                
+                if generator_key and all(jury_keys):
+                    # Enable AWS fallback by default
+                    self.llm_jury_system = LLMCodeJurySystem(
+                        generator_key=generator_key, 
+                        jury_keys=jury_keys,
+                        use_aws_fallback=True  # Auto-fallback to AWS when Gemini quota exceeded
+                    )
+                    
+                    # Check if AWS is configured
+                    aws_configured = bool(os.environ.get('AWS_ACCESS_KEY_ID') and 
+                                        os.environ.get('AWS_SECRET_ACCESS_KEY'))
+                    
+                    if aws_configured:
+                        self.add_agent_message(MessageType.SUCCESS, 
+                            f"✅ Multi-LLM Jury System initialized (1 Generator + 3 Verifiers)\n"
+                            f"   🔄 AWS Bedrock fallback: ENABLED (unlimited quota)")
+                    else:
+                        self.add_agent_message(MessageType.SUCCESS, 
+                            f"✅ Multi-LLM Jury System initialized (1 Generator + 3 Verifiers)\n"
+                            f"   ⚠️ AWS fallback: DISABLED (add AWS credentials to .env for unlimited)")
+                else:
+                    self.llm_jury_system = None
+                    missing = []
+                    if not generator_key: missing.append('GEMINI_API_KEY')
+                    if not jury_keys[0]: missing.append('Jurry_1')
+                    if not jury_keys[1]: missing.append('Jurry_2')
+                    if not jury_keys[2]: missing.append('Jurry_3')
+                    self.add_agent_message(MessageType.INFO, 
+                        f"ℹ️ Multi-LLM Jury disabled - missing: {', '.join(missing)}")
+                    
             except Exception as e:
                 print(f"⚠️ Autonomous agent initialization failed: {e}")
                 self.autonomous_agent = None
                 self.enhanced_system = None
+                self.llm_jury_system = None
         else:
             self.autonomous_agent = None
             self.enhanced_system = None
+            self.llm_jury_system = None
         
         # Try to initialize catalog and agent
         try:
@@ -447,19 +538,6 @@ class AgenticDatasetGUI:
             self.agent = GitHubAutonomousAgent()
         except:
             self.agent = None
-        
-        # Initialize LLM Jury System (uses separate API keys from .env)
-        try:
-            self.llm_jury = LLMJurySystem()
-            if self.llm_jury.enabled:
-                jury_count = len(self.llm_jury.jury_keys)
-                self.add_agent_message(MessageType.SUCCESS, 
-                    f"✅ LLM Jury System ready (1 Generator + {jury_count} Judges)")
-            else:
-                self.add_agent_message(MessageType.INFO, "ℹ️ LLM Jury disabled - no API keys")
-        except Exception as e:
-            self.llm_jury = None
-            self.add_agent_message(MessageType.ERROR, f"⚠️ LLM Jury System error: {e}")
         
         # Configure main API key
         self.api_key = os.environ.get('GOOGLE_API_KEY') or os.environ.get('GEMINI_API_KEY', '')
@@ -664,6 +742,41 @@ class AgenticDatasetGUI:
         ttk.Button(input_frame, text="💬 Send", 
                    command=self.process_chat_input,
                    style='Accent.TButton').pack(fill=tk.X, pady=(5, 0))
+        
+        # ═══════════════════════════════════════════════════════════════════
+        # DYNAMIC FORMULA GENERATOR (Multi-LLM Jury System)
+        # ═══════════════════════════════════════════════════════════════════
+        if hasattr(self, 'llm_jury_system') and self.llm_jury_system:
+            formula_frame = ttk.LabelFrame(self.left_frame, text="🧮 Dynamic Formula Generator (Multi-LLM Jury)", padding=10)
+            formula_frame.pack(fill=tk.X, pady=(0, 10))
+            
+            # Info label
+            info_label = ttk.Label(formula_frame, 
+                text="Type ANY formula in natural language. 1 LLM generates code, 3 LLMs verify it.",
+                font=('Segoe UI', 9), foreground='#0066cc', wraplength=500)
+            info_label.pack(anchor=tk.W, pady=(0, 5))
+            
+            # Formula input
+            self.formula_input_var = tk.StringVar()
+            self.formula_input = scrolledtext.ScrolledText(formula_frame, height=4, wrap=tk.WORD,
+                                                          font=('Consolas', 10))
+            self.formula_input.pack(fill=tk.X, pady=(5, 5))
+            self.formula_input.insert('1.0', "Example: Calculate Bug Density = bugs / (loc / 1000) and Code Health = 100 - (smells * 2)")
+            self.formula_input.bind('<FocusIn>', lambda e: self.formula_input.delete('1.0', tk.END) 
+                                   if 'Example:' in self.formula_input.get('1.0', tk.END) else None)
+            
+            # Button row
+            btn_row = ttk.Frame(formula_frame)
+            btn_row.pack(fill=tk.X, pady=(5, 0))
+            
+            ttk.Button(btn_row, text="🚀 Generate & Apply Formulas",
+                      command=self.process_dynamic_formulas,
+                      style='Accent.TButton').pack(side=tk.LEFT, padx=(0, 5))
+            
+            # Jury status display
+            self.jury_status_var = tk.StringVar(value="Ready | 1 Generator + 3 Verifiers")
+            ttk.Label(btn_row, textvariable=self.jury_status_var,
+                     font=('Segoe UI', 9), foreground='green').pack(side=tk.LEFT, padx=5)
         
         # ═══════════════════════════════════════════════════════════════════
         # TODO LIST PANEL
@@ -1008,6 +1121,39 @@ class AgenticDatasetGUI:
     
     def _process_with_enhanced_system(self, query: str):
         """Process using EnhancedAgenticSystem"""
+        # SIMPLIFIED: Check if it's a benchmark request first
+        query_lower = query.lower()
+        is_benchmark = any(b.lower() in query_lower for b in self.BENCHMARK_DATASETS.keys())
+        
+        if is_benchmark:
+            # Use old working benchmark generation DIRECTLY
+            self.add_agent_message(MessageType.INFO, 
+                "🎯 Benchmark dataset detected. Using proven benchmark generator.")
+            threading.Thread(target=self._create_plan_from_input, 
+                            args=(query,), daemon=True).start()
+            return
+        
+        # For NON-benchmark: check if catalog is loaded
+        if not self.catalog:
+            self.add_agent_message(MessageType.ERROR, 
+                "❌ Metrics catalog not available. Cannot analyze custom metrics.")
+            return
+            
+        # Show available metrics FIRST before asking questions
+        all_metrics = self.catalog.get_all_metrics()
+        categories = self.catalog.get_categories()
+        
+        metrics_summary = f"📊 **{len(all_metrics)} Metrics Available:**\n\n"
+        for category in categories:
+            cat_metrics = self.catalog.get_metrics_by_category(category)
+            metrics_summary += f"**{category.upper()}** ({len(cat_metrics)}): "
+            metrics_summary += ", ".join(list(cat_metrics.keys())[:5])
+            if len(cat_metrics) > 5:
+                metrics_summary += f" (+{len(cat_metrics)-5} more)"
+            metrics_summary += "\n"
+        
+        self.add_agent_message(MessageType.SUCCESS, metrics_summary)
+        
         # Set repository if not already set
         if not self.enhanced_system.repo_path or str(self.enhanced_system.repo_path) != str(self.repo_path):
             try:
@@ -1015,17 +1161,6 @@ class AgenticDatasetGUI:
                     "🔍 Setting up repository and discovering metrics...")
                 
                 repo_info = self.enhanced_system.set_repository(self.repo_path)
-                
-                # Show discovered metrics
-                metrics_text = "📊 **Available Metrics Discovered:**\n\n"
-                for category, metrics in self.enhanced_system.available_metrics.items():
-                    metrics_text += f"**{category.upper()}** ({len(metrics)} metrics)\n"
-                    metrics_text += "  • " + ", ".join(metrics[:5])
-                    if len(metrics) > 5:
-                        metrics_text += f", ... (+{len(metrics)-5} more)"
-                    metrics_text += "\n\n"
-                
-                self.add_agent_message(MessageType.SUCCESS, metrics_text)
                 
             except Exception as e:
                 self.add_agent_message(MessageType.ERROR, 
@@ -1740,10 +1875,45 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
         return f"Found {total_files} files. Top types: {ext_summary}"
         
     def task_setup_benchmark(self, benchmark_name: str):
-        """Setup benchmark dataset format"""
+        """Setup benchmark dataset format AND GENERATE IT DIRECTLY"""
         self.dataset_config['benchmark'] = benchmark_name
         info = self.BENCHMARK_DATASETS.get(benchmark_name, {})
-        return f"Configured for {benchmark_name} ({info.get('format', 'json')} format)"
+        
+        # Generate benchmark dataset IMMEDIATELY using ProfessionalDatasetGenerator
+        try:
+            from dataset_generator import ProfessionalDatasetGenerator
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            
+            if not self.repo_path:
+                raise ValueError("Repository not set. Please set a repository first.")
+            
+            generator = ProfessionalDatasetGenerator(
+                workspace_path=str(self.repo_path),
+                commit_limit=None,
+                timestamp=timestamp
+            )
+            
+            # Call the appropriate benchmark generator method
+            method_map = {
+                "Defects4J": generator.generate_defects4j_dataset,
+                "Bugs.jar": generator.generate_bugs_jar_dataset,
+                "PROMISE": generator.generate_promise_dataset,
+                "CodeXGLUE": generator.generate_codexglue_dataset,
+                "CodeSearchNet": generator.generate_codesearchnet_dataset,
+                "ManySStuBs4J": generator.generate_manystubs4j_dataset,
+                "Sourcerer": generator.generate_sourcerer_dataset
+            }
+            
+            if benchmark_name in method_map:
+                self.add_agent_message(MessageType.ACTION, f"⚡ Generating {benchmark_name}...")
+                method_map[benchmark_name]()
+                self.add_agent_message(MessageType.SUCCESS, f"✅ {benchmark_name} generated!")
+                return f"{benchmark_name} dataset generated successfully"
+            else:
+                return f"Configured for {benchmark_name} ({info.get('format', 'json')} format)"
+                
+        except Exception as e:
+            raise ValueError(f"Failed to generate {benchmark_name}: {str(e)}")
         
     def task_find_bugs(self):
         """Find bug-fixing commits"""
@@ -2294,15 +2464,211 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
             self.root.after(0, lambda: self.add_agent_message(MessageType.ERROR, f"Error: {e}"))
     
     # ═══════════════════════════════════════════════════════════════════════════
+    # DYNAMIC FORMULA GENERATOR (Multi-LLM Jury System)
+    # ═══════════════════════════════════════════════════════════════════════════
+    
+    def process_dynamic_formulas(self):
+        """Process dynamic formulas using Multi-LLM Jury System"""
+        if not hasattr(self, 'llm_jury_system') or not self.llm_jury_system:
+            self.add_agent_message(MessageType.ERROR, 
+                "Multi-LLM Jury System not available. Check .env for API keys.")
+            return
+        
+        formula_text = self.formula_input.get('1.0', tk.END).strip()
+        if not formula_text or 'Example:' in formula_text:
+            self.add_agent_message(MessageType.ERROR, "Please enter formula request")
+            return
+        
+        # Clear formula input
+        self.formula_input.delete('1.0', tk.END)
+        
+        self.add_agent_message(MessageType.USER, f"Dynamic Formula Request:\n{formula_text}")
+        self.add_agent_message(MessageType.THINKING, "Starting Multi-LLM Jury System...")
+        
+        # Run in background
+        threading.Thread(target=self._execute_dynamic_formulas, 
+                        args=(formula_text,), daemon=True).start()
+    
+    def _execute_dynamic_formulas(self, formula_text: str):
+        """Execute dynamic formula generation with Multi-LLM Jury"""
+        try:
+            # Step 1: Understand request
+            self.root.after(0, lambda: self.jury_status_var.set("Understanding request..."))
+            self.root.after(0, lambda: self.add_agent_message(MessageType.ACTION, 
+                "Step 1: Generator LLM understanding your request..."))
+            
+            understanding = self.llm_jury_system.understand_user_request(formula_text)
+            formulas = understanding.get('formulas', [])
+            
+            if not formulas:
+                self.root.after(0, lambda: self.add_agent_message(MessageType.ERROR,
+                    "Could not extract formulas from request. Try being more specific."))
+                self.root.after(0, lambda: self.jury_status_var.set("Ready | 1 Generator + 3 Verifiers"))
+                return
+            
+            # Show what was understood and ASK FOR CONFIRMATION
+            formula_list = "\n".join([f"  {i+1}. {f.get('name', 'Unknown')}: {f.get('expression', 'N/A')}" 
+                                     for i, f in enumerate(formulas)])
+            
+            self.root.after(0, lambda: self.add_agent_message(MessageType.QUESTION,
+                f"📋 I understood your request:\n\n"
+                f"Formulas to calculate:\n{formula_list}\n\n"
+                f"Data source: Mock data (50 rows)\n"
+                f"Output folder: generate_dataset/\n\n"
+                f"⚠️ This will:\n"
+                f"  1. Generate Python code dynamically (Generator LLM)\n"
+                f"  2. Verify with 3 independent LLMs (Jury)\n"
+                f"  3. Execute code temporarily (self-destructs after)\n"
+                f"  4. Save result CSV to generate_dataset/\n\n"
+                f"💰 Cost: ~$0.005 (5 AWS calls)\n\n"
+                f"Type 'yes' or 'confirm' in chat to proceed, or 'no' to cancel."))
+            
+            # Store for later execution
+            self.pending_formula_execution = {
+                'formulas': formulas,
+                'formula_text': formula_text
+            }
+            self.root.after(0, lambda: self.jury_status_var.set("Waiting for your confirmation..."))
+            
+        except Exception as e:
+            import traceback
+            error_detail = traceback.format_exc()
+            self.root.after(0, lambda: self.add_agent_message(MessageType.ERROR,
+                f"Understanding error: {e}\n\nDetails:\n{error_detail}"))
+            self.root.after(0, lambda: self.jury_status_var.set("Error - check logs"))
+    
+    def _continue_formula_execution(self):
+        """Continue formula execution after user confirmation"""
+        if not hasattr(self, 'pending_formula_execution') or not self.pending_formula_execution:
+            self.add_agent_message(MessageType.ERROR, "No pending formula execution")
+            return
+        
+        formulas = self.pending_formula_execution['formulas']
+        
+        self.add_agent_message(MessageType.ACTION, "✅ Confirmed! Starting execution...")
+        
+        # Run in background thread
+        threading.Thread(target=self._run_formula_generation, 
+                        args=(formulas,), daemon=True).start()
+    
+    def _run_formula_generation(self, formulas):
+        """Actually run the formula generation (called after confirmation)"""
+        try:
+            # Step 2: Generate code
+            self.root.after(0, lambda: self.jury_status_var.set("Generating code..."))
+            self.root.after(0, lambda: self.add_agent_message(MessageType.ACTION,
+                "Step 2: Generator LLM writing Python code dynamically..."))
+            
+            # Create mock data for testing
+            import pandas as pd
+            import numpy as np
+            mock_data = pd.DataFrame({
+                'lines_of_code': np.random.randint(100, 5000, 50),
+                'bug_count': np.random.randint(0, 50, 50),
+                'commit_count': np.random.randint(10, 500, 50),
+                'code_smells': np.random.randint(0, 100, 50),
+                'complexity': np.random.randint(1, 50, 50),
+                'maintainability_index': np.random.randint(0, 100, 50),
+                'test_coverage': np.random.randint(0, 100, 50),
+                'loc_added': np.random.randint(0, 1000, 50),
+                'loc_deleted': np.random.randint(0, 800, 50),
+                'commits_by_author': np.random.randint(1, 200, 50)
+            })
+            
+            # Pass DataFrame directly (not columns list)
+            code = self.llm_jury_system.generate_code(formulas, mock_data)
+            
+            self.root.after(0, lambda: self.add_agent_message(MessageType.INFO,
+                f"Code generated ({len(code)} characters)"))
+            
+            # Step 3: Jury verification
+            self.root.after(0, lambda: self.jury_status_var.set("Jury verifying code..."))
+            self.root.after(0, lambda: self.add_agent_message(MessageType.ACTION,
+                "Step 3: 3 Verifier LLMs checking code correctness..."))
+            
+            verification = self.llm_jury_system.verify_code_with_jury(code, formulas)
+            
+            # Show verification results (votes are tuples: (name, verdict_dict))
+            approval_rate = verification.get('approval_rate', 0)
+            votes_text = "\n".join([
+                f"  - {name}: {verdict.get('verdict', 'UNKNOWN')} (confidence: {verdict.get('confidence', 0):.0%})"
+                for name, verdict in verification.get('votes', [])
+            ])
+            
+            if verification.get('approved'):
+                self.root.after(0, lambda: self.add_agent_message(MessageType.SUCCESS,
+                    f"✅ APPROVED by jury ({approval_rate:.0%}):\n{votes_text}"))
+                
+                # Step 4: Execute code
+                self.root.after(0, lambda: self.jury_status_var.set("Executing & self-destructing..."))
+                self.root.after(0, lambda: self.add_agent_message(MessageType.ACTION,
+                    "Step 4: Executing code temporarily (will auto-delete)..."))
+                
+                result_df = self.llm_jury_system.execute_temporary_code(code, mock_data)
+                
+                # Show results
+                new_cols = [col for col in result_df.columns if col not in mock_data.columns]
+                self.root.after(0, lambda: self.add_agent_message(MessageType.SUCCESS,
+                    f"SUCCESS! Added {len(new_cols)} new columns:\n" +
+                    "\n".join([f"  - {col}" for col in new_cols]) +
+                    f"\n\nSample values:\n{result_df[new_cols].head(3).to_string() if new_cols else 'None'}"))
+                
+                # Save to CORRECT folder: generate_dataset/
+                from datetime import datetime
+                output_dir = Path('generate_dataset')
+                output_dir.mkdir(exist_ok=True)
+                
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                output_path = output_dir / f'dynamic_formulas_{timestamp}.csv'
+                result_df.to_csv(output_path, index=False)
+                
+                self.root.after(0, lambda: self.add_agent_message(MessageType.SUCCESS,
+                    f"✅ Dataset saved to: {output_path}\n"
+                    f"📊 Rows: {len(result_df)}, Columns: {len(result_df.columns)}\n"
+                    f"💰 Estimated cost: ~$0.005"))
+                
+            else:
+                self.root.after(0, lambda: self.add_agent_message(MessageType.ERROR,
+                    f"❌ REJECTED by jury ({approval_rate:.0%}):\n{votes_text}\n\n"
+                    f"The generated code did not pass verification. Please try rewording your formula."))
+            
+            self.root.after(0, lambda: self.jury_status_var.set("Ready | 1 Generator + 3 Verifiers"))
+            
+            # Clear pending
+            self.pending_formula_execution = None
+            
+        except Exception as e:
+            import traceback
+            error_detail = traceback.format_exc()
+            self.root.after(0, lambda: self.add_agent_message(MessageType.ERROR,
+                f"Execution error: {e}\n\nDetails:\n{error_detail}"))
+            self.root.after(0, lambda: self.jury_status_var.set("Error - check logs"))
+    
+    # ═══════════════════════════════════════════════════════════════════════════
     # AGENTIC CHAT SYSTEM
     # ═══════════════════════════════════════════════════════════════════════════
     
     def process_chat_input(self):
         """Process chat input - agentic Q&A until understood"""
-        query = self.unified_input_var.get().strip()
+        query = self.unified_input_var.get().strip().lower()
         
-        if not query or 'Type:' in query:
+        if not query or 'type:' in query:
             return
+        
+        # Check if user is confirming pending formula execution
+        if hasattr(self, 'pending_formula_execution') and self.pending_formula_execution:
+            if query in ['yes', 'confirm', 'ok', 'proceed', 'go', 'y']:
+                self.unified_input_var.set("")
+                self.add_agent_message(MessageType.USER, "yes")
+                self._continue_formula_execution()
+                return
+            elif query in ['no', 'cancel', 'stop', 'n']:
+                self.unified_input_var.set("")
+                self.add_agent_message(MessageType.USER, "no")
+                self.add_agent_message(MessageType.INFO, "❌ Formula execution cancelled.")
+                self.pending_formula_execution = None
+                self.jury_status_var.set("Ready | 1 Generator + 3 Verifiers")
+                return
         
         # Show user message
         self.add_agent_message(MessageType.USER, query)

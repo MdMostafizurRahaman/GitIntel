@@ -74,19 +74,21 @@ class ProfessionalDatasetGenerator:
                     return []
                 logger.info(f"Repository has {total_commits} commits available")
             
-            # Get commits with bug-related keywords
+            # Get ALL commits with bug-related keywords (NO LIMIT)
             result = subprocess.run(
-                ['git', 'log', '--oneline', '--grep=fix', '--grep=bug', '--grep=error', 
-                 '--grep=issue', '--grep=patch', '-n', '100'],
-                cwd=str(repo_path), capture_output=True, text=True, encoding='utf-8', errors='ignore', timeout=60
+                ['git', 'log', '--oneline', '-i', 
+                 '--grep=fix', '--grep=bug', '--grep=error', 
+                 '--grep=issue', '--grep=patch', '--grep=defect',
+                 '--grep=fault', '--grep=correct'],
+                cwd=str(repo_path), capture_output=True, text=True, encoding='utf-8', errors='ignore', timeout=300
             )
             
             if result.returncode != 0 or not result.stdout.strip():
-                # Fallback: get any commits (no keyword filter)
-                logger.warning("No bug-fixing commits found, using all commits as fallback")
+                # Fallback: get ALL commits (NO LIMIT)
+                logger.warning("No bug-fixing commits found with keywords, using all commits as fallback")
                 result = subprocess.run(
-                    ['git', 'log', '--oneline', '-n', '100'],
-                    cwd=str(repo_path), capture_output=True, text=True, encoding='utf-8', errors='ignore', timeout=60
+                    ['git', 'log', '--oneline'],
+                    cwd=str(repo_path), capture_output=True, text=True, encoding='utf-8', errors='ignore', timeout=300
                 )
             
             for line in result.stdout.strip().split('\n'):
@@ -199,7 +201,8 @@ class ProfessionalDatasetGenerator:
                 logger.warning(f"Repository has NO bug-fixing commits. Defects4J requires commit history with bug fixes (keywords: fix, bug, error, issue, patch). Skipping.")
                 continue
             
-            for i, commit in enumerate(bug_commits[:50]):  # Limit to 50 like OLD code
+            # Process ALL bug commits (no limit - user demands maximum data extraction)
+            for i, commit in enumerate(bug_commits):
                     bug_id = f"{repo['name']}_bug_{len(dataset)+1:03d}"
                     
                     # Create directories for buggy and fixed versions
@@ -359,8 +362,8 @@ class ProfessionalDatasetGenerator:
         for repo in self.repositories:
             logger.info(f"Processing {repo['name']} for CodeXGLUE dataset...")
             
-            # Use FILE ANALYSIS (like PROMISE) - NOT commits!
-            java_files = self._get_java_files(repo["path"], limit=500)
+            # Use FILE ANALYSIS - get ALL files (no limit)
+            java_files = self._get_java_files(repo["path"], limit=None)
             
             for file_path in java_files:
                     try:
@@ -438,8 +441,8 @@ class ProfessionalDatasetGenerator:
         for repo in self.repositories:
             logger.info(f"Processing {repo['name']} for CodeSearchNet dataset...")
             
-            # Use FILE ANALYSIS - NOT commits!
-            java_files = self._get_java_files(repo["path"], limit=500)
+            # Use FILE ANALYSIS - get ALL files (no limit)
+            java_files = self._get_java_files(repo["path"], limit=None)
             
             for file_path in java_files:
                     try:
@@ -473,7 +476,7 @@ class ProfessionalDatasetGenerator:
                             "dataset_type": "codesearchnet",
                             "code": code,  # FULL CODE (like OLD format)
                             "docstring": docstring_clean,
-                            "code_tokens": code_tokens[:500],  # Limit tokens
+                            "code_tokens": code_tokens,  # Full token list (no limit)
                             "docstring_tokens": docstring_clean.split()
                         }
                         dataset.append(record)
@@ -500,8 +503,8 @@ class ProfessionalDatasetGenerator:
         for repo in self.repositories:
             logger.info(f"Processing {repo['name']} for Sourcerer dataset...")
             
-            # Use FILE ANALYSIS - NOT commits!
-            java_files = self._get_java_files(repo["path"], limit=500)
+            # Use FILE ANALYSIS - get ALL files (no limit)
+            java_files = self._get_java_files(repo["path"], limit=None)
             
             for file_path in java_files:
                     try:
@@ -554,8 +557,8 @@ class ProfessionalDatasetGenerator:
         for repo in self.repositories:
             logger.info(f"Processing {repo['name']} for PROMISE dataset...")
             
-            # Use FILE ANALYSIS (like OLD code) - NOT commits!
-            java_files = self._get_java_files(repo["path"], limit=200)
+            # Use FILE ANALYSIS - get ALL files (no limit)
+            java_files = self._get_java_files(repo["path"], limit=None)
             
             for i, file_path in enumerate(java_files):
                     try:
@@ -674,7 +677,8 @@ class ProfessionalDatasetGenerator:
                 logger.warning(f"Repository has NO bug-fixing commits. ManySStuBs4J requires commit history. Skipping.")
                 continue
             
-            for commit in bug_commits[:50]:  # Limit like OLD code
+            # Process ALL bug commits (no limit)
+            for commit in bug_commits:
                 try:
                     # Process each changed Java file
                     for java_file in commit['files'][:3]:  # Max 3 files per commit
@@ -691,14 +695,13 @@ class ProfessionalDatasetGenerator:
                             code = code_result.stdout
                             issue_count += 1
                             
-                            # EXACT OLD format: issue_id, project, file_path, issue_type, severity, description, code_snippet, dataset_type
                             record = {
                                 "issue_id": f"{repo['name']}_issue_{issue_count:03d}",
                                 "project": repo['name'],
                                 "file_path": java_file,
                                 "issue_type": "Bug Fix",
                                 "severity": "medium",
-                                "description": commit.get("message", "")[:200],
+                                "description": commit.get("message", ""),  # Full description (no limit)
                                 "code_snippet": code,  # FULL code like OLD format
                                 "commit_buggy": commit.get("parent", ""),
                                 "commit_fixed": commit.get("hash", ""),

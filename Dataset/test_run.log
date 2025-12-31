@@ -1,3 +1,0 @@
-  File "D:\GitIntel\GitIntelProject\Dataset\dataset_generator.py", line 308
-    logger.warning(f"Repository has NO bug-fixing commits. Bugs.jar requires commit history. Skipping.")
-IndentationError: unexpected indent
