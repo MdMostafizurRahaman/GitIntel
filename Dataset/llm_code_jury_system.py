@@ -159,28 +159,188 @@ Return ONLY valid JSON."""
         data_columns = list(available_data.columns)
         sample_row = available_data.iloc[0].to_dict() if len(available_data) > 0 else {}
         
+        # Identify what types of metrics are needed
+        git_metrics = ['lines_added', 'lines_deleted', 'commit_count', 'commits_per_file', 'author_count']
+        code_metrics = ['code_smells', 'cyclomatic_complexity', 'cognitive_complexity']
+        
+        # Check which metrics are needed for each formula
+        metrics_needed = set()
+        for formula in formulas:
+            expr = formula.get('expression', '') + formula.get('name', '')
+            required = formula.get('required_columns', [])
+            
+            # Check which metrics are mentioned in expression
+            for metric in data_columns + git_metrics + code_metrics:
+                if metric.lower() in expr.lower():
+                    metrics_needed.add(metric)
+            metrics_needed.update(required)
+        
+        # Separate by type
+        needed_git = [m for m in metrics_needed if m in git_metrics]
+        needed_code = [m for m in metrics_needed if m in code_metrics]
+        needed_other = [m for m in metrics_needed if m not in git_metrics and m not in code_metrics]
+        
         formulas_text = "\n".join([
             f"{i+1}. {f['name']}: {f['expression']}"
             for i, f in enumerate(formulas)
         ])
+        
+        git_section = ""
+        if needed_git:
+            git_section = f"\n**CRITICAL: This formula requires git-based metrics: {needed_git}**\nYou MUST use subprocess to query the git repository for these metrics!"
         
         prompt = f"""Generate Python code to calculate these formulas on a pandas DataFrame.
 
 Available DataFrame columns: {', '.join(data_columns)}
 Sample data: {sample_row}
 
+Metrics needed for formulas: {sorted(metrics_needed)}{git_section}
+
 Formulas to implement:
 {formulas_text}
 
-Requirements:
-1. Function signature: def calculate_formulas(df: pd.DataFrame) -> pd.DataFrame
-2. Add new columns to df for each formula
-3. Handle missing columns gracefully (skip or use alternatives)
-4. Use numpy for math operations (import numpy as np)
-5. Return modified DataFrame with new formula columns
+CRITICAL REQUIREMENTS:
+1. Function signature: def calculate_formulas(df: pd.DataFrame, repo_path: str = None, progress_callback=None) -> pd.DataFrame
 
-Generate ONLY the function code, no explanation.
-Make it production-ready with error handling."""
+2. **MUST CREATE ALL COLUMNS USED IN FORMULAS** before calculating them!
+   - For COMPLEX formulas: Break into STEPS and create INTERMEDIATE columns!
+   - Example: "code_smells / (lines_of_code / 1000)"
+     STEP 1: Create 'code_smells' column
+     STEP 2: Create 'lines_of_code' column
+     STEP 3: Create 'lines_of_code_per_1000' = lines_of_code / 1000 (INTERMEDIATE)
+     STEP 4: Create 'code_smell_density' = code_smells / lines_of_code_per_1000 (FINAL)
+   - Each intermediate calculation MUST have its own column in the DataFrame
+   - Naming: Use descriptive names like 'metric_name_step_description'
+   - Example: 'loc_normalized', 'complexity_scaled', 'ratio_calculated'
+   - Do NOT discard intermediate values - they become visible columns in CSV
+
+3. **For metrics like 'lines_added' and 'lines_deleted', MUST query git:**
+   
+   EXAMPLE - Extract lines added/deleted from git numstat:
+   ```python
+   def extract_lines_added_deleted(file_path, repo_path):
+       '''Extract total lines added and deleted from git history'''
+       try:
+           result = subprocess.run(
+               ['git', 'log', '--numstat', '--follow', '--', file_path],
+               cwd=repo_path,
+               capture_output=True,
+               text=True,
+               timeout=10
+           )
+           
+           if result.returncode == 0:
+               added = deleted = 0
+               for line in result.stdout.strip().split('\\n'):
+                   if '\\t' in line:
+                       parts = line.split('\\t')
+                       if len(parts) >= 2:
+                           try:
+                               added += int(parts[0]) if parts[0] != '-' else 0
+                               deleted += int(parts[1]) if parts[1] != '-' else 0
+                           except:
+                               pass
+               return added, deleted
+       except:
+           pass
+       
+       return 0, 0
+   
+   # In main function:
+   for idx, row in df.iterrows():
+       added, deleted = extract_lines_added_deleted(row['file'], repo_path)
+       df.at[idx, 'lines_added'] = added
+       df.at[idx, 'lines_deleted'] = deleted
+   ```
+
+4. For git-based metrics, use PARALLEL execution for speed (100 files in seconds, not minutes):
+   
+   EXAMPLE - Parallel git query with ThreadPoolExecutor:
+   ```python
+   import subprocess
+   import os
+   from concurrent.futures import ThreadPoolExecutor, as_completed
+   
+   def query_git_for_file(idx, file_path, repo_path):
+       '''Query git for single file - runs in parallel thread'''
+       try:
+           result = subprocess.run(
+               ['git', 'log', '--oneline', '--follow', '--', file_path],
+               cwd=repo_path,
+               capture_output=True,
+               text=True,
+               timeout=10
+           )
+           if result.returncode == 0 and result.stdout.strip():
+               commits = [line for line in result.stdout.strip().split('\\n') if line]
+               return idx, len(commits)
+           return idx, 0
+       except Exception:
+           return idx, 0
+   
+   # Run git queries in parallel (FAST!)
+   with ThreadPoolExecutor(max_workers=10) as executor:
+       futures = {{executor.submit(query_git_for_file, idx, row['file'], repo_path): idx 
+                  for idx, row in df.iterrows()}}
+       
+       completed = 0
+       for future in as_completed(futures):
+           idx, commit_count = future.result()
+           df.at[idx, 'commit_count'] = commit_count
+           completed += 1
+           
+           # Progress update every 10 files
+           if progress_callback and completed % 10 == 0:
+               progress_callback(completed, len(df), f"Processed {{completed}} files")
+   
+   if progress_callback:
+       progress_callback(len(df), len(df), "Complete!")
+   ```
+   
+   EXAMPLE - Multiple git queries per file (authors + commits):
+   ```python
+   def query_git_multi(idx, file_path, repo_path):
+       commits = authors = 0
+       try:
+           # Query 1: Total commits
+           r1 = subprocess.run(['git', 'log', '--oneline', '--', file_path],
+                             cwd=repo_path, capture_output=True, text=True, timeout=10)
+           if r1.returncode == 0 and r1.stdout.strip():
+               commits = len([l for l in r1.stdout.strip().split('\\n') if l])
+           
+           # Query 2: Author count
+           r2 = subprocess.run(['git', 'shortlog', '-s', '--', file_path],
+                             cwd=repo_path, capture_output=True, text=True, timeout=10)
+           if r2.returncode == 0 and r2.stdout.strip():
+               authors = len([l for l in r2.stdout.strip().split('\\n') if l])
+       except Exception:
+           pass
+       return idx, commits, authors
+   
+   with ThreadPoolExecutor(max_workers=10) as executor:
+       futures = [executor.submit(query_git_multi, idx, row['file'], repo_path) 
+                  for idx, row in df.iterrows()]
+       for future in as_completed(futures):
+           idx, commits, authors = future.result()
+           df.at[idx, 'commits'] = commits
+           df.at[idx, 'authors'] = authors
+   ```
+
+3. ALWAYS use ThreadPoolExecutor with max_workers=10 for git queries (parallel = FAST!)
+4. Each git query runs in separate thread - no blocking!
+5. Progress updates via progress_callback(current, total, message)
+6. Timeout=10 for each subprocess call
+7. Handle errors gracefully, return 0/NaN on failures
+8. Import: import subprocess, os, numpy as np, from concurrent.futures import ThreadPoolExecutor, as_completed
+
+9. **CRITICAL: Return df with ALL required columns created!**
+   - Before applying any formula, ALL columns referenced must exist in df
+   - If formula uses col_a / col_b → Both col_a AND col_b must be columns in returned df
+   - Do NOT try to compute formula on columns that don't exist yet
+   - Sequence: Create columns → Apply formula → Return df
+
+Generate ONLY the function code. NO explanations. Just Python code.
+MUST use parallel execution - DO NOT use iterrows() loop with blocking subprocess!"""
 
         try:
             # Try Gemini first
@@ -229,17 +389,29 @@ Generated code:
 ```
 
 Check:
-1. All formulas correctly implemented?
-2. Safe to execute (no malicious code)?
-3. Proper error handling?
-4. Logic is sound?
+1. **CRITICAL: All columns used in formulas exist in DataFrame BEFORE formula is applied?**
+   - For formula "a / b" → both 'a' and 'b' must be created as df columns first
+   - For complex formulas: ALL intermediate steps must be columns too!
+   - Example: "x / (y / 1000)" should create: 'x', 'y', 'y_normalized', 'result'
+   - REJECT if code tries to use undefined columns
+   
+2. **CRITICAL: All non-standard metrics properly extracted?**
+   - If formula contains 'lines_added', 'lines_deleted', 'commit_count': MUST use git commands
+   - If formula contains 'code_smells', 'cyclomatic_complexity': MUST extract from code analysis
+   - REJECT if code creates columns with all zeros without actual extraction
+   
+3. All formulas correctly implemented?
+4. Safe to execute (no malicious code)?
+5. Proper error handling for git/file operations?
+6. Logic is sound?
+7. Returns df with all required columns populated (including intermediates)?
 
 Return JSON:
 {{
   "verdict": "APPROVE" or "REJECT",
   "confidence": 0.0 to 1.0,
   "issues": ["list of issues if any"],
-  "reasoning": "brief explanation"
+  "reasoning": "brief explanation - note what metrics are being extracted"
 }}
 
 Return ONLY valid JSON."""

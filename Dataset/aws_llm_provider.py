@@ -26,8 +26,13 @@ class AWSBedrockProvider:
             region: AWS region (default: us-east-1)
         """
         try:
+            # Debug: Check if credentials provided
+            has_keys = bool(aws_access_key and aws_secret_key)
+            print(f"[DEBUG] AWS init - Has credentials: {has_keys}")
+            
             # Use provided credentials or fall back to environment/boto3 default
             if aws_access_key and aws_secret_key:
+                print(f"[DEBUG] Using provided AWS credentials (first 8 chars: {aws_access_key[:8]}...)")
                 self.client = boto3.client(
                     service_name='bedrock-runtime',
                     region_name=region,
@@ -36,6 +41,7 @@ class AWSBedrockProvider:
                 )
             else:
                 # Use default AWS credentials (from ~/.aws/credentials or env vars)
+                print(f"[DEBUG] Using environment/system AWS credentials")
                 self.client = boto3.client(
                     service_name='bedrock-runtime',
                     region_name=region
@@ -47,6 +53,8 @@ class AWSBedrockProvider:
             
         except Exception as e:
             print(f"[WARNING] AWS Bedrock init failed: {e}")
+            import traceback
+            print(f"[DEBUG] AWS error trace: {traceback.format_exc()}")
             self.available = False
             self.client = None
     
