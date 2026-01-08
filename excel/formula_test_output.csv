@@ -1,0 +1,5 @@
+file,code_smells,lines_of_code,loc,loc_per_1000,code_smell_density
+App.py,12,450,450,0.45,26.666666666666664
+Main.java,5,1200,1200,1.2,4.166666666666667
+Utils.py,8,300,300,0.3,26.666666666666668
+Config.py,2,150,150,0.15,13.333333333333334
