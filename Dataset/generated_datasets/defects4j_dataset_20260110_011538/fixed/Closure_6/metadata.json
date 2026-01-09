@@ -1,0 +1,16 @@
+{
+  "bug_id": "Closure_6_bug_016",
+  "project": "Closure_6",
+  "project_name": "Closure",
+  "description": "Google Closure Compiler",
+  "bug_type": "NullPointerException",
+  "severity": "Low",
+  "loc": 187,
+  "complexity": 12,
+  "test_coverage_before": 0.41,
+  "test_coverage_after": 0.94,
+  "time_to_fix_minutes": 282,
+  "files_changed": 1,
+  "dataset_type": "defects4j_synthetic",
+  "research_paper": "Just et al. 'Defects4J: A Database of Existing Faults' (ISSTA 2014)"
+}

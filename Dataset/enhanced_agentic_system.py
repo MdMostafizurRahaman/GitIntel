@@ -1603,15 +1603,26 @@ Keep response under 50 words."""
             return None
     
     def _generate_missing_formulas(self):
-        """Use LLM to generate missing formula definitions"""
+        """Use LLM JURY SYSTEM to generate and verify missing formula definitions"""
         if not self.model:
             self._add_message(MessageType.ERROR, 
-                "⚠️ Cannot generate formulas without LLM")
+                "Cannot generate formulas without LLM")
             return
+        
+        # Try to import jury system
+        try:
+            from llm_code_jury_system import LLMCodeJurySystem
+            jury_available = True
+            self._add_message(MessageType.SUCCESS, 
+                "[OK] Multi-LLM Jury System activated (1 Generator + 3 Verifiers)")
+        except Exception as e:
+            jury_available = False
+            self._add_message(MessageType.WARNING, 
+                f"Jury system not available ({str(e)[:50]}), using single LLM")
             
         for metric_name in self.current_requirement.missing_metrics:
             self._add_message(MessageType.THINKING, 
-                f"🔧 Generating formula for: {metric_name}")
+                f"Generating code for: {metric_name}")
                 
             prompt = f"""Generate a Python function to calculate: {metric_name}
 
@@ -1635,17 +1646,60 @@ Respond in JSON format:
 }}"""
 
             try:
+                # Generate code with single LLM
                 response = self.model.generate_content(prompt)
                 formula_def = json.loads(self._extract_json(response.text))
-                
-                self.generated_formulas.append(FormulaDefinition(**formula_def))
+                code = formula_def.get('python_code', '')
                 
                 self._add_message(MessageType.SUCCESS, 
-                    f"✅ Generated formula for {metric_name}")
+                    f"✅ Code generated for {metric_name}")
+                
+                # If jury system available, run verification
+                if jury_available:
+                    self._add_message(MessageType.THINKING, 
+                        f"👥 Running jury verification (3 independent judges)...")
+                    
+                    try:
+                        jury = LLMCodeJurySystem()
+                        
+                        # Jury verify the code
+                        verification = jury.verify_code_with_jury(
+                            code=code,
+                            formulas=[{
+                                'name': metric_name,
+                                'expression': metric_name
+                            }]
+                        )
+                        
+                        votes_passed = verification.get('votes_passed', 0)
+                        total_votes = verification.get('total_votes', 3)
+                        verdict = verification.get('verdict', 'REJECTED')
+                        
+                        if verdict == 'APPROVED':
+                            self._add_message(MessageType.SUCCESS, 
+                                f"✅ JURY APPROVED: {votes_passed}/{total_votes} judges approved\n"
+                                f"   Confidence: {verification.get('confidence', 0):.1%}")
+                            
+                            # Store the verified formula
+                            self.generated_formulas.append(FormulaDefinition(**formula_def))
+                            
+                        else:
+                            self._add_message(MessageType.WARNING, 
+                                f"⚠️ JURY REJECTED: Only {votes_passed}/{total_votes} judges approved\n"
+                                f"   Reason: {verification.get('reason', 'Code quality issues')}")
+                            
+                    except Exception as jury_error:
+                        self._add_message(MessageType.WARNING, 
+                            f"⚠️ Jury verification failed: {str(jury_error)[:100]}\n"
+                            f"   Using code without verification")
+                        self.generated_formulas.append(FormulaDefinition(**formula_def))
+                else:
+                    # No jury - just store the formula
+                    self.generated_formulas.append(FormulaDefinition(**formula_def))
                     
             except Exception as e:
                 self._add_message(MessageType.ERROR, 
-                    f"❌ Failed to generate formula for {metric_name}: {e}")
+                    f"❌ Failed to generate formula for {metric_name}: {str(e)[:100]}")
     
     def _extract_json(self, text: str) -> str:
         """Extract JSON from markdown code blocks or raw text"""

@@ -466,10 +466,16 @@ Return ONLY valid JSON."""
         approvals = sum(1 for _, v in votes if v['verdict'] == 'APPROVE')
         total = len(votes)
         
+        # Return in STANDARD format
         jury_result = {
-            "approved": approvals >= 2,  # Need 2/3 approval
+            "verdict": "APPROVED" if approvals >= 2 else "REJECTED",  # 2/3 threshold
+            "votes_passed": approvals,
+            "total_votes": total,
+            "approval_rate": approvals / total if total > 0 else 0,
+            "confidence": approvals / total if total > 0 else 0,
             "votes": votes,
-            "approval_rate": approvals / total if total > 0 else 0
+            "approved": approvals >= 2,  # Backward compat
+            "reason": f"{approvals}/{total} judges approved" if approvals < 2 else None
         }
         
         print(f"\n   Jury Result: {approvals}/{total} approved")

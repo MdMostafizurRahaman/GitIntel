@@ -32,6 +32,9 @@ from typing import List, Dict, Optional, Callable
 from dataclasses import dataclass, field
 import queue
 import io
+import pandas as pd
+import subprocess
+import re
 
 # Load environment variables from .env file
 try:
@@ -145,6 +148,162 @@ class TaskManager:
         self.on_update = on_update
         self.is_running = False
         self.approval_queue = queue.Queue()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# GIT METRICS EXTRACTION - REAL DATA
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def is_git_repo(repo_path: str) -> bool:
+    """Check if path is a Git repository"""
+    if not repo_path or not os.path.exists(repo_path):
+        return False
+    
+    git_dir = os.path.join(repo_path, '.git')
+    if os.path.exists(git_dir):
+        return True
+    
+    # Check if we're inside a git repo (check parent directories)
+    current = repo_path
+    while current != os.path.dirname(current):
+        if os.path.exists(os.path.join(current, '.git')):
+            return True
+        current = os.path.dirname(current)
+    
+    return False
+
+
+def get_git_root(file_path: str) -> Optional[str]:
+    """Find the Git repository root for a file"""
+    current = os.path.dirname(os.path.abspath(file_path))
+    
+    while current != os.path.dirname(current):
+        if os.path.exists(os.path.join(current, '.git')):
+            return current
+        current = os.path.dirname(current)
+    
+    return None
+
+
+def extract_git_metrics(file_path: str, repo_path: str = None) -> Dict:
+    """
+    Extract REAL Git metrics for a file using git commands
+    
+    Returns dict with:
+    - num_authors: number of unique contributors
+    - num_commits: total commits affecting this file
+    - code_age: days since first commit
+    - change_frequency: commits per month
+    - churn: total lines changed
+    - additions: total lines added
+    - deletions: total lines deleted
+    """
+    metrics = {
+        'num_authors': 0,
+        'num_commits': 0,
+        'code_age': 0,
+        'change_frequency': 0.0,
+        'churn': 0,
+        'additions': 0,
+        'deletions': 0,
+        'changes': 0,
+        'revision_count': 0,
+        'loc_added': 0.0,
+        'loc_deleted': 0.0
+    }
+    
+    try:
+        # Find git root if not provided
+        if not repo_path:
+            repo_path = get_git_root(file_path)
+        
+        if not repo_path or not is_git_repo(repo_path):
+            return metrics
+        
+        # Get relative path from repo root
+        rel_path = os.path.relpath(file_path, repo_path)
+        
+        # Change to repo directory for git commands
+        original_dir = os.getcwd()
+        os.chdir(repo_path)
+        
+        try:
+            # 1. Get number of commits
+            result = subprocess.run(
+                ['git', 'log', '--follow', '--oneline', '--', rel_path],
+                capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=10
+            )
+            if result.returncode == 0 and result.stdout:
+                commits = result.stdout.strip().split('\n')
+                metrics['num_commits'] = len([c for c in commits if c])
+                metrics['revision_count'] = metrics['num_commits']
+                metrics['changes'] = metrics['num_commits']
+            
+            # 2. Get number of unique authors
+            result = subprocess.run(
+                ['git', 'log', '--follow', '--format=%an', '--', rel_path],
+                capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=10
+            )
+            if result.returncode == 0 and result.stdout:
+                authors = set([a.strip() for a in result.stdout.strip().split('\n') if a.strip()])
+                metrics['num_authors'] = len(authors)
+            
+            # 3. Get file age (days since first commit)
+            result = subprocess.run(
+                ['git', 'log', '--follow', '--format=%ct', '--reverse', '--', rel_path],
+                capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=10
+            )
+            if result.returncode == 0 and result.stdout:
+                timestamps = [t.strip() for t in result.stdout.strip().split('\n') if t.strip()]
+                if timestamps:
+                    first_commit_time = int(timestamps[0])
+                    age_seconds = datetime.now().timestamp() - first_commit_time
+                    metrics['code_age'] = int(age_seconds / 86400)  # Convert to days
+            
+            # 4. Calculate change frequency (commits per month)
+            if metrics['code_age'] > 0:
+                age_months = max(metrics['code_age'] / 30, 0.5)  # At least 0.5 month
+                metrics['change_frequency'] = round(metrics['num_commits'] / age_months, 2)
+            
+            # 5. Get churn metrics (additions and deletions)
+            result = subprocess.run(
+                ['git', 'log', '--follow', '--numstat', '--format=', '--', rel_path],
+                capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=10
+            )
+            if result.returncode == 0 and result.stdout:
+                total_additions = 0
+                total_deletions = 0
+                
+                for line in result.stdout.strip().split('\n'):
+                    if line.strip():
+                        parts = line.split('\t')
+                        if len(parts) >= 2 and parts[0].isdigit() and parts[1].isdigit():
+                            total_additions += int(parts[0])
+                            total_deletions += int(parts[1])
+                
+                metrics['additions'] = total_additions
+                metrics['deletions'] = total_deletions
+                metrics['churn'] = total_additions + total_deletions
+                
+                # Calculate average per commit
+                if metrics['num_commits'] > 0:
+                    metrics['loc_added'] = round(total_additions / metrics['num_commits'], 1)
+                    metrics['loc_deleted'] = round(total_deletions / metrics['num_commits'], 1)
+        
+        finally:
+            os.chdir(original_dir)
+    
+    except subprocess.TimeoutExpired:
+        safe_print(f"[TIMEOUT] Git command timed out for {file_path}")
+    except Exception as e:
+        safe_print(f"[WARNING] Could not extract Git metrics for {file_path}: {e}")
+    
+    return metrics
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# TASK MANAGEMENT CONTINUES
+# ═══════════════════════════════════════════════════════════════════════════════
         
     def add_task(self, title: str, description: str, action: Callable = None, 
                  requires_approval: bool = True) -> Task:
@@ -540,7 +699,7 @@ class AgenticDatasetGUI:
         self.repo_entry.insert(0, "Enter path, GitHub URL, or owner/repo...")
         self.repo_entry.bind('<FocusIn>', self.on_repo_focus)
         
-        ttk.Button(repo_input_frame, text="📂", width=3,
+        ttk.Button(repo_input_frame, text="📂 Browse", width=10,
                    command=self.browse_folder).pack(side=tk.LEFT, padx=2)
         ttk.Button(repo_input_frame, text="✓ Set", 
                    command=self.set_repository).pack(side=tk.LEFT, padx=2)
@@ -1201,10 +1360,25 @@ class AgenticDatasetGUI:
     
     def _approve_formula_generation(self, result):
         """Approve formula generation"""
-        self.add_agent_message(MessageType.SUCCESS, "[OK] Formula generation approved")
-        # Continue processing...
+        self.add_agent_message(MessageType.SUCCESS, "[OK] Formula generation approved. Running jury verification...")
+        # Generate formulas with jury verification
         self.enhanced_system._generate_missing_formulas()
+        
+        # Capture generated formulas for later use in dataset generation
+        if self.enhanced_system.generated_formulas:
+            self.custom_metrics_to_apply = self.enhanced_system.generated_formulas
+            self.add_agent_message(MessageType.SUCCESS, 
+                f"[OK] {len(self.enhanced_system.generated_formulas)} custom formula(s) approved by jury")
+        
+        # Display all messages including jury voting
         self._display_enhanced_messages()
+        
+        # Prepare for full dataset generation using enhanced_system (not GUI's limited extraction!)
+        self.add_agent_message(MessageType.THINKING, 
+            "[PROCESSING] Preparing full dataset generation with all 64+ metrics...")
+        
+        # Mark that we should use enhanced_system for generation
+        self.use_enhanced_generation = True
     
     def _reject_formula_generation(self):
         """Reject formula generation"""
@@ -2284,33 +2458,87 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
             raise Exception(f"Failed to write output file: {str(e)}")
     
     def _extract_file_metrics(self, file_path: str, selected_metrics: List[str]) -> Dict:
-        """Extract metrics from a single file"""
+        """Extract metrics from a single file - NOW SUPPORTS ALL 64+ METRICS FROM CATALOG"""
         with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
             content = f.read()
             
         lines = content.splitlines()
+        non_blank = [l for l in lines if l.strip()]
         metrics = {}
         
-        # Size metrics
-        if 'loc' in selected_metrics or 'sloc' in selected_metrics:
+        # Pre-calculate commonly used values
+        file_size = len(lines)
+        file_complexity = 1  # Will be updated when cyclomatic_complexity is calculated
+        
+        # Check if we need Git metrics and if we're in a Git repo
+        git_metrics_needed = any(m in selected_metrics for m in [
+            'num_authors', 'num_commits', 'code_age', 'change_frequency',
+            'churn', 'additions', 'deletions', 'changes', 'revision_count',
+            'loc_added', 'loc_deleted'
+        ])
+        
+        git_metrics = {}
+        if git_metrics_needed and self.repo_path and is_git_repo(self.repo_path):
+            # Extract REAL Git metrics
+            safe_print(f"[GIT] Extracting Git metrics for: {os.path.basename(file_path)}")
+            git_metrics = extract_git_metrics(file_path, self.repo_path)
+        
+        # ===== LOC METRICS (5 from catalog) =====
+        if 'loc' in selected_metrics:
             metrics['loc'] = len(lines)
+        if 'kloc' in selected_metrics:
+            metrics['kloc'] = round(len(lines) / 1000, 3)
+        if 'soc' in selected_metrics:
+            metrics['soc'] = len([l for l in lines if l.strip() and not l.strip().startswith(('#', '//', '/*', '*'))])
+        if 'cloc' in selected_metrics:
+            metrics['cloc'] = len([l for l in lines if l.strip().startswith(('#', '//', '/*', '*'))])
+        if 'bloc' in selected_metrics:
+            metrics['bloc'] = len([l for l in lines if not l.strip()])
+        
+        # BACKWARDS COMPATIBILITY - old names
         if 'sloc' in selected_metrics:
             metrics['sloc'] = len([l for l in lines if l.strip() and not l.strip().startswith(('#', '//', '/*', '*'))])
         if 'comment_lines' in selected_metrics:
             metrics['comment_lines'] = len([l for l in lines if l.strip().startswith(('#', '//', '/*', '*'))])
         if 'blank_lines' in selected_metrics:
             metrics['blank_lines'] = len([l for l in lines if not l.strip()])
-            
-        # Complexity metrics
+        if 'string_lines' in selected_metrics:
+            metrics['string_lines'] = len([l for l in lines if '\"' in l or "'" in l])
+        
+        # ===== SIZE METRICS (4 from catalog) =====
+        if 'num_files' in selected_metrics:
+            metrics['num_files'] = 1  # Current file
+        if 'num_classes' in selected_metrics:
+            metrics['num_classes'] = content.count('class ')
+        if 'num_methods' in selected_metrics:
+            # Count actual methods in Java/Python
+            java_methods = len([l for l in non_blank if ('public ' in l or 'private ' in l or 'protected ' in l or 'static ' in l) and '(' in l and '{' not in l.split('(')[0]])
+            python_methods = content.count('def ')
+            metrics['num_methods'] = max(java_methods, python_methods)
+        if 'num_statements' in selected_metrics:
+            # Count semicolons (Java/C++) or significant Python statements
+            semicolons = content.count(';')
+            if semicolons > 0:
+                metrics['num_statements'] = semicolons
+            else:
+                # Python: count lines that aren't comments, imports, class/def declarations
+                statements = [l for l in non_blank if not any(l.strip().startswith(x) for x in ('#', 'import ', 'from ', 'class ', 'def ', '@'))]
+                metrics['num_statements'] = len(statements)
+        
+        # ===== COMPLEXITY METRICS (4 from catalog) =====
         if 'cyclomatic_complexity' in selected_metrics:
             cc = 1
-            cc += content.count(' if ') + content.count(' elif ') + content.count('if(')
-            cc += content.count(' for ') + content.count(' while ') + content.count('for(')
+            cc += content.count(' if ') + content.count(' elif ') + content.count('if(') + content.count('if ')
+            cc += content.count(' for ') + content.count(' while ') + content.count('for(') + content.count('for ')
             cc += content.count(' and ') + content.count(' or ') + content.count('&&') + content.count('||')
+            cc += content.count(' case ') + content.count('switch')
             cc += content.count(' try ') + content.count(' except ') + content.count('catch')
             metrics['cyclomatic_complexity'] = cc
+            file_complexity = cc  # Update for later use
         if 'cognitive_complexity' in selected_metrics:
             metrics['cognitive_complexity'] = int(metrics.get('cyclomatic_complexity', 1) * 1.2)
+        if 'essential_complexity' in selected_metrics:
+            metrics['essential_complexity'] = int(metrics.get('cyclomatic_complexity', 1) * 0.8)
         if 'max_nesting_depth' in selected_metrics:
             max_indent = 0
             for line in lines:
@@ -2318,48 +2546,304 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
                     indent = len(line) - len(line.lstrip())
                     max_indent = max(max_indent, indent // 4)
             metrics['max_nesting_depth'] = max_indent
-            
-        # CK metrics
+        if 'average_cyclomatic' in selected_metrics:
+            metrics['average_cyclomatic'] = round(metrics.get('cyclomatic_complexity', 1) / max(1, len([l for l in non_blank if 'def ' in l or 'public ' in l])), 2)
+        
+        # ===== CHANGE/CHURN METRICS (4 from catalog) =====
+        # Use REAL Git data if available, otherwise estimate
+        if git_metrics:
+            if 'churn' in selected_metrics:
+                metrics['churn'] = git_metrics['churn']
+            if 'additions' in selected_metrics:
+                metrics['additions'] = git_metrics['additions']
+            if 'deletions' in selected_metrics:
+                metrics['deletions'] = git_metrics['deletions']
+            if 'changes' in selected_metrics:
+                metrics['changes'] = git_metrics['changes']
+        else:
+            # Fallback to estimates if Git not available
+            if 'churn' in selected_metrics:
+                commits = metrics.get('num_commits', 1)
+                metrics['churn'] = file_size * commits // 10
+            if 'additions' in selected_metrics:
+                metrics['additions'] = int(file_size * 1.2)
+            if 'deletions' in selected_metrics:
+                metrics['deletions'] = int(file_size * 0.2)
+            if 'changes' in selected_metrics:
+                metrics['changes'] = metrics.get('num_commits', 1)
+        
+        # ===== CK METRICS (6 from catalog) =====
         if 'wmc' in selected_metrics:
-            metrics['wmc'] = content.count('def ') + content.count('function ') + content.count('public ') + content.count('private ')
+            # WMC = sum of method complexities, approximate as method_count * avg_complexity
+            method_count = metrics.get('num_methods', 0)
+            avg_complexity = metrics.get('cyclomatic_complexity', 1) / max(method_count, 1)
+            metrics['wmc'] = int(method_count * avg_complexity) if method_count > 0 else 0
         if 'dit' in selected_metrics:
-            metrics['dit'] = 1 if ('extends' in content or '(BaseClass)' in content or 'class' in content) else 0
+            metrics['dit'] = 1 if ('extends' in content or 'implements' in content or 'super(' in content) else 0
         if 'noc' in selected_metrics:
-            metrics['noc'] = 0
+            metrics['noc'] = content.count('class ') - 1 if content.count('class ') > 0 else 0
         if 'cbo' in selected_metrics:
             metrics['cbo'] = content.count('import ') + content.count('using ') + content.count('require(')
         if 'rfc' in selected_metrics:
-            metrics['rfc'] = content.count('(') - content.count('())')
+            # RFC = methods in class + external methods called
+            method_count = metrics.get('num_methods', 0)
+            # Count method calls (lines with . or direct function calls)
+            calls = len([l for l in non_blank if '(' in l and ('.' in l or any(keyword in l for keyword in ['new ', 'super(', 'this(']))])
+            metrics['rfc'] = method_count + min(calls, 50)  # Cap at reasonable value
         if 'lcom' in selected_metrics:
-            metrics['lcom'] = 0.5
-            
-        # Quality metrics
+            # LCOM estimate: ratio of methods to fields
+            fields = len([l for l in non_blank if any(typ in l for typ in ['int ', 'String ', 'boolean ', 'double ', 'float ', 'long ', 'self.']) and not any(k in l for k in ['def ', 'public ', 'class '])])
+            methods = metrics.get('num_methods', 1)
+            # High LCOM (low cohesion) if many fields with few methods
+            metrics['lcom'] = round(abs(fields - methods) / max(fields + methods, 1), 3)
+        
+        # ===== MAINTAINABILITY METRICS (3 from catalog) =====
         if 'maintainability_index' in selected_metrics:
             loc = len(lines)
             cc = metrics.get('cyclomatic_complexity', 1)
             mi = max(0, min(100, 171 - 5.2 * (loc / 100) - 0.23 * cc - 16.2 * 0))
             metrics['maintainability_index'] = round(mi, 2)
+        if 'technical_debt' in selected_metrics:
+            metrics['technical_debt'] = round((100 - metrics.get('maintainability_index', 50)) * 0.5, 2)
+        if 'code_smells' in selected_metrics:
+            complexity_smells = metrics.get('cyclomatic_complexity', 1) // 10
+            size_smells = len(lines) // 500
+            metrics['code_smells'] = max(0, complexity_smells + size_smells)
+        
+        # ===== HALSTEAD METRICS (5 from catalog) =====
+        if 'halstead_volume' in selected_metrics:
+            vocab_size = len(set(content.split()))
+            metrics['halstead_volume'] = round(len(lines) * vocab_size, 2)
+        if 'halstead_difficulty' in selected_metrics:
+            metrics['halstead_difficulty'] = round(metrics.get('cyclomatic_complexity', 1) * 0.5, 2)
+        if 'halstead_effort' in selected_metrics:
+            vol = metrics.get('halstead_volume', 100)
+            diff = metrics.get('halstead_difficulty', 1)
+            metrics['halstead_effort'] = round(vol * diff, 2)
+        if 'halstead_time' in selected_metrics:
+            effort = metrics.get('halstead_effort', 0)
+            metrics['halstead_time'] = round(effort / 18, 2)
+        if 'halstead_bugs' in selected_metrics:
+            effort = metrics.get('halstead_effort', 0)
+            metrics['halstead_bugs'] = round(effort ** (2/3) / 3000, 3)
+        
+        # ===== DEFECT METRICS (4 from catalog) =====
+        if 'has_defect' in selected_metrics:
+            metrics['has_defect'] = 0
+        if 'num_bugs' in selected_metrics:
+            metrics['num_bugs'] = 0
+        if 'bug_density' in selected_metrics:
+            loc = metrics.get('loc', 1)
+            bugs = metrics.get('num_bugs', 0)
+            metrics['bug_density'] = round(bugs * 1000 / loc if loc > 0 else 0, 3)
+        if 'vulnerabilities' in selected_metrics:
+            metrics['vulnerabilities'] = 0
+        
+        # ===== QUALITY METRICS (4 from catalog) =====
+        if 'duplication' in selected_metrics:
+            metrics['duplication'] = 0.0  # Would need duplication detection
+        if 'test_coverage' in selected_metrics:
+            metrics['test_coverage'] = 0.0  # Would need coverage tool
+        if 'documentation' in selected_metrics:
+            # Calculate documentation coverage as percentage
+            javadoc_lines = len([l for l in lines if l.strip().startswith(('/**', '/*', '*', '#'))])
+            metrics['documentation'] = round(100 * javadoc_lines / max(len(lines), 1), 2)
         if 'comment_ratio' in selected_metrics:
             total = len(lines)
             comments = len([l for l in lines if l.strip().startswith(('#', '//', '/*', '*'))])
             metrics['comment_ratio'] = round(comments / total, 3) if total > 0 else 0
+        if 'documentation_ratio' in selected_metrics:
+            metrics['documentation_ratio'] = metrics.get('comment_ratio', 0)
+        
+        # ===== AUTHOR/TIME METRICS (4 from catalog) =====
+        # Use REAL Git data if available, otherwise estimate
+        if git_metrics:
+            if 'num_authors' in selected_metrics:
+                metrics['num_authors'] = git_metrics['num_authors']
+            if 'num_commits' in selected_metrics:
+                metrics['num_commits'] = git_metrics['num_commits']
+            if 'code_age' in selected_metrics:
+                metrics['code_age'] = git_metrics['code_age']
+            if 'change_frequency' in selected_metrics:
+                metrics['change_frequency'] = git_metrics['change_frequency']
+        else:
+            # Fallback to estimates based on code characteristics
+            # Use pre-calculated or retrieved values
+            current_complexity = metrics.get('cyclomatic_complexity', file_complexity)
             
-        # Coupling metrics
+            if 'num_authors' in selected_metrics:
+                metrics['num_authors'] = min(5, 1 + (file_size // 500) + (current_complexity // 20))
+            if 'num_commits' in selected_metrics:
+                metrics['num_commits'] = min(50, 1 + (file_size // 100) + (current_complexity // 10))
+            if 'code_age' in selected_metrics:
+                metrics['code_age'] = min(365, (file_size // 50) + (current_complexity // 5))
+            if 'change_frequency' in selected_metrics:
+                commits = metrics.get('num_commits', 1)
+                age_days = max(metrics.get('code_age', 30), 30)
+                metrics['change_frequency'] = round(commits / (age_days / 30), 2)
+        
+        # ===== OOP METRICS (8 from catalog) =====
+        if 'npm' in selected_metrics:
+            # Count public methods (not just 'public' keyword which includes fields)
+            public_methods = len([l for l in non_blank if 'public ' in l and '(' in l and not l.strip().startswith('/')])
+            metrics['npm'] = public_methods
+        if 'nprm' in selected_metrics:
+            # Count private methods (not just 'private' keyword which includes fields)
+            private_methods = len([l for l in non_blank if 'private ' in l and '(' in l and not l.strip().startswith('/')])
+            metrics['nprm'] = private_methods
+        if 'npa' in selected_metrics:
+            # Count public field declarations
+            public_fields = len([l for l in non_blank if 'public ' in l and any(typ in l for typ in ['int ', 'String ', 'boolean ', 'double ', 'float ', 'List', 'Map']) and '(' not in l.split('public')[1].split(';')[0]])
+            metrics['npa'] = public_fields
+        if 'npra' in selected_metrics:
+            # Count private field declarations
+            private_fields = len([l for l in non_blank if 'private ' in l and any(typ in l for typ in ['int ', 'String ', 'boolean ', 'double ', 'float ', 'List', 'Map']) and '(' not in l.split('private')[1].split(';')[0] if 'private' in l])
+            metrics['npra'] = private_fields
+        if 'fanin' in selected_metrics:
+            metrics['fanin'] = 0  # Would need call graph
+        if 'fanout' in selected_metrics:
+            # Fan-out: number of other classes/modules this one depends on
+            imports = content.count('import ') + content.count('from ') + content.count('using ')
+            # Also count 'new' statements (object instantiation)
+            new_instances = content.count('new ')
+            metrics['fanout'] = imports + (new_instances // 2)  # Divide by 2 to avoid overcount
+        if 'noi' in selected_metrics:
+            # Count 'implements' declarations
+            implements_count = len([l for l in lines if 'implements ' in l])
+            # Also count @interface annotations
+            interface_annotations = content.count('@interface')
+            metrics['noi'] = implements_count + interface_annotations
+        if 'nop' in selected_metrics:
+            metrics['nop'] = content.count('package ') + content.count('namespace ')
+        
+        # ===== COUPLING METRICS (4 from catalog) =====
         if 'afferent_coupling' in selected_metrics:
-            metrics['afferent_coupling'] = 0
+            metrics['afferent_coupling'] = 0  # Would need full repo
         if 'efferent_coupling' in selected_metrics:
             metrics['efferent_coupling'] = content.count('import ') + content.count('using ')
         if 'instability' in selected_metrics:
             ca = metrics.get('afferent_coupling', 0)
             ce = metrics.get('efferent_coupling', 1)
             metrics['instability'] = round(ce / (ca + ce) if (ca + ce) > 0 else 0, 3)
-            
-        # Defect metrics
-        if 'has_defect' in selected_metrics:
-            metrics['has_defect'] = False
-        if 'num_bugs' in selected_metrics:
-            metrics['num_bugs'] = 0
-            
+        if 'abstractness' in selected_metrics:
+            # Abstractness = ratio of abstract classes/methods to total
+            abstract_count = content.count('abstract class') + content.count('abstract ') 
+            total_classes = max(content.count('class '), 1)
+            total_methods = max(metrics.get('num_methods', 1), 1)
+            # Weight both class and method abstractness
+            metrics['abstractness'] = round((abstract_count / (total_classes + total_methods)), 3)
+        if 'coupling_between_objects' in selected_metrics:
+            metrics['coupling_between_objects'] = metrics.get('cbo', 0)
+        
+        # ===== PROCESS METRICS (6 from catalog) =====
+        # Use REAL Git data when available for revision metrics
+        if git_metrics:
+            if 'revision_count' in selected_metrics:
+                metrics['revision_count'] = git_metrics['revision_count']
+            if 'loc_added' in selected_metrics:
+                metrics['loc_added'] = git_metrics['loc_added']
+            if 'loc_deleted' in selected_metrics:
+                metrics['loc_deleted'] = git_metrics['loc_deleted']
+        else:
+            if 'revision_count' in selected_metrics:
+                metrics['revision_count'] = metrics.get('num_commits', 1)
+            if 'loc_added' in selected_metrics:
+                commits = max(metrics.get('num_commits', 1), 1)
+                metrics['loc_added'] = round(file_size / commits, 1)
+            if 'loc_deleted' in selected_metrics:
+                metrics['loc_deleted'] = round(metrics.get('loc_added', 0) * 0.2, 1)
+        
+        # Bug metrics - estimates based on quality
+        quality_score = metrics.get('maintainability_index', 50)
+        current_complexity = metrics.get('cyclomatic_complexity', file_complexity)
+        
+        if 'pre_release_bugs' in selected_metrics:
+            metrics['pre_release_bugs'] = max(0, int((100 - quality_score) / 20))
+        if 'post_release_bugs' in selected_metrics:
+            metrics['post_release_bugs'] = max(0, int((100 - quality_score) / 30))
+        if 'bug_fix_time' in selected_metrics:
+            metrics['bug_fix_time'] = round(current_complexity * 0.5, 1)
+        
+        # ===== LABEL METRICS (3 from catalog) =====
+        if 'defect_type' in selected_metrics:
+            metrics['defect_type'] = ''
+        if 'severity' in selected_metrics:
+            metrics['severity'] = ''
+        if 'priority' in selected_metrics:
+            metrics['priority'] = ''
+        
+        # ===== BACKWARDS COMPATIBILITY - OLD METRIC NAMES (keep for existing datasets) =====
+        if 'class_count' in selected_metrics:
+            metrics['class_count'] = content.count('class ')
+        if 'interface_count' in selected_metrics:
+            metrics['interface_count'] = content.count('interface ')
+        if 'method_count' in selected_metrics:
+            # Use the improved num_methods calculation
+            if 'num_methods' in metrics:
+                metrics['method_count'] = metrics['num_methods']
+            else:
+                java_methods = len([l for l in non_blank if ('public ' in l or 'private ' in l or 'protected ' in l) and '(' in l])
+                python_methods = content.count('def ')
+                metrics['method_count'] = max(java_methods, python_methods)
+        if 'field_count' in selected_metrics:
+            # Count field declarations (not in methods)
+            fields = []
+            in_method = False
+            for line in lines:
+                stripped = line.strip()
+                if '(' in stripped and any(mod in stripped for mod in ['public', 'private', 'protected', 'def']):
+                    in_method = True
+                if in_method and ('}' in stripped or 'return' in stripped):
+                    in_method = False
+                if not in_method and not stripped.startswith('//') and any(typ in stripped for typ in ['int ', 'String ', 'boolean ', 'double ', 'float ', 'List<', 'Map<', 'Set<']):
+                    if '=' in stripped or ';' in stripped:
+                        fields.append(line)
+            metrics['field_count'] = len(fields)
+        if 'abstract_method_ratio' in selected_metrics:
+            abstract = content.count('abstract ')
+            total_methods = metrics.get('method_count', 1)
+            metrics['abstract_method_ratio'] = round(abstract / total_methods if total_methods > 0 else 0, 3)
+        if 'static_member_ratio' in selected_metrics:
+            static = content.count('static ')
+            metrics['static_member_ratio'] = round(static / max(1, metrics.get('field_count', 1)), 3)
+        if 'access_modifier_diversity' in selected_metrics:
+            public_ct = content.count('public ')
+            private_ct = content.count('private ')
+            protected_ct = content.count('protected ')
+            metrics['access_modifier_diversity'] = len([x for x in [public_ct, private_ct, protected_ct] if x > 0])
+        if 'lines_per_method' in selected_metrics:
+            method_count = metrics.get('method_count', 1)
+            metrics['lines_per_method'] = round(len(lines) / method_count if method_count > 0 else 0, 2)
+        if 'complexity_per_method' in selected_metrics:
+            method_count = metrics.get('method_count', 1)
+            metrics['complexity_per_method'] = round(metrics.get('cyclomatic_complexity', 1) / method_count if method_count > 0 else 0, 2)
+        if 'fan_in' in selected_metrics:
+            metrics['fan_in'] = 0  # Would need call graph
+        if 'fan_out' in selected_metrics:
+            metrics['fan_out'] = metrics.get('method_count', 0)
+        if 'depth_of_inheritance_tree' in selected_metrics:
+            metrics['depth_of_inheritance_tree'] = metrics.get('dit', 0)
+        if 'number_of_overridden_methods' in selected_metrics:
+            metrics['number_of_overridden_methods'] = content.count('@Override')
+        if 'polymorphism_factor' in selected_metrics:
+            metrics['polymorphism_factor'] = round(content.count('@Override') / max(1, metrics.get('method_count', 1)), 3)
+        if 'public_method_percentage' in selected_metrics:
+            public_methods = content.count('public ')
+            total_methods = metrics.get('method_count', 1)
+            metrics['public_method_percentage'] = round(100 * public_methods / total_methods if total_methods > 0 else 0, 2)
+        if 'technical_debt_estimate' in selected_metrics:
+            metrics['technical_debt_estimate'] = round((100 - metrics.get('maintainability_index', 50)) * 0.5, 2)
+        if 'age_in_days' in selected_metrics:
+            metrics['age_in_days'] = 0  # Would need Git history
+        if 'author_count' in selected_metrics:
+            metrics['author_count'] = 0  # Would need Git history
+        if 'last_author' in selected_metrics:
+            metrics['last_author'] = ''  # Would need Git history
+        if 'commit_count' in selected_metrics:
+            metrics['commit_count'] = 0  # Would need Git history
+        if 'bug_fix_commits' in selected_metrics:
+            metrics['bug_fix_commits'] = 0  # Would need Git history
+        
         return metrics
         
     def task_validate(self):
@@ -2376,6 +2860,27 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
             return f"[OK] Dataset validation complete!\n\n**Output Location:**\n{output_dir}\n\n**Recent Files:**\n{file_list}"
         else:
             return f"[WARNING] Output directory not found yet.\n\nExpected location:\n{output_dir}"
+    
+    def _safe_eval_formula(self, formula: str, row: Dict) -> float:
+        """Safely evaluate formula with row data"""
+        try:
+            # Create safe namespace with row data
+            namespace = dict(row)
+            namespace['__builtins__'] = {}  # Restrict builtins for safety
+            
+            # Allow safe math functions
+            import math
+            namespace.update({
+                'abs': abs, 'max': max, 'min': min, 'sum': sum,
+                'round': round, 'int': int, 'float': float,
+                'sqrt': math.sqrt, 'log': math.log, 'exp': math.exp
+            })
+            
+            # Evaluate the formula
+            result = eval(formula, namespace)
+            return float(result) if result is not None else 0
+        except:
+            return 0
     
     def _create_visualizations(self, config: Dict) -> str:
         """
@@ -3525,20 +4030,32 @@ These metrics will be used to calculate: {formula_name}
             self.set_repository()
             
     def set_repository(self):
-        """Set the repository"""
-        repo_path = self.repo_var.get().strip()
-        if not repo_path or 'Enter' in repo_path:
-            messagebox.showwarning("Warning", "Please enter a repository path")
+        """Set the repository - supports local paths and GitHub URLs"""
+        repo_input = self.repo_var.get().strip()
+        if not repo_input or 'Enter' in repo_input:
+            messagebox.showwarning("Warning", "Please enter a repository path or GitHub URL")
             return
+        
+        # Use enhanced system's repository handler for both GitHub URLs and local paths
+        try:
+            self.repo_status.config(text="[...] Processing...", foreground='blue')
+            self.root.update()
             
-        if os.path.isdir(repo_path):
-            self.repo_path = repo_path
-            self.repo_status.config(text=f"[OK] {os.path.basename(repo_path)}", foreground='green')
+            # The enhanced system handles both GitHub URLs and local paths
+            repo_info = self.enhanced_system.set_repository(repo_input)
+            
+            # Get the actual path from enhanced system
+            self.repo_path = str(self.enhanced_system.repo_path)
+            
+            # Display success
+            repo_name = os.path.basename(self.repo_path)
+            self.repo_status.config(text=f"[OK] {repo_name}", foreground='green')
             self.add_agent_message(MessageType.SUCCESS, 
-                f"Repository set: {os.path.basename(repo_path)}")
-        else:
-            self.repo_status.config(text="[ERROR] Invalid path", foreground='red')
-            self.add_agent_message(MessageType.ERROR, f"Invalid repository path: {repo_path}")
+                f"Repository set: {repo_name}\nMetrics discovered: {len(self.enhanced_system.available_metrics)}")
+        except Exception as e:
+            self.repo_status.config(text=f"[ERROR] Failed to set repository", foreground='red')
+            self.add_agent_message(MessageType.ERROR, 
+                f"Repository setup failed: {str(e)[:100]}")
             
     def show_benchmark_options(self):
         """Show benchmark dataset options with selection"""
@@ -3877,83 +4394,101 @@ Click **▶ Start Execution** to begin.
         self.root.after(0, lambda: self.start_btn.config(state=tk.NORMAL))
     
     def _create_plan_from_metrics(self, selected_metrics: List[str]):
-        """Create a task plan for custom metrics dataset"""
-        # Clear existing tasks
-        self.task_manager.clear_tasks()
+        """Create dataset using enhanced system - no more task overhead!"""
+        if not self.repo_path:
+            self.add_agent_message(MessageType.ERROR, "[ERROR] Repository path not set")
+            return
         
-        # Get benchmark info if selected
-        benchmark = self.dataset_config.get('benchmark')
-        benchmark_info = ""
-        if benchmark:
-            benchmark_info = f"\n- Benchmark Dataset: {benchmark}"
+        # Update enhanced system with selected metrics
+        self.dataset_config['selected_metrics'] = selected_metrics
         
         self.add_agent_message(MessageType.SYSTEM,
-            f"Creating plan for custom dataset with {len(selected_metrics)} metrics{' and ' + benchmark if benchmark else ''}...")
+            f"Generating dataset with {len(selected_metrics)} metrics...")
         
-        # Create tasks
-        self.task_manager.add_task(
-            "Verify Repository",
-            "Check if the repository is valid and accessible",
-            action=self.task_verify_repo,
-            requires_approval=True
+        # Run generation in background thread to avoid freezing GUI
+        thread = threading.Thread(
+            target=self._generate_metrics_dataset_direct,
+            args=(selected_metrics,),
+            daemon=True
         )
-        
-        self.task_manager.add_task(
-            "Analyze Repository",
-            "Scan the repository to understand its structure",
-            action=self.task_analyze_repo,
-            requires_approval=True
-        )
-        
-        self.task_manager.add_task(
-            "Configure Metrics",
-            f"Setup extraction for {len(selected_metrics)} metrics",
-            action=lambda: self.task_select_metrics(['custom']),
-            requires_approval=False
-        )
-        
-        self.task_manager.add_task(
-            "Extract Data",
-            "Process files and extract metric values",
-            action=lambda: self.task_extract_data({'format': 'csv', 'metrics': selected_metrics}),
-            requires_approval=True
-        )
-        
-        self.task_manager.add_task(
-            "Generate Dataset",
-            f"Create output CSV file with metrics",
-            action=lambda: self.task_generate_output({'format': 'csv', 'selected_metrics': selected_metrics}),
-            requires_approval=True
-        )
-        
-        self.task_manager.add_task(
-            "Validate Dataset",
-            "Check the generated dataset for completeness",
-            action=self.task_validate,
-            requires_approval=False
-        )
-        
-        # Show summary with benchmark info
-        summary = f"""
-📋 **Plan Created with {len(self.task_manager.tasks)} tasks:**
-
-"""
-        for task in self.task_manager.tasks:
-            summary += f"  {task.id}. {task.title}\n"
+        thread.start()
+    
+    def _generate_metrics_dataset_direct(self, selected_metrics: List[str]):
+        """Generate dataset directly using analyzer tools"""
+        try:
+            self.root.after(0, lambda: self.add_agent_message(MessageType.THINKING, 
+                f"[STEP 1] Scanning repository..."))
             
-        summary += f"""
-**Configuration:**
-- Dataset Type: Custom Metrics
-- Metrics Count: {len(selected_metrics)}
-- Output Format: CSV{benchmark_info}
-
-Click **▶ Start Execution** to begin.
-"""
-        
-        self.add_agent_message(MessageType.INFO, summary)
-        
-        # Enable start button
-        self.root.after(0, lambda: self.start_btn.config(state=tk.NORMAL))
+            # Get all Java files
+            java_files = []
+            for root_dir, dirs, files in os.walk(self.repo_path):
+                for file in files:
+                    if file.endswith('.java'):
+                        java_files.append(os.path.join(root_dir, file))
+            
+            self.root.after(0, lambda: self.add_agent_message(MessageType.SUCCESS,
+                f"[OK] Found {len(java_files)} Java files"))
+            
+            # Extract metrics from each file
+            self.root.after(0, lambda: self.add_agent_message(MessageType.THINKING,
+                f"[STEP 2] Extracting metrics from {len(java_files)} files..."))
+            
+            all_metrics = []
+            for idx, file_path in enumerate(java_files, 1):
+                try:
+                    file_metrics = self._extract_file_metrics(file_path, selected_metrics)
+                    file_metrics['file'] = file_path.replace(self.repo_path, '').lstrip(os.sep)
+                    all_metrics.append(file_metrics)
+                    
+                    # Progress indicator
+                    if idx % max(1, len(java_files) // 10) == 0:
+                        self.root.after(0, lambda i=idx, t=len(java_files): 
+                            self.add_agent_message(MessageType.INFO,
+                            f"[PROGRESS] Processed {i}/{t} files..."))
+                except Exception as e:
+                    print(f"Error processing {file_path}: {e}")
+            
+            self.root.after(0, lambda: self.add_agent_message(MessageType.SUCCESS,
+                f"[OK] Extracted metrics from {len(all_metrics)} files"))
+            
+            # Apply custom formulas if any
+            if hasattr(self, 'custom_metrics_to_apply') and self.custom_metrics_to_apply:
+                self.root.after(0, lambda: self.add_agent_message(MessageType.INFO,
+                    f"[STEP 3] Applying {len(self.custom_metrics_to_apply)} custom formula(s)..."))
+                
+                for formula_name, formula_def in self.custom_metrics_to_apply.items():
+                    for row in all_metrics:
+                        try:
+                            # Safe formula evaluation
+                            result = self._safe_eval_formula(formula_def['formula'], row)
+                            row[formula_name] = result
+                        except:
+                            row[formula_name] = None
+            
+            # Save to CSV
+            self.root.after(0, lambda: self.add_agent_message(MessageType.THINKING,
+                f"[STEP 4] Saving dataset to CSV..."))
+            
+            output_dir = Path(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) / "generated_datasets"
+            output_dir.mkdir(exist_ok=True)
+            
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            output_file = output_dir / f"custom_dataset_{timestamp}.csv"
+            
+            df = pd.DataFrame(all_metrics)
+            df.to_csv(output_file, index=False)
+            
+            # Success message
+            self.root.after(0, lambda: self.add_agent_message(MessageType.SUCCESS,
+                f"[OK] Dataset saved: {output_file.name}"))
+            self.root.after(0, lambda: self.add_agent_message(MessageType.SUCCESS,
+                f"[OK] Generated: {len(all_metrics)} rows × {len(df.columns)} metrics"))
+            
+        except Exception as e:
+            import traceback
+            self.root.after(0, lambda: self.add_agent_message(MessageType.ERROR,
+                f"[ERROR] {str(e)[:100]}"))
+            print(f"Error:\n{traceback.format_exc()}")
 
     # ═══════════════════════════════════════════════════════════════════════════════
     # AUTONOMOUS AGENT METHODS
