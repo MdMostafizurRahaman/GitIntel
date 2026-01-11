@@ -1,23 +1,3 @@
-#!/usr/bin/env python3
-"""
-GitIntel Agentic Dataset Generator - VS Code Copilot Style
-===========================================================
-
-COMPLETE REQUIREMENTS IMPLEMENTATION:
-1. [OK] Repository path/link input (local or GitHub)
-2. [OK] Chat interface for natural language queries
-3. [OK] 64+ metrics from catalog
-4. [OK] LLM interprets queries
-5. [OK] Unknown metrics → LLM Jury Process (1 generator + 3 judges)
-6. [OK] User approval before execution
-7. [OK] Real data generation (NO MOCK DATA)
-8. [OK] Visualization generation
-9. [OK] Feedback collection & iteration
-10. [OK] Clean modular architecture
-
-Author: GitIntel Team
-"""
-
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog, scrolledtext
 import threading
@@ -36,14 +16,11 @@ import pandas as pd
 import subprocess
 import re
 
-# Load environment variables from .env file
 try:
     from dotenv import load_dotenv
-    # Try loading from parent directory (Dataset folder)
     parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     env_path = os.path.join(parent_dir, '.env')
     
-    # Debug: Show where we're looking
     print(f"[DEBUG] Main file location: {__file__}")
     print(f"[DEBUG] Looking for .env at: {env_path}")
     
@@ -70,6 +47,14 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from dataset_helpers import apply_custom_metrics, safe_print
 
+# Import MetricsHelper from dataset_generators package
+try:
+    from dataset_generators import MetricsHelper
+    METRICS_HELPER_AVAILABLE = True
+except ImportError as e:
+    print(f"Warning: MetricsHelper not available: {e}")
+    METRICS_HELPER_AVAILABLE = False
+
 try:
     from metrics_catalog import MetricsCatalog
     from github_autonomous_agent import GitHubAutonomousAgent
@@ -77,6 +62,7 @@ try:
     from autonomous_agent import AutonomousDatasetAgent, AgentMode
     from enhanced_agentic_system import EnhancedAgenticSystem, AgentMode as EnhancedMode
     from llm_code_jury_system import LLMCodeJurySystem
+    from agentic_code_test_executor import AgenticCodeTestExecutor
     AGENT_AVAILABLE = True
 except ImportError as e:
     print(f"Warning: Some imports failed: {e}")
@@ -185,124 +171,8 @@ def get_git_root(file_path: str) -> Optional[str]:
     return None
 
 
-def extract_git_metrics(file_path: str, repo_path: str = None) -> Dict:
-    """
-    Extract REAL Git metrics for a file using git commands
-    
-    Returns dict with:
-    - num_authors: number of unique contributors
-    - num_commits: total commits affecting this file
-    - code_age: days since first commit
-    - change_frequency: commits per month
-    - churn: total lines changed
-    - additions: total lines added
-    - deletions: total lines deleted
-    """
-    metrics = {
-        'num_authors': 0,
-        'num_commits': 0,
-        'code_age': 0,
-        'change_frequency': 0.0,
-        'churn': 0,
-        'additions': 0,
-        'deletions': 0,
-        'changes': 0,
-        'revision_count': 0,
-        'loc_added': 0.0,
-        'loc_deleted': 0.0
-    }
-    
-    try:
-        # Find git root if not provided
-        if not repo_path:
-            repo_path = get_git_root(file_path)
-        
-        if not repo_path or not is_git_repo(repo_path):
-            return metrics
-        
-        # Get relative path from repo root
-        rel_path = os.path.relpath(file_path, repo_path)
-        
-        # Change to repo directory for git commands
-        original_dir = os.getcwd()
-        os.chdir(repo_path)
-        
-        try:
-            # 1. Get number of commits
-            result = subprocess.run(
-                ['git', 'log', '--follow', '--oneline', '--', rel_path],
-                capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=10
-            )
-            if result.returncode == 0 and result.stdout:
-                commits = result.stdout.strip().split('\n')
-                metrics['num_commits'] = len([c for c in commits if c])
-                metrics['revision_count'] = metrics['num_commits']
-                metrics['changes'] = metrics['num_commits']
-            
-            # 2. Get number of unique authors
-            result = subprocess.run(
-                ['git', 'log', '--follow', '--format=%an', '--', rel_path],
-                capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=10
-            )
-            if result.returncode == 0 and result.stdout:
-                authors = set([a.strip() for a in result.stdout.strip().split('\n') if a.strip()])
-                metrics['num_authors'] = len(authors)
-            
-            # 3. Get file age (days since first commit)
-            result = subprocess.run(
-                ['git', 'log', '--follow', '--format=%ct', '--reverse', '--', rel_path],
-                capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=10
-            )
-            if result.returncode == 0 and result.stdout:
-                timestamps = [t.strip() for t in result.stdout.strip().split('\n') if t.strip()]
-                if timestamps:
-                    first_commit_time = int(timestamps[0])
-                    age_seconds = datetime.now().timestamp() - first_commit_time
-                    metrics['code_age'] = int(age_seconds / 86400)  # Convert to days
-            
-            # 4. Calculate change frequency (commits per month)
-            if metrics['code_age'] > 0:
-                age_months = max(metrics['code_age'] / 30, 0.5)  # At least 0.5 month
-                metrics['change_frequency'] = round(metrics['num_commits'] / age_months, 2)
-            
-            # 5. Get churn metrics (additions and deletions)
-            result = subprocess.run(
-                ['git', 'log', '--follow', '--numstat', '--format=', '--', rel_path],
-                capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=10
-            )
-            if result.returncode == 0 and result.stdout:
-                total_additions = 0
-                total_deletions = 0
-                
-                for line in result.stdout.strip().split('\n'):
-                    if line.strip():
-                        parts = line.split('\t')
-                        if len(parts) >= 2 and parts[0].isdigit() and parts[1].isdigit():
-                            total_additions += int(parts[0])
-                            total_deletions += int(parts[1])
-                
-                metrics['additions'] = total_additions
-                metrics['deletions'] = total_deletions
-                metrics['churn'] = total_additions + total_deletions
-                
-                # Calculate average per commit
-                if metrics['num_commits'] > 0:
-                    metrics['loc_added'] = round(total_additions / metrics['num_commits'], 1)
-                    metrics['loc_deleted'] = round(total_deletions / metrics['num_commits'], 1)
-        
-        finally:
-            os.chdir(original_dir)
-    
-    except subprocess.TimeoutExpired:
-        safe_print(f"[TIMEOUT] Git command timed out for {file_path}")
-    except Exception as e:
-        safe_print(f"[WARNING] Could not extract Git metrics for {file_path}: {e}")
-    
-    return metrics
-
-
 # ═══════════════════════════════════════════════════════════════════════════════
-# TASK MANAGEMENT CONTINUES
+# All metric extraction now handled by MetricsHelper - use dataset_generators only
 # ═══════════════════════════════════════════════════════════════════════════════
         
     def add_task(self, title: str, description: str, action: Callable = None, 
@@ -429,6 +299,7 @@ class AgenticDatasetGUI:
         self.execution_complete = False
         self.current_query = None
         self.current_plan = None
+        self.metrics_helper = None  # Will be initialized when repo_path is set
         
         # Initialize autonomous agent
         if AGENT_AVAILABLE:
@@ -507,6 +378,14 @@ class AgenticDatasetGUI:
         self.conversation_history = []
         self.pending_clarification = False
         self.understood_request = None
+        
+        # Initialize test executor for custom metrics validation
+        try:
+            self.test_executor = AgenticCodeTestExecutor()
+            print("[OK] Test executor initialized (5-iteration validation)")
+        except Exception as e:
+            print(f"[WARNING] Test executor not available: {e}")
+            self.test_executor = None
             
         # Style configuration
         self.configure_styles()
@@ -567,15 +446,7 @@ class AgenticDatasetGUI:
         # TAB 1: Dataset Generator (Original functionality)
         self.dataset_tab = ttk.Frame(self.main_notebook)
         self.main_notebook.add(self.dataset_tab, text="[DATA] Dataset Generator")
-        
-        # TAB 2: Dynamic Formulas (Multi-LLM Jury)
-        self.formula_tab = ttk.Frame(self.main_notebook)
-        self.main_notebook.add(self.formula_tab, text="🧮 Dynamic Formulas")
-        
-        # TAB 3: Logs
-        self.logs_tab = ttk.Frame(self.main_notebook)
-        self.main_notebook.add(self.logs_tab, text="📜 System Logs")
-        
+                
         # Build Tab 1: Dataset Generator (original split panel)
         self.build_dataset_tab()
         
@@ -1359,21 +1230,87 @@ class AgenticDatasetGUI:
                 f"[ERROR] Error: {str(e)}"))
     
     def _approve_formula_generation(self, result):
-        """Approve formula generation"""
+        """Approve formula generation and execute comprehensive test validation"""
         self.add_agent_message(MessageType.SUCCESS, "[OK] Formula generation approved. Running jury verification...")
+        
         # Generate formulas with jury verification
         self.enhanced_system._generate_missing_formulas()
         
         # Capture generated formulas for later use in dataset generation
         if self.enhanced_system.generated_formulas:
             self.custom_metrics_to_apply = self.enhanced_system.generated_formulas
+            num_formulas = len(self.enhanced_system.generated_formulas)
             self.add_agent_message(MessageType.SUCCESS, 
-                f"[OK] {len(self.enhanced_system.generated_formulas)} custom formula(s) approved by jury")
+                f"[OK] {num_formulas} custom formula(s) approved by jury")
+            
+            # Display all messages including jury voting
+            self._display_enhanced_messages()
+            
+            # ═══════════════════════════════════════════════════════════════
+            # NEW: Execute comprehensive test validation with 5-iteration retry
+            # ═══════════════════════════════════════════════════════════════
+            if self.test_executor and hasattr(self, 'repo_path') and self.repo_path:
+                self.add_agent_message(MessageType.THINKING, 
+                    "[PROCESSING] Starting unit test generation and validation...\n"
+                    "   [NOTE] System will: Generate tests → Execute → Retry up to 5 times if needed")
+                
+                # Prepare sample data from repository
+                sample_data = self._prepare_sample_data_for_testing()
+                
+                validation_success = True
+                for idx, formula in enumerate(self.enhanced_system.generated_formulas, 1):
+                    self.add_agent_message(MessageType.INFO,
+                        f"\n{'='*60}\n"
+                        f"[TESTING] Formula {idx}/{num_formulas}: {formula.name}\n"
+                        f"{'='*60}")
+                    
+                    try:
+                        # Execute full workflow with test generation, execution, and auto-fix
+                        report = self.test_executor.execute_full_workflow(
+                            metric_description=formula.description,
+                            available_metrics=self.available_metrics or {},
+                            sample_data=sample_data,
+                            base_metrics=self.available_metrics or {},
+                            num_judges=3,
+                            auto_fix=True  # Enable 5-iteration retry
+                        )
+                        
+                        # Display comprehensive test results
+                        self._display_test_results(report, formula.name)
+                        
+                        if not report['overall_success']:
+                            self.add_agent_message(MessageType.ERROR,
+                                f"[ERROR] Test validation FAILED for '{formula.name}' after 5 iterations\n"
+                                f"   [ACTION] Human review required\n"
+                                f"   [FILES] Check: {report['stages'].get('validation', {}).get('run_directory', 'N/A')}")
+                            validation_success = False
+                            # Don't break - test all formulas to show complete status
+                    
+                    except Exception as e:
+                        self.add_agent_message(MessageType.ERROR,
+                            f"[ERROR] Test execution failed for '{formula.name}': {str(e)[:200]}")
+                        validation_success = False
+                
+                if validation_success:
+                    self.add_agent_message(MessageType.SUCCESS,
+                        f"\n[OK] All {num_formulas} formula(s) validated successfully!\n"
+                        f"   [PROCESSING] Ready for full dataset generation with validated code")
+                else:
+                    self.add_agent_message(MessageType.WARNING,
+                        f"\n[WARNING] Some formulas failed validation\n"
+                        f"   [ACTION] Review failed tests before dataset generation")
+            else:
+                if not self.test_executor:
+                    self.add_agent_message(MessageType.WARNING,
+                        "[WARNING] Test executor not available - skipping test validation")
+                else:
+                    self.add_agent_message(MessageType.WARNING,
+                        "[WARNING] No repository set - skipping test validation")
         
-        # Display all messages including jury voting
+        # Display final messages
         self._display_enhanced_messages()
         
-        # Prepare for full dataset generation using enhanced_system (not GUI's limited extraction!)
+        # Prepare for full dataset generation using enhanced_system
         self.add_agent_message(MessageType.THINKING, 
             "[PROCESSING] Preparing full dataset generation with all 64+ metrics...")
         
@@ -1382,6 +1319,112 @@ class AgenticDatasetGUI:
     
     def _reject_formula_generation(self):
         """Reject formula generation"""
+        self.add_agent_message(MessageType.ERROR, "[ERROR] Formula generation rejected. Operation cancelled.")
+    
+    def _prepare_sample_data_for_testing(self) -> Dict:
+        """Prepare sample data from repository for test execution"""
+        try:
+            # Try to get real metrics from repository
+            if hasattr(self, 'available_metrics') and self.available_metrics:
+                # Use existing metrics if available
+                return dict(list(self.available_metrics.values())[:1][0]) if self.available_metrics.values() else {}
+            
+            # Fallback: Generate sample data
+            sample_data = {
+                'lines_of_code': 1000,
+                'cyclomatic_complexity': 5,
+                'bug_count': 3,
+                'test_coverage': 0.75,
+                'code_churn': 150,
+                'commit_count': 50
+            }
+            return sample_data
+        except Exception as e:
+            print(f"[WARNING] Could not prepare sample data: {e}")
+            return {'lines_of_code': 1000, 'bug_count': 5}
+    
+    def _display_test_results(self, report: Dict, formula_name: str):
+        """
+        Display comprehensive test execution results in GUI
+        Shows: Code generation → Test generation → Execution → Iterations → Final status
+        """
+        stages = report.get('stages', {})
+        
+        # Stage 1: Code Generation Status
+        if 'code_generation' in stages:
+            code_info = stages['code_generation']
+            if code_info['status'] == 'approved':
+                self.add_agent_message(MessageType.SUCCESS,
+                    f"[OK] Stage 1: Code generation approved by {code_info.get('votes', 3)} judges")
+            else:
+                self.add_agent_message(MessageType.ERROR,
+                    f"[ERROR] Stage 1: Code generation failed")
+                return
+        
+        # Stage 2: Test Generation Status
+        if 'test_generation' in stages:
+            test_info = stages['test_generation']
+            test_count = test_info.get('test_count', 0)
+            quality_score = test_info.get('quality_score', 0)
+            
+            status_icon = "[OK]" if test_info.get('is_approved', False) else "[WARNING]"
+            self.add_agent_message(MessageType.INFO,
+                f"{status_icon} Stage 2: Generated {test_count} unit tests "
+                f"(Quality: {quality_score:.0f}%)")
+        
+        # Stage 3: Test Execution with Iteration Details
+        if 'test_execution' in stages:
+            exec_info = stages['test_execution']
+            iteration = exec_info.get('iteration', 1)
+            passed = exec_info.get('passed', 0)
+            failed = exec_info.get('failed', 0)
+            errors = exec_info.get('errors', 0)
+            total = exec_info.get('total_tests', 0)
+            
+            pass_rate = (passed / total * 100) if total > 0 else 0
+            required = (total * 2 + 2) // 3  # 2/3 threshold
+            
+            self.add_agent_message(MessageType.INFO,
+                f"[STEP 3] Test Execution - Iteration {iteration}/5\n"
+                f"   Passed: {passed}/{total} tests ({pass_rate:.1f}%)\n"
+                f"   Failed: {failed} tests\n"
+                f"   Errors: {errors}\n"
+                f"   [NOTE] Required: {required}/{total} ({required/total*100:.0f}%) for approval")
+        
+        # Stage 4: Final Validation Status
+        if 'validation' in stages:
+            val_info = stages['validation']
+            
+            if val_info['status'] == 'success':
+                iterations_taken = val_info.get('iteration', 1)
+                total_tests = val_info.get('total_tests', 0)
+                passed_final = val_info.get('passed', 0)
+                
+                self.add_agent_message(MessageType.SUCCESS,
+                    f"[OK]  VALIDATION SUCCESSFUL for '{formula_name}'\n"
+                    f"   [DATA] Iterations: {iterations_taken}/5\n"
+                    f"   [DATA] Final: {passed_final}/{total_tests} tests passed\n"
+                    f"   [FILES] Results: {val_info.get('run_directory', 'N/A')}")
+            
+            elif val_info['status'] == 'failed_max_retries':
+                iterations = val_info.get('iterations', 5)
+                last_passed = val_info.get('last_passed', 0)
+                last_failed = val_info.get('last_failed', 0)
+                run_dir = val_info.get('run_directory', 'N/A')
+                
+                self.add_agent_message(MessageType.ERROR,
+                    f"[ERROR]  VALIDATION FAILED for '{formula_name}'\n"
+                    f"   [DATA] Max iterations reached: {iterations}/5\n"
+                    f"   [DATA] Last result: {last_passed} passed, {last_failed} failed\n"
+                    f"   [ACTION] Manual review required\n"
+                    f"   [FILES] Check iteration logs: {run_dir}\n"
+                    f"   [NOTE] {val_info.get('note', 'See logs for details')}")
+            else:
+                self.add_agent_message(MessageType.ERROR,
+                    f"[ERROR] Validation failed with status: {val_info['status']}")
+    
+    def _reject_formula_generation_old(self):
+        """Reject formula generation (renamed old method)"""
         self.add_agent_message(MessageType.ERROR, "[ERROR] Formula generation rejected. Operation cancelled.")
     
     def _approve_plan(self):
@@ -1410,7 +1453,7 @@ class AgenticDatasetGUI:
     def _modify_plan(self):
         """Modify the plan"""
         self.add_agent_message(MessageType.QUESTION, 
-            "💬 What would you like to change? Describe the modifications:")
+            "What would you like to change? Describe the modifications:")
         self._setup_enhanced_input_handler("Modifications")
     
     def _confirm_generation(self):
@@ -1445,7 +1488,7 @@ class AgenticDatasetGUI:
         # Clear existing tasks
         self.task_manager.clear_tasks()
         
-        self.add_agent_message(MessageType.SYSTEM, "📋 Creating task plan...")
+        self.add_agent_message(MessageType.SYSTEM, " Creating task plan...")
         
         # Task 1: Verify repository
         if self.repo_path:
@@ -2113,6 +2156,15 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
             
         if os.path.isdir(repo_path):
             self.repo_path = repo_path
+            # Initialize MetricsHelper when repo is set
+            if METRICS_HELPER_AVAILABLE:
+                try:
+                    self.metrics_helper = MetricsHelper(str(self.repo_path))
+                    self.add_agent_message(MessageType.SUCCESS, 
+                        f"[OK] MetricsHelper initialized - 64 real metrics available")
+                except Exception as e:
+                    safe_print(f"[WARNING] MetricsHelper initialization failed: {e}")
+                    self.metrics_helper = None
             return f"Local repository: {os.path.basename(repo_path)}"
         elif 'github.com' in repo_path or '/' in repo_path:
             # Try to clone or use agent
@@ -2120,6 +2172,15 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
                 success = self.agent.set_repository(repo_path)
                 if success:
                     self.repo_path = self.agent.repo_path
+                    # Initialize MetricsHelper when repo is set via agent
+                    if METRICS_HELPER_AVAILABLE:
+                        try:
+                            self.metrics_helper = MetricsHelper(str(self.repo_path))
+                            self.add_agent_message(MessageType.SUCCESS, 
+                                f"[OK] MetricsHelper initialized - 64 real metrics available")
+                        except Exception as e:
+                            safe_print(f"[WARNING] MetricsHelper initialization failed: {e}")
+                            self.metrics_helper = None
                     return f"GitHub repository set: {repo_path}"
             raise ValueError(f"Could not access repository: {repo_path}")
         else:
@@ -2377,30 +2438,11 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
                     f"[ERROR] Failed to apply custom metrics: {str(e)}")
                 safe_print(f"Custom metrics error:\n{error_trace}")
         
-        # If no code files found, generate realistic sample data
+        # If no code files found, show error (NO SAMPLE DATA GENERATION!)
         if not rows:
-            for i in range(100):
-                metrics = {'file': f'sample_file_{i:03d}.py'}
-                for metric in selected_metrics:
-                    if metric == 'loc':
-                        metrics[metric] = 50 + (i * 3) % 500
-                    elif metric in ['cyclomatic_complexity', 'cognitive_complexity']:
-                        metrics[metric] = 1 + (i % 15)
-                    elif metric in ['comment_lines', 'blank_lines']:
-                        metrics[metric] = 5 + (i % 20)
-                    elif metric in ['wmc', 'cbo', 'rfc']:
-                        metrics[metric] = 2 + (i % 10)
-                    elif metric in ['dit', 'noc']:
-                        metrics[metric] = i % 5
-                    elif metric == 'comment_ratio':
-                        metrics[metric] = round(0.1 + (i % 30) / 100, 3)
-                    elif metric == 'has_defect':
-                        metrics[metric] = 1 if (i % 7 == 0) else 0
-                    elif metric == 'num_bugs':
-                        metrics[metric] = (i % 7 == 0) * (1 + i % 5)
-                    else:
-                        metrics[metric] = round(0.5 + (i % 50) / 100, 2)
-                rows.append(metrics)
+            raise Exception(f"[ERROR] No code files found in repository! "
+                           f"Could not generate any metrics. "
+                           f"Ensure repository contains Java/Python code files.")
         
         # Write output with proper error handling
         self.add_agent_message(MessageType.INFO, 
@@ -2458,394 +2500,21 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
             raise Exception(f"Failed to write output file: {str(e)}")
     
     def _extract_file_metrics(self, file_path: str, selected_metrics: List[str]) -> Dict:
-        """Extract metrics from a single file - NOW SUPPORTS ALL 64+ METRICS FROM CATALOG"""
-        with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-            content = f.read()
-            
-        lines = content.splitlines()
-        non_blank = [l for l in lines if l.strip()]
-        metrics = {}
+        """
+        Use MetricsHelper to get all metrics - NO local calculation!
+        All metric extraction is delegated to metrics_generators via MetricsHelper.
+        """
+        if not self.metrics_helper:
+            return {'file': file_path}
         
-        # Pre-calculate commonly used values
-        file_size = len(lines)
-        file_complexity = 1  # Will be updated when cyclomatic_complexity is calculated
-        
-        # Check if we need Git metrics and if we're in a Git repo
-        git_metrics_needed = any(m in selected_metrics for m in [
-            'num_authors', 'num_commits', 'code_age', 'change_frequency',
-            'churn', 'additions', 'deletions', 'changes', 'revision_count',
-            'loc_added', 'loc_deleted'
-        ])
-        
-        git_metrics = {}
-        if git_metrics_needed and self.repo_path and is_git_repo(self.repo_path):
-            # Extract REAL Git metrics
-            safe_print(f"[GIT] Extracting Git metrics for: {os.path.basename(file_path)}")
-            git_metrics = extract_git_metrics(file_path, self.repo_path)
-        
-        # ===== LOC METRICS (5 from catalog) =====
-        if 'loc' in selected_metrics:
-            metrics['loc'] = len(lines)
-        if 'kloc' in selected_metrics:
-            metrics['kloc'] = round(len(lines) / 1000, 3)
-        if 'soc' in selected_metrics:
-            metrics['soc'] = len([l for l in lines if l.strip() and not l.strip().startswith(('#', '//', '/*', '*'))])
-        if 'cloc' in selected_metrics:
-            metrics['cloc'] = len([l for l in lines if l.strip().startswith(('#', '//', '/*', '*'))])
-        if 'bloc' in selected_metrics:
-            metrics['bloc'] = len([l for l in lines if not l.strip()])
-        
-        # BACKWARDS COMPATIBILITY - old names
-        if 'sloc' in selected_metrics:
-            metrics['sloc'] = len([l for l in lines if l.strip() and not l.strip().startswith(('#', '//', '/*', '*'))])
-        if 'comment_lines' in selected_metrics:
-            metrics['comment_lines'] = len([l for l in lines if l.strip().startswith(('#', '//', '/*', '*'))])
-        if 'blank_lines' in selected_metrics:
-            metrics['blank_lines'] = len([l for l in lines if not l.strip()])
-        if 'string_lines' in selected_metrics:
-            metrics['string_lines'] = len([l for l in lines if '\"' in l or "'" in l])
-        
-        # ===== SIZE METRICS (4 from catalog) =====
-        if 'num_files' in selected_metrics:
-            metrics['num_files'] = 1  # Current file
-        if 'num_classes' in selected_metrics:
-            metrics['num_classes'] = content.count('class ')
-        if 'num_methods' in selected_metrics:
-            # Count actual methods in Java/Python
-            java_methods = len([l for l in non_blank if ('public ' in l or 'private ' in l or 'protected ' in l or 'static ' in l) and '(' in l and '{' not in l.split('(')[0]])
-            python_methods = content.count('def ')
-            metrics['num_methods'] = max(java_methods, python_methods)
-        if 'num_statements' in selected_metrics:
-            # Count semicolons (Java/C++) or significant Python statements
-            semicolons = content.count(';')
-            if semicolons > 0:
-                metrics['num_statements'] = semicolons
-            else:
-                # Python: count lines that aren't comments, imports, class/def declarations
-                statements = [l for l in non_blank if not any(l.strip().startswith(x) for x in ('#', 'import ', 'from ', 'class ', 'def ', '@'))]
-                metrics['num_statements'] = len(statements)
-        
-        # ===== COMPLEXITY METRICS (4 from catalog) =====
-        if 'cyclomatic_complexity' in selected_metrics:
-            cc = 1
-            cc += content.count(' if ') + content.count(' elif ') + content.count('if(') + content.count('if ')
-            cc += content.count(' for ') + content.count(' while ') + content.count('for(') + content.count('for ')
-            cc += content.count(' and ') + content.count(' or ') + content.count('&&') + content.count('||')
-            cc += content.count(' case ') + content.count('switch')
-            cc += content.count(' try ') + content.count(' except ') + content.count('catch')
-            metrics['cyclomatic_complexity'] = cc
-            file_complexity = cc  # Update for later use
-        if 'cognitive_complexity' in selected_metrics:
-            metrics['cognitive_complexity'] = int(metrics.get('cyclomatic_complexity', 1) * 1.2)
-        if 'essential_complexity' in selected_metrics:
-            metrics['essential_complexity'] = int(metrics.get('cyclomatic_complexity', 1) * 0.8)
-        if 'max_nesting_depth' in selected_metrics:
-            max_indent = 0
-            for line in lines:
-                if line.strip():
-                    indent = len(line) - len(line.lstrip())
-                    max_indent = max(max_indent, indent // 4)
-            metrics['max_nesting_depth'] = max_indent
-        if 'average_cyclomatic' in selected_metrics:
-            metrics['average_cyclomatic'] = round(metrics.get('cyclomatic_complexity', 1) / max(1, len([l for l in non_blank if 'def ' in l or 'public ' in l])), 2)
-        
-        # ===== CHANGE/CHURN METRICS (4 from catalog) =====
-        # Use REAL Git data if available, otherwise estimate
-        if git_metrics:
-            if 'churn' in selected_metrics:
-                metrics['churn'] = git_metrics['churn']
-            if 'additions' in selected_metrics:
-                metrics['additions'] = git_metrics['additions']
-            if 'deletions' in selected_metrics:
-                metrics['deletions'] = git_metrics['deletions']
-            if 'changes' in selected_metrics:
-                metrics['changes'] = git_metrics['changes']
-        else:
-            # Fallback to estimates if Git not available
-            if 'churn' in selected_metrics:
-                commits = metrics.get('num_commits', 1)
-                metrics['churn'] = file_size * commits // 10
-            if 'additions' in selected_metrics:
-                metrics['additions'] = int(file_size * 1.2)
-            if 'deletions' in selected_metrics:
-                metrics['deletions'] = int(file_size * 0.2)
-            if 'changes' in selected_metrics:
-                metrics['changes'] = metrics.get('num_commits', 1)
-        
-        # ===== CK METRICS (6 from catalog) =====
-        if 'wmc' in selected_metrics:
-            # WMC = sum of method complexities, approximate as method_count * avg_complexity
-            method_count = metrics.get('num_methods', 0)
-            avg_complexity = metrics.get('cyclomatic_complexity', 1) / max(method_count, 1)
-            metrics['wmc'] = int(method_count * avg_complexity) if method_count > 0 else 0
-        if 'dit' in selected_metrics:
-            metrics['dit'] = 1 if ('extends' in content or 'implements' in content or 'super(' in content) else 0
-        if 'noc' in selected_metrics:
-            metrics['noc'] = content.count('class ') - 1 if content.count('class ') > 0 else 0
-        if 'cbo' in selected_metrics:
-            metrics['cbo'] = content.count('import ') + content.count('using ') + content.count('require(')
-        if 'rfc' in selected_metrics:
-            # RFC = methods in class + external methods called
-            method_count = metrics.get('num_methods', 0)
-            # Count method calls (lines with . or direct function calls)
-            calls = len([l for l in non_blank if '(' in l and ('.' in l or any(keyword in l for keyword in ['new ', 'super(', 'this(']))])
-            metrics['rfc'] = method_count + min(calls, 50)  # Cap at reasonable value
-        if 'lcom' in selected_metrics:
-            # LCOM estimate: ratio of methods to fields
-            fields = len([l for l in non_blank if any(typ in l for typ in ['int ', 'String ', 'boolean ', 'double ', 'float ', 'long ', 'self.']) and not any(k in l for k in ['def ', 'public ', 'class '])])
-            methods = metrics.get('num_methods', 1)
-            # High LCOM (low cohesion) if many fields with few methods
-            metrics['lcom'] = round(abs(fields - methods) / max(fields + methods, 1), 3)
-        
-        # ===== MAINTAINABILITY METRICS (3 from catalog) =====
-        if 'maintainability_index' in selected_metrics:
-            loc = len(lines)
-            cc = metrics.get('cyclomatic_complexity', 1)
-            mi = max(0, min(100, 171 - 5.2 * (loc / 100) - 0.23 * cc - 16.2 * 0))
-            metrics['maintainability_index'] = round(mi, 2)
-        if 'technical_debt' in selected_metrics:
-            metrics['technical_debt'] = round((100 - metrics.get('maintainability_index', 50)) * 0.5, 2)
-        if 'code_smells' in selected_metrics:
-            complexity_smells = metrics.get('cyclomatic_complexity', 1) // 10
-            size_smells = len(lines) // 500
-            metrics['code_smells'] = max(0, complexity_smells + size_smells)
-        
-        # ===== HALSTEAD METRICS (5 from catalog) =====
-        if 'halstead_volume' in selected_metrics:
-            vocab_size = len(set(content.split()))
-            metrics['halstead_volume'] = round(len(lines) * vocab_size, 2)
-        if 'halstead_difficulty' in selected_metrics:
-            metrics['halstead_difficulty'] = round(metrics.get('cyclomatic_complexity', 1) * 0.5, 2)
-        if 'halstead_effort' in selected_metrics:
-            vol = metrics.get('halstead_volume', 100)
-            diff = metrics.get('halstead_difficulty', 1)
-            metrics['halstead_effort'] = round(vol * diff, 2)
-        if 'halstead_time' in selected_metrics:
-            effort = metrics.get('halstead_effort', 0)
-            metrics['halstead_time'] = round(effort / 18, 2)
-        if 'halstead_bugs' in selected_metrics:
-            effort = metrics.get('halstead_effort', 0)
-            metrics['halstead_bugs'] = round(effort ** (2/3) / 3000, 3)
-        
-        # ===== DEFECT METRICS (4 from catalog) =====
-        if 'has_defect' in selected_metrics:
-            metrics['has_defect'] = 0
-        if 'num_bugs' in selected_metrics:
-            metrics['num_bugs'] = 0
-        if 'bug_density' in selected_metrics:
-            loc = metrics.get('loc', 1)
-            bugs = metrics.get('num_bugs', 0)
-            metrics['bug_density'] = round(bugs * 1000 / loc if loc > 0 else 0, 3)
-        if 'vulnerabilities' in selected_metrics:
-            metrics['vulnerabilities'] = 0
-        
-        # ===== QUALITY METRICS (4 from catalog) =====
-        if 'duplication' in selected_metrics:
-            metrics['duplication'] = 0.0  # Would need duplication detection
-        if 'test_coverage' in selected_metrics:
-            metrics['test_coverage'] = 0.0  # Would need coverage tool
-        if 'documentation' in selected_metrics:
-            # Calculate documentation coverage as percentage
-            javadoc_lines = len([l for l in lines if l.strip().startswith(('/**', '/*', '*', '#'))])
-            metrics['documentation'] = round(100 * javadoc_lines / max(len(lines), 1), 2)
-        if 'comment_ratio' in selected_metrics:
-            total = len(lines)
-            comments = len([l for l in lines if l.strip().startswith(('#', '//', '/*', '*'))])
-            metrics['comment_ratio'] = round(comments / total, 3) if total > 0 else 0
-        if 'documentation_ratio' in selected_metrics:
-            metrics['documentation_ratio'] = metrics.get('comment_ratio', 0)
-        
-        # ===== AUTHOR/TIME METRICS (4 from catalog) =====
-        # Use REAL Git data if available, otherwise estimate
-        if git_metrics:
-            if 'num_authors' in selected_metrics:
-                metrics['num_authors'] = git_metrics['num_authors']
-            if 'num_commits' in selected_metrics:
-                metrics['num_commits'] = git_metrics['num_commits']
-            if 'code_age' in selected_metrics:
-                metrics['code_age'] = git_metrics['code_age']
-            if 'change_frequency' in selected_metrics:
-                metrics['change_frequency'] = git_metrics['change_frequency']
-        else:
-            # Fallback to estimates based on code characteristics
-            # Use pre-calculated or retrieved values
-            current_complexity = metrics.get('cyclomatic_complexity', file_complexity)
-            
-            if 'num_authors' in selected_metrics:
-                metrics['num_authors'] = min(5, 1 + (file_size // 500) + (current_complexity // 20))
-            if 'num_commits' in selected_metrics:
-                metrics['num_commits'] = min(50, 1 + (file_size // 100) + (current_complexity // 10))
-            if 'code_age' in selected_metrics:
-                metrics['code_age'] = min(365, (file_size // 50) + (current_complexity // 5))
-            if 'change_frequency' in selected_metrics:
-                commits = metrics.get('num_commits', 1)
-                age_days = max(metrics.get('code_age', 30), 30)
-                metrics['change_frequency'] = round(commits / (age_days / 30), 2)
-        
-        # ===== OOP METRICS (8 from catalog) =====
-        if 'npm' in selected_metrics:
-            # Count public methods (not just 'public' keyword which includes fields)
-            public_methods = len([l for l in non_blank if 'public ' in l and '(' in l and not l.strip().startswith('/')])
-            metrics['npm'] = public_methods
-        if 'nprm' in selected_metrics:
-            # Count private methods (not just 'private' keyword which includes fields)
-            private_methods = len([l for l in non_blank if 'private ' in l and '(' in l and not l.strip().startswith('/')])
-            metrics['nprm'] = private_methods
-        if 'npa' in selected_metrics:
-            # Count public field declarations
-            public_fields = len([l for l in non_blank if 'public ' in l and any(typ in l for typ in ['int ', 'String ', 'boolean ', 'double ', 'float ', 'List', 'Map']) and '(' not in l.split('public')[1].split(';')[0]])
-            metrics['npa'] = public_fields
-        if 'npra' in selected_metrics:
-            # Count private field declarations
-            private_fields = len([l for l in non_blank if 'private ' in l and any(typ in l for typ in ['int ', 'String ', 'boolean ', 'double ', 'float ', 'List', 'Map']) and '(' not in l.split('private')[1].split(';')[0] if 'private' in l])
-            metrics['npra'] = private_fields
-        if 'fanin' in selected_metrics:
-            metrics['fanin'] = 0  # Would need call graph
-        if 'fanout' in selected_metrics:
-            # Fan-out: number of other classes/modules this one depends on
-            imports = content.count('import ') + content.count('from ') + content.count('using ')
-            # Also count 'new' statements (object instantiation)
-            new_instances = content.count('new ')
-            metrics['fanout'] = imports + (new_instances // 2)  # Divide by 2 to avoid overcount
-        if 'noi' in selected_metrics:
-            # Count 'implements' declarations
-            implements_count = len([l for l in lines if 'implements ' in l])
-            # Also count @interface annotations
-            interface_annotations = content.count('@interface')
-            metrics['noi'] = implements_count + interface_annotations
-        if 'nop' in selected_metrics:
-            metrics['nop'] = content.count('package ') + content.count('namespace ')
-        
-        # ===== COUPLING METRICS (4 from catalog) =====
-        if 'afferent_coupling' in selected_metrics:
-            metrics['afferent_coupling'] = 0  # Would need full repo
-        if 'efferent_coupling' in selected_metrics:
-            metrics['efferent_coupling'] = content.count('import ') + content.count('using ')
-        if 'instability' in selected_metrics:
-            ca = metrics.get('afferent_coupling', 0)
-            ce = metrics.get('efferent_coupling', 1)
-            metrics['instability'] = round(ce / (ca + ce) if (ca + ce) > 0 else 0, 3)
-        if 'abstractness' in selected_metrics:
-            # Abstractness = ratio of abstract classes/methods to total
-            abstract_count = content.count('abstract class') + content.count('abstract ') 
-            total_classes = max(content.count('class '), 1)
-            total_methods = max(metrics.get('num_methods', 1), 1)
-            # Weight both class and method abstractness
-            metrics['abstractness'] = round((abstract_count / (total_classes + total_methods)), 3)
-        if 'coupling_between_objects' in selected_metrics:
-            metrics['coupling_between_objects'] = metrics.get('cbo', 0)
-        
-        # ===== PROCESS METRICS (6 from catalog) =====
-        # Use REAL Git data when available for revision metrics
-        if git_metrics:
-            if 'revision_count' in selected_metrics:
-                metrics['revision_count'] = git_metrics['revision_count']
-            if 'loc_added' in selected_metrics:
-                metrics['loc_added'] = git_metrics['loc_added']
-            if 'loc_deleted' in selected_metrics:
-                metrics['loc_deleted'] = git_metrics['loc_deleted']
-        else:
-            if 'revision_count' in selected_metrics:
-                metrics['revision_count'] = metrics.get('num_commits', 1)
-            if 'loc_added' in selected_metrics:
-                commits = max(metrics.get('num_commits', 1), 1)
-                metrics['loc_added'] = round(file_size / commits, 1)
-            if 'loc_deleted' in selected_metrics:
-                metrics['loc_deleted'] = round(metrics.get('loc_added', 0) * 0.2, 1)
-        
-        # Bug metrics - estimates based on quality
-        quality_score = metrics.get('maintainability_index', 50)
-        current_complexity = metrics.get('cyclomatic_complexity', file_complexity)
-        
-        if 'pre_release_bugs' in selected_metrics:
-            metrics['pre_release_bugs'] = max(0, int((100 - quality_score) / 20))
-        if 'post_release_bugs' in selected_metrics:
-            metrics['post_release_bugs'] = max(0, int((100 - quality_score) / 30))
-        if 'bug_fix_time' in selected_metrics:
-            metrics['bug_fix_time'] = round(current_complexity * 0.5, 1)
-        
-        # ===== LABEL METRICS (3 from catalog) =====
-        if 'defect_type' in selected_metrics:
-            metrics['defect_type'] = ''
-        if 'severity' in selected_metrics:
-            metrics['severity'] = ''
-        if 'priority' in selected_metrics:
-            metrics['priority'] = ''
-        
-        # ===== BACKWARDS COMPATIBILITY - OLD METRIC NAMES (keep for existing datasets) =====
-        if 'class_count' in selected_metrics:
-            metrics['class_count'] = content.count('class ')
-        if 'interface_count' in selected_metrics:
-            metrics['interface_count'] = content.count('interface ')
-        if 'method_count' in selected_metrics:
-            # Use the improved num_methods calculation
-            if 'num_methods' in metrics:
-                metrics['method_count'] = metrics['num_methods']
-            else:
-                java_methods = len([l for l in non_blank if ('public ' in l or 'private ' in l or 'protected ' in l) and '(' in l])
-                python_methods = content.count('def ')
-                metrics['method_count'] = max(java_methods, python_methods)
-        if 'field_count' in selected_metrics:
-            # Count field declarations (not in methods)
-            fields = []
-            in_method = False
-            for line in lines:
-                stripped = line.strip()
-                if '(' in stripped and any(mod in stripped for mod in ['public', 'private', 'protected', 'def']):
-                    in_method = True
-                if in_method and ('}' in stripped or 'return' in stripped):
-                    in_method = False
-                if not in_method and not stripped.startswith('//') and any(typ in stripped for typ in ['int ', 'String ', 'boolean ', 'double ', 'float ', 'List<', 'Map<', 'Set<']):
-                    if '=' in stripped or ';' in stripped:
-                        fields.append(line)
-            metrics['field_count'] = len(fields)
-        if 'abstract_method_ratio' in selected_metrics:
-            abstract = content.count('abstract ')
-            total_methods = metrics.get('method_count', 1)
-            metrics['abstract_method_ratio'] = round(abstract / total_methods if total_methods > 0 else 0, 3)
-        if 'static_member_ratio' in selected_metrics:
-            static = content.count('static ')
-            metrics['static_member_ratio'] = round(static / max(1, metrics.get('field_count', 1)), 3)
-        if 'access_modifier_diversity' in selected_metrics:
-            public_ct = content.count('public ')
-            private_ct = content.count('private ')
-            protected_ct = content.count('protected ')
-            metrics['access_modifier_diversity'] = len([x for x in [public_ct, private_ct, protected_ct] if x > 0])
-        if 'lines_per_method' in selected_metrics:
-            method_count = metrics.get('method_count', 1)
-            metrics['lines_per_method'] = round(len(lines) / method_count if method_count > 0 else 0, 2)
-        if 'complexity_per_method' in selected_metrics:
-            method_count = metrics.get('method_count', 1)
-            metrics['complexity_per_method'] = round(metrics.get('cyclomatic_complexity', 1) / method_count if method_count > 0 else 0, 2)
-        if 'fan_in' in selected_metrics:
-            metrics['fan_in'] = 0  # Would need call graph
-        if 'fan_out' in selected_metrics:
-            metrics['fan_out'] = metrics.get('method_count', 0)
-        if 'depth_of_inheritance_tree' in selected_metrics:
-            metrics['depth_of_inheritance_tree'] = metrics.get('dit', 0)
-        if 'number_of_overridden_methods' in selected_metrics:
-            metrics['number_of_overridden_methods'] = content.count('@Override')
-        if 'polymorphism_factor' in selected_metrics:
-            metrics['polymorphism_factor'] = round(content.count('@Override') / max(1, metrics.get('method_count', 1)), 3)
-        if 'public_method_percentage' in selected_metrics:
-            public_methods = content.count('public ')
-            total_methods = metrics.get('method_count', 1)
-            metrics['public_method_percentage'] = round(100 * public_methods / total_methods if total_methods > 0 else 0, 2)
-        if 'technical_debt_estimate' in selected_metrics:
-            metrics['technical_debt_estimate'] = round((100 - metrics.get('maintainability_index', 50)) * 0.5, 2)
-        if 'age_in_days' in selected_metrics:
-            metrics['age_in_days'] = 0  # Would need Git history
-        if 'author_count' in selected_metrics:
-            metrics['author_count'] = 0  # Would need Git history
-        if 'last_author' in selected_metrics:
-            metrics['last_author'] = ''  # Would need Git history
-        if 'commit_count' in selected_metrics:
-            metrics['commit_count'] = 0  # Would need Git history
-        if 'bug_fix_commits' in selected_metrics:
-            metrics['bug_fix_commits'] = 0  # Would need Git history
-        
-        return metrics
-        
+        try:
+            all_metrics = self.metrics_helper.get_all_metrics(file_path)
+            # Filter to selected metrics only
+            return {k: v for k, v in all_metrics.items() if k in selected_metrics or not selected_metrics}
+        except Exception as e:
+            safe_print(f"[WARNING] MetricsHelper error for {file_path}: {e}")
+            return {'file': file_path}
+    
     def task_validate(self):
         """Validate the generated dataset"""
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

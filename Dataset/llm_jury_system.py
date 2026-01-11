@@ -6,7 +6,9 @@ LLM Jury System for Metrics Code Generation & Validation
 - User gets to see and approve before execution
 """
 
-import google.generativeai as genai
+# Use your existing multi-provider LLM system (AWS + Gemini fallback)
+from aws_llm_provider import MultiProviderLLM
+
 import os
 import ast
 import json
@@ -48,11 +50,14 @@ class LLMJurySystem:
     """
     
     def __init__(self, api_key: str = None):
-        self.api_key = api_key or os.getenv('GOOGLE_API_KEY')
-        if self.api_key:
-            genai.configure(api_key=self.api_key)
+        # Use your existing multi-provider LLM system (AWS + Gemini fallback)
+        self.llm_provider = MultiProviderLLM()
+        print(f"[INIT] LLM Jury System using: {self.llm_provider.get_active_provider()}")
         
-        # Different models/temperatures for diversity
+        # Keep api_key for backward compatibility (not used anymore)
+        self.api_key = api_key or os.getenv('GOOGLE_API_KEY')
+        
+        # Different models/temperatures for diversity (not used with multi-provider)
         self.generator_config = {
             'temperature': 0.7,
             'top_p': 0.95,
@@ -86,43 +91,100 @@ class LLMJurySystem:
 **Available Base Metrics:** 
 {json.dumps(list(available_metrics.keys()), indent=2)}
 
-**Requirements:**
-1. Write a complete Python function that calculates this metric
-2. Function name should be: calculate_custom_metric()
-3. Function should accept: repo_path (Path object) and base_metrics (dict)
-4. Return a single numeric value or a dict with multiple values
-5. Use only standard libraries or: git, pandas, numpy, pathlib
-6. Include error handling
-7. Add docstring explaining the calculation
+**CRITICAL REQUIREMENTS - Must implement ALL:**
+1. Function name MUST be: `calculate_custom_metric(repo_path, base_metrics)`
+2. Input validation:
+   - If base_metrics is empty dict: raise KeyError("base_metrics is empty")
+   - If repo_path doesn't exist: raise FileNotFoundError(f"Repo path not found: {{repo_path}}")
+   - If required metric missing from base_metrics: raise KeyError(f"Missing metric: {{metric_name}}")
+3. Return type: numeric value (float, int) or dict with numeric values
+4. Use only: standard lib, git, pandas, numpy, pathlib (no other external libs)
+5. Include proper error handling and docstring
+6. Code must be executable as: from code import calculate_custom_metric
+
+**Test Compliance:**
+The generated code WILL BE TESTED with:
+- Normal inputs (repo_path valid, base_metrics populated)
+- Edge cases (empty dicts, zero values, extreme values)
+- Error cases (missing metrics, invalid paths)
+Make sure all error cases properly raise the expected exceptions!
 
 **Output Format (JSON):**
 {{
     "metric_name": "suggested_name_for_metric",
     "description": "clear description of what this measures",
-    "code": "complete Python code here",
+    "code": "import statements + complete working function here",
     "dependencies": ["list", "of", "imports"],
     "expected_output_type": "float|int|dict",
-    "reasoning": "why this implementation is correct"
+    "reasoning": "why this implementation is correct and handles all edge cases"
 }}
+
+CRITICAL: The 'code' field must be a complete, executable Python function that can be imported directly.
 
 Generate the code now:"""
 
         try:
-            model = genai.GenerativeModel(
-                'gemini-2.0-flash-exp',
-                generation_config=self.generator_config
-            )
+            # Use your multi-provider LLM system (AWS + Gemini fallback)
+            response = self.llm_provider.generate_content(prompt)
+            response_text = response['text'].strip()
             
-            response = model.generate_content(prompt)
-            response_text = response.text.strip()
+            print(f"[DEBUG] Jury LLM Response length: {len(response_text)}")
+            print(f"[DEBUG] Response preview: {response_text[:200]}...")
+            print(f"[DEBUG] Provider used: {self.llm_provider.get_active_provider()}")
             
             # Extract JSON from markdown if present
+            original_text = response_text
+            import re
+            
             if '```json' in response_text:
                 response_text = response_text.split('```json')[1].split('```')[0].strip()
             elif '```' in response_text:
                 response_text = response_text.split('```')[1].split('```')[0].strip()
             
-            result = json.loads(response_text)
+            # Sanitize: Remove invalid control characters but keep newlines/tabs/carriage returns
+            response_text = ''.join(
+                char for char in response_text 
+                if ord(char) >= 32 or char in '\n\t\r'
+            )
+            
+            # Try to unescape the response text in case it has escaped newlines
+            try:
+                response_text = response_text.encode().decode('unicode_escape', errors='ignore')
+            except:
+                pass
+            
+            print(f"[DEBUG] Extracted JSON: {response_text[:200]}...")
+            
+            try:
+                result = json.loads(response_text)
+            except json.JSONDecodeError as json_error:
+                print(f"[ERROR] JSON parsing failed: {json_error}")
+                
+                # Fallback 1: Try to extract JSON from any {} blocks
+                json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
+                if json_match:
+                    try:
+                        result = json.loads(json_match.group())
+                        print("[INFO] Recovered JSON using regex fallback")
+                    except Exception as e2:
+                        # Fallback 2: Extract code block from markdown and create minimal result
+                        print(f"[DEBUG] Regex fallback also failed: {e2}")
+                        code_match = re.search(r'```python\n(.*?)(?:```|$)', original_text, re.DOTALL)
+                        if code_match:
+                            code = code_match.group(1).strip()
+                            print(f"[INFO] Extracted code from markdown block, creating minimal result")
+                            result = {
+                                "metric_name": "custom_metric",
+                                "description": "Auto-extracted metric from code",
+                                "code": code,
+                                "dependencies": ["pathlib"],
+                                "expected_output_type": "float",
+                                "reasoning": "Code extracted from response markdown"
+                            }
+                        else:
+                            raise Exception(f"JSON parsing failed even with fallback: {json_error}")
+                else:
+                    raise Exception(f"No JSON found in response: {json_error}")
             
             return CodeProposal(
                 metric_name=result['metric_name'],
@@ -134,7 +196,7 @@ Generate the code now:"""
             )
             
         except Exception as e:
-            print(f"❌ Code generation error: {e}")
+            print(f"Code generation error: {e}")
             return None
     
     def validate_code_with_jury(
@@ -163,18 +225,23 @@ Expected Output: {proposal.expected_output_type}
 **Generator's Reasoning:**
 {proposal.reasoning}
 
-**Your Task:** Evaluate this code on:
-1. **Correctness:** Does it correctly implement the described metric?
-2. **Security:** Is it safe to execute? No malicious code?
-3. **Efficiency:** Is the implementation reasonably efficient?
-4. **Code Quality:** Is it well-structured and maintainable?
-5. **Error Handling:** Does it handle edge cases?
+**Your Task:** Evaluate this code on CRITICAL requirements:
+1. **Function Signature:** Must be `calculate_custom_metric(repo_path, base_metrics)`
+2. **Error Handling (CRITICAL):**
+   - Does it raise KeyError when base_metrics is empty?
+   - Does it raise KeyError when required metrics are missing?
+   - Does it raise FileNotFoundError when repo_path doesn't exist?
+3. **Correctness:** Does it correctly implement the described metric?
+4. **Security:** Is it safe to execute?
+5. **Imports:** Uses only standard lib, git, pandas, numpy, pathlib?
 
 **Output Format (JSON):**
 {{
     "result": "approved|rejected|needs_revision",
     "score": 85,
     "reasoning": "detailed explanation of your decision",
+    "error_handling_correct": true,
+    "function_signature_correct": true,
     "issues_found": ["list of issues if any"],
     "suggested_fixes": ["list of suggestions if needs_revision"]
 }}
@@ -183,21 +250,32 @@ Provide your evaluation:"""
 
         for i in range(min(num_judges, len(self.jury_configs))):
             try:
-                model = genai.GenerativeModel(
-                    'gemini-2.0-flash-exp',
-                    generation_config=self.jury_configs[i]
-                )
+                # Use your multi-provider LLM system (AWS + Gemini fallback)
+                response = self.llm_provider.generate_content(validation_prompt)
+                response_text = response['text'].strip()
                 
-                response = model.generate_content(validation_prompt)
-                response_text = response.text.strip()
-                
-                # Extract JSON
                 if '```json' in response_text:
                     response_text = response_text.split('```json')[1].split('```')[0].strip()
                 elif '```' in response_text:
                     response_text = response_text.split('```')[1].split('```')[0].strip()
                 
-                result = json.loads(response_text)
+                try:
+                    result = json.loads(response_text)
+                except json.JSONDecodeError as json_error:
+                    print(f"[ERROR] Judge {i+1} JSON parsing failed: {json_error}")
+                    # Fallback: Try to extract JSON from any {} blocks
+                    import re
+                    json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
+                    if json_match:
+                        try:
+                            result = json.loads(json_match.group())
+                            print(f"[INFO] Judge {i+1} recovered JSON using regex fallback")
+                        except:
+                            print(f"[ERROR] Judge {i+1} JSON fallback also failed")
+                            continue
+                    else:
+                        print(f"[ERROR] Judge {i+1} no JSON found in response")
+                        continue
                 
                 vote = JuryVote(
                     judge_id=f"Judge_{i+1}",
@@ -210,7 +288,7 @@ Provide your evaluation:"""
                 votes.append(vote)
                 
             except Exception as e:
-                print(f"⚠️ Judge {i+1} error: {e}")
+                print(f"Judge {i+1} error: {e}")
                 continue
         
         # Calculate consensus
@@ -276,20 +354,30 @@ Description: {original_proposal.description}
 Generate revised code:"""
 
         try:
-            model = genai.GenerativeModel(
-                'gemini-2.0-flash-exp',
-                generation_config=self.generator_config
-            )
-            
-            response = model.generate_content(revision_prompt)
-            response_text = response.text.strip()
+            # Use your multi-provider LLM system (AWS + Gemini fallback)
+            response = self.llm_provider.generate_content(revision_prompt)
+            response_text = response['text'].strip()
             
             if '```json' in response_text:
                 response_text = response_text.split('```json')[1].split('```')[0].strip()
             elif '```' in response_text:
                 response_text = response_text.split('```')[1].split('```')[0].strip()
             
-            result = json.loads(response_text)
+            try:
+                result = json.loads(response_text)
+            except json.JSONDecodeError as json_error:
+                print(f"[ERROR] Revision JSON parsing failed: {json_error}")
+                # Fallback: Try to extract JSON from any {} blocks
+                import re
+                json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
+                if json_match:
+                    try:
+                        result = json.loads(json_match.group())
+                        print("[INFO] Recovered revision JSON using regex fallback")
+                    except:
+                        raise Exception(f"Revision JSON parsing failed even with fallback: {json_error}")
+                else:
+                    raise Exception(f"No JSON found in revision response: {json_error}")
             
             return CodeProposal(
                 metric_name=result['metric_name'],
@@ -301,7 +389,7 @@ Generate revised code:"""
             )
             
         except Exception as e:
-            print(f"❌ Revision error: {e}")
+            print(f"Revision error: {e}")
             return None
     
     def full_jury_process(
@@ -316,26 +404,26 @@ Generate revised code:"""
         """
         
         print(f"\n{'='*60}")
-        print(f"🏛️ LLM JURY PROCESS STARTING")
+        print(f"LLM JURY PROCESS STARTING")
         print(f"{'='*60}")
-        print(f"📝 Metric: {metric_description}")
-        print(f"👨‍⚖️ Judges: {num_judges}")
+        print(f"Metric: {metric_description}")
+        print(f"Judges: {num_judges}")
         
         # Step 1: Generate initial code
-        print(f"\n🤖 Generator LLM creating code...")
+        print(f"\nGenerator LLM creating code...")
         proposal = self.generate_metric_code(metric_description, available_metrics)
         
         if not proposal:
             return None, [], "Failed to generate code"
         
-        print(f"✅ Code generated for: {proposal.metric_name}")
+        print(f"Code generated for: {proposal.metric_name}")
         
         # Step 2: Jury validation (with revision loop)
         revision_count = 0
         all_votes = []
         
         while revision_count <= max_revisions:
-            print(f"\n⚖️ Jury Deliberation (Round {revision_count + 1})...")
+            print(f"\nJury Deliberation (Round {revision_count + 1})...")
             
             approved, votes, summary = self.validate_code_with_jury(proposal, num_judges)
             all_votes.extend(votes)
@@ -343,7 +431,7 @@ Generate revised code:"""
             print(f"\n{summary}")
             
             if approved:
-                print(f"✅ Code APPROVED by jury!")
+                print(f"Code APPROVED by jury!")
                 return proposal, votes, summary
             
             # Check if we should revise
@@ -351,10 +439,15 @@ Generate revised code:"""
             
             if needs_revision_count > 0 and revision_count < max_revisions:
                 print(f"\n🔄 Revising code based on feedback...")
-                proposal = self.revise_code_based_on_feedback(proposal, votes)
-                revision_count += 1
+                revised = self.revise_code_based_on_feedback(proposal, votes)
+                if revised:
+                    proposal = revised
+                    revision_count += 1
+                else:
+                    print(f"Revision failed - returning original code with mixed votes")
+                    return proposal, votes, summary
             else:
-                print(f"\n❌ Code could not be approved after {revision_count + 1} rounds")
+                print(f"\nCode could not be approved after {revision_count + 1} rounds")
                 return None, votes, summary
         
         return None, all_votes, "Max revisions reached"
@@ -400,7 +493,7 @@ def test_jury_system():
         print(f"\nReasoning: {proposal.reasoning}")
     else:
         print(f"\n{'='*60}")
-        print(f"❌ CODE NOT APPROVED")
+        print(f"CODE NOT APPROVED")
         print(f"{'='*60}")
         print(f"Summary: {summary}")
 

@@ -95,225 +95,319 @@ class ProfessionalDatasetGenerator:
         logger.info("All datasets generated successfully!")
 
     def generate_defects4j_dataset(self):
-        """Generate SYNTHETIC Defects4J-style dataset (Research Paper Based - ISSTA 2014)"""
-        import random
-        logger.info("🔧 Generating SYNTHETIC Defects4J-style dataset (mimicking ISSTA 2014 research)...")
+        """Generate REAL Defects4J-style dataset from Git commits (Bug-Fix Pattern Detection)"""
+        logger.info("🔧 Generating REAL Defects4J dataset from Git commit history...")
 
         dataset = []
         dataset_dir = self.output_dir / f"defects4j_dataset_{self.timestamp}"
         dataset_dir.mkdir(exist_ok=True)
 
-        # Generate synthetic Java projects with bug characteristics (based on Defects4J research)
-        num_projects = random.randint(5, 15)
-        projects_data = []
+        for repo in self.repositories:
+            logger.info(f"Analyzing {repo['name']} for bug-fixing commits...")
+            
+            # Check if it's a Git repository
+            if not (repo["path"] / ".git").exists():
+                logger.warning(f"{repo['name']} is not a Git repository. Skipping Defects4J generation.")
+                continue
+            
+            # Get bug-fixing commits (commits with 'fix', 'bug', 'issue' in message)
+            try:
+                result = subprocess.run(
+                    ['git', 'log', '--all', '--grep=fix', '--grep=bug', '--grep=issue', '--grep=error', 
+                     '--grep=exception', '--grep=crash', '--regexp-ignore-case', '--oneline', '--no-merges'],
+                    cwd=repo["path"],
+                    capture_output=True,
+                    text=True,
+                    timeout=60
+                )
+                
+                if result.returncode != 0:
+                    logger.warning(f"Git log failed for {repo['name']}: {result.stderr}")
+                    continue
+                
+                commits = result.stdout.strip().split('\n')
+                if not commits or commits[0] == '':
+                    logger.info(f"No bug-fixing commits found in {repo['name']}")
+                    continue
+                
+                logger.info(f"Found {len(commits)} potential bug-fixing commits in {repo['name']}")
+                
+                # Create buggy/fixed directories
+                project_buggy_dir = dataset_dir / "buggy" / repo['name']
+                project_fixed_dir = dataset_dir / "fixed" / repo['name']
+                project_buggy_dir.mkdir(parents=True, exist_ok=True)
+                project_fixed_dir.mkdir(parents=True, exist_ok=True)
+                
+                bug_count = 0
+                for commit_line in commits[:self.commit_limit] if self.commit_limit else commits:
+                    commit_hash = commit_line.split()[0]
+                    commit_msg = ' '.join(commit_line.split()[1:])
+                    
+                    # Get diff for this commit (only Java files)
+                    diff_result = subprocess.run(
+                        ['git', 'show', '--format=', '--unified=0', commit_hash, '--', '*.java'],
+                        cwd=repo["path"],
+                        capture_output=True,
+                        text=True,
+                        timeout=30
+                    )
+                    
+                    if diff_result.returncode != 0 or not diff_result.stdout.strip():
+                        continue
+                    
+                    diff_text = diff_result.stdout
+                    
+                    # Get parent commit (buggy version)
+                    parent_result = subprocess.run(
+                        ['git', 'rev-parse', f'{commit_hash}^'],
+                        cwd=repo["path"],
+                        capture_output=True,
+                        text=True
+                    )
+                    
+                    if parent_result.returncode != 0:
+                        continue
+                    
+                    parent_hash = parent_result.stdout.strip()
+                    
+                    # Extract changed Java files
+                    changed_files = subprocess.run(
+                        ['git', 'diff', '--name-only', parent_hash, commit_hash, '--', '*.java'],
+                        cwd=repo["path"],
+                        capture_output=True,
+                        text=True
+                    )
+                    
+                    if changed_files.returncode != 0:
+                        continue
+                    
+                    java_files = [f for f in changed_files.stdout.strip().split('\n') if f.endswith('.java')]
+                    
+                    if not java_files:
+                        continue
+                    
+                    bug_count += 1
+                    bug_id = f"{repo['name']}_bug_{bug_count:03d}"
+                    
+                    # Save buggy and fixed versions
+                    for java_file in java_files[:3]:  # Max 3 files per bug
+                        # Get buggy version (parent commit)
+                        buggy_content = subprocess.run(
+                            ['git', 'show', f'{parent_hash}:{java_file}'],
+                            cwd=repo["path"],
+                            capture_output=True,
+                            text=True
+                        )
+                        
+                        # Get fixed version (current commit)
+                        fixed_content = subprocess.run(
+                            ['git', 'show', f'{commit_hash}:{java_file}'],
+                            cwd=repo["path"],
+                            capture_output=True,
+                            text=True
+                        )
+                        
+                        if buggy_content.returncode == 0 and fixed_content.returncode == 0:
+                            # Save files
+                            buggy_file = project_buggy_dir / f"Bug_{bug_count:03d}_{Path(java_file).name}"
+                            fixed_file = project_fixed_dir / f"Bug_{bug_count:03d}_{Path(java_file).name}"
+                            
+                            with open(buggy_file, 'w', encoding='utf-8') as f:
+                                f.write(buggy_content.stdout)
+                            
+                            with open(fixed_file, 'w', encoding='utf-8') as f:
+                                f.write(fixed_content.stdout)
+                            
+                            # Calculate metrics
+                            buggy_loc = len([l for l in buggy_content.stdout.split('\n') if l.strip()])
+                            fixed_loc = len([l for l in fixed_content.stdout.split('\n') if l.strip()])
+                            lines_changed = abs(fixed_loc - buggy_loc)
+                            
+                            # Create metadata
+                            metadata = {
+                                "bug_id": bug_id,
+                                "project": repo['name'],
+                                "commit_hash": commit_hash,
+                                "parent_hash": parent_hash,
+                                "commit_message": commit_msg,
+                                "file_path": java_file,
+                                "buggy_loc": buggy_loc,
+                                "fixed_loc": fixed_loc,
+                                "lines_changed": lines_changed,
+                                "diff": diff_text[:1000],  # First 1000 chars
+                                "files_changed": len(java_files),
+                                "dataset_type": "defects4j_real",
+                                "extraction_method": "git_commit_analysis"
+                            }
+                            
+                            dataset.append(metadata)
+                    
+                    if bug_count % 10 == 0:
+                        logger.info(f"Processed {bug_count} bug-fixing commits...")
+                
+                logger.info(f"Extracted {bug_count} real bugs from {repo['name']}")
+                
+            except subprocess.TimeoutExpired:
+                logger.error(f"Git command timeout for {repo['name']}")
+            except Exception as e:
+                logger.error(f"Error processing {repo['name']}: {e}")
 
-        # Java project templates based on real Defects4J projects
-        project_templates = [
-            {"name": "Lang", "description": "Apache Commons Lang utilities"},
-            {"name": "Math", "description": "Apache Commons Math library"},
-            {"name": "Chart", "description": "JFreeChart visualization"},
-            {"name": "Time", "description": "Joda-Time date library"},
-            {"name": "Closure", "description": "Google Closure Compiler"},
-            {"name": "Mockito", "description": "Mocking framework"},
-            {"name": "Codec", "description": "Apache Commons Codec"}
-        ]
-
-        for i in range(num_projects):
-            template = random.choice(project_templates)
-            project = {
-                'project_id': f'{template["name"]}_{i+1}',
-                'project_name': template["name"],
-                'description': template["description"],
-                'language': 'Java',
-                'bugs_found': random.randint(10, 100),
-                'loc': random.randint(10000, 100000),
-                'complexity': round(random.uniform(1.5, 5.0), 2),
-                'test_coverage': round(random.uniform(0.3, 0.9), 2),
-                'maintainability_index': round(random.uniform(40, 90), 2),
-                'cyclomatic_complexity': random.randint(5, 50),
-                'halstead_volume': round(random.uniform(1000, 50000), 2),
-                'defect_density': round(random.uniform(0.1, 2.0), 2)
-            }
-            projects_data.append(project)
-
-            # Create buggy/fixed directory structure for each project
-            project_buggy_dir = dataset_dir / "buggy" / project['project_id']
-            project_fixed_dir = dataset_dir / "fixed" / project['project_id']
-            project_buggy_dir.mkdir(parents=True, exist_ok=True)
-            project_fixed_dir.mkdir(parents=True, exist_ok=True)
-
-            # Generate synthetic bugs for this project
-            num_bugs = random.randint(5, 20)
-            for bug_idx in range(num_bugs):
-                bug_id = f"{project['project_id']}_bug_{bug_idx+1:03d}"
-
-                # Create synthetic buggy Java code
-                buggy_code = self._generate_synthetic_java_bug()
-                fixed_code = self._generate_synthetic_java_fix(buggy_code)
-
-                # Save buggy version
-                buggy_file = project_buggy_dir / f"Bug_{bug_idx+1:03d}.java"
-                with open(buggy_file, 'w', encoding='utf-8') as f:
-                    f.write(buggy_code)
-
-                # Save fixed version
-                fixed_file = project_fixed_dir / f"Bug_{bug_idx+1:03d}.java"
-                with open(fixed_file, 'w', encoding='utf-8') as f:
-                    f.write(fixed_code)
-
-                # Create metadata
-                metadata = {
-                    "bug_id": bug_id,
-                    "project": project['project_id'],
-                    "project_name": project['project_name'],
-                    "description": project['description'],
-                    "bug_type": random.choice(["NullPointerException", "ArrayIndexOutOfBounds", "ClassCastException", "LogicError"]),
-                    "severity": random.choice(["Low", "Medium", "High", "Critical"]),
-                    "loc": random.randint(50, 500),
-                    "complexity": random.randint(3, 25),
-                    "test_coverage_before": round(random.uniform(0.2, 0.8), 2),
-                    "test_coverage_after": round(random.uniform(0.6, 0.95), 2),
-                    "time_to_fix_minutes": random.randint(30, 480),
-                    "files_changed": 1,
-                    "dataset_type": "defects4j_synthetic",
-                    "research_paper": "Just et al. 'Defects4J: A Database of Existing Faults' (ISSTA 2014)"
-                }
-
-                # Save metadata
-                with open(project_buggy_dir / "metadata.json", 'w', encoding='utf-8') as f:
-                    json.dump(metadata, f, indent=2)
-                with open(project_fixed_dir / "metadata.json", 'w', encoding='utf-8') as f:
-                    json.dump(metadata, f, indent=2)
-
-                dataset.append(metadata)
-
-        # Save comprehensive dataset info
+        # Save dataset info
         info = {
-            "dataset_type": "Defects4J_Synthetic",
-            "description": "Synthetic dataset mimicking Defects4J characteristics (ISSTA 2014)",
-            "research_basis": "Just et al. 'Defects4J: A Database of Existing Faults to Enable Controlled Testing Studies for Java Programs' (ISSTA 2014)",
+            "dataset_type": "Defects4J_Real",
+            "description": "Real bug dataset extracted from Git commit history",
             "generated_at": datetime.now().isoformat(),
-            "total_projects": len(projects_data),
             "total_bugs": len(dataset),
-            "structure": ["buggy", "fixed"],
-            "projects": projects_data,
-            "generation_method": "synthetic_research_based"
+            "extraction_method": "git_commit_analysis",
+            "bug_detection_keywords": ["fix", "bug", "issue", "error", "exception", "crash"]
         }
-
+        
         info_file = dataset_dir / "dataset_info.json"
         with open(info_file, 'w', encoding='utf-8') as f:
             json.dump(info, f, indent=2)
+        
+        # Save all bug metadata
+        bugs_file = dataset_dir / "bugs_metadata.json"
+        with open(bugs_file, 'w', encoding='utf-8') as f:
+            json.dump(dataset, f, indent=2)
 
-        logger.info(f"✅ SYNTHETIC Defects4J dataset generated: {len(dataset)} bugs across {len(projects_data)} projects -> {dataset_dir.name}/")
-        logger.info(f"📊 Based on research: Just et al. (ISSTA 2014) - Real Defects4J has 835 bugs across 17 projects")
+        logger.info(f"✅ REAL Defects4J dataset generated: {len(dataset)} bugs -> {dataset_dir.name}/")
 
-    def _generate_synthetic_java_bug(self) -> str:
-        """Generate synthetic buggy Java code"""
-        bug_templates = [
-            """public class Calculator {
-    public int divide(int a, int b) {
-        return a / b;  // BUG: No division by zero check
-    }
-}""",
-            """public class ArrayProcessor {
-    public int getElement(int[] arr, int index) {
-        return arr[index];  // BUG: No bounds checking
-    }
-}""",
-            """public class StringUtils {
-    public String process(String input) {
-        return input.toUpperCase();  // BUG: Null pointer if input is null
-    }
-}"""
-        ]
-        return random.choice(bug_templates)
-
-    def _generate_synthetic_java_fix(self, buggy_code: str) -> str:
-        """Generate synthetic fixed Java code"""
-        if "divide" in buggy_code:
-            return """public class Calculator {
-    public int divide(int a, int b) {
-        if (b == 0) {
-            throw new IllegalArgumentException("Division by zero");
-        }
-        return a / b;
-    }
-}"""
-        elif "getElement" in buggy_code:
-            return """public class ArrayProcessor {
-    public int getElement(int[] arr, int index) {
-        if (arr == null || index < 0 || index >= arr.length) {
-            throw new IndexOutOfBoundsException("Invalid array access");
-        }
-        return arr[index];
-    }
-}"""
-        elif "process" in buggy_code:
-            return """public class StringUtils {
-    public String process(String input) {
-        if (input == null) {
-            return "";
-        }
-        return input.toUpperCase();
-    }
-}"""
-        return buggy_code  # fallback
+    # Removed synthetic bug generation functions - using real Git data now
 
     def generate_bugs_jar_dataset(self):
-        """Generate SYNTHETIC Bugs.jar-style dataset (Research Paper Based - MSR 2018)"""
-        import random
-        logger.info("🔧 Generating SYNTHETIC Bugs.jar-style dataset (mimicking MSR 2018 research)...")
+        """Generate REAL Bugs.jar-style dataset from Git commits with detailed metrics"""
+        logger.info("🔧 Generating REAL Bugs.jar dataset from Git commit history...")
 
         dataset = []
         dataset_dir = self.output_dir / f"bugsjar_dataset_{self.timestamp}"
         dataset_dir.mkdir(exist_ok=True)
 
-        # Generate synthetic bug data based on Bugs.jar research (MSR 2018)
-        num_bugs = random.randint(1000, 5000)
-        projects = ["Apache Commons", "Spring Framework", "Hibernate", "JUnit", "Mockito", "Jackson", "Guava"]
+        for repo in self.repositories:
+            logger.info(f"Analyzing {repo['name']} for bug commits...")
+            
+            if not (repo["path"] / ".git").exists():
+                logger.warning(f"{repo['name']} is not a Git repository. Skipping.")
+                continue
+            
+            try:
+                # Get ALL commits (not just bug fixes)
+                result = subprocess.run(
+                    ['git', 'log', '--all', '--oneline', '--no-merges'],
+                    cwd=repo["path"],
+                    capture_output=True,
+                    text=True,
+                    timeout=60
+                )
+                
+                if result.returncode != 0:
+                    continue
+                
+                commits = result.stdout.strip().split('\n')
+                logger.info(f"Found {len(commits)} commits in {repo['name']}")
+                
+                for idx, commit_line in enumerate(commits[:self.commit_limit] if self.commit_limit else commits):
+                    commit_hash = commit_line.split()[0]
+                    commit_msg = ' '.join(commit_line.split()[1:])
+                    
+                    # Get commit details
+                    stats_result = subprocess.run(
+                        ['git', 'show', '--stat', '--format=%an|%ae|%ad|%s', commit_hash],
+                        cwd=repo["path"],
+                        capture_output=True,
+                        text=True
+                    )
+                    
+                    if stats_result.returncode != 0:
+                        continue
+                    
+                    stats_lines = stats_result.stdout.strip().split('\n')
+                    if len(stats_lines) < 2:
+                        continue
+                    
+                    # Parse author info
+                    author_info = stats_lines[0].split('|')
+                    author_name = author_info[0] if len(author_info) > 0 else "Unknown"
+                    
+                    # Count changed files
+                    files_changed = subprocess.run(
+                        ['git', 'show', '--name-only', '--format=', commit_hash],
+                        cwd=repo["path"],
+                        capture_output=True,
+                        text=True
+                    )
+                    
+                    changed_files = [f for f in files_changed.stdout.strip().split('\n') if f]
+                    java_files = [f for f in changed_files if f.endswith('.java')]
+                    
+                    # Get diff stats
+                    diff_stats = subprocess.run(
+                        ['git', 'show', '--shortstat', commit_hash],
+                        cwd=repo["path"],
+                        capture_output=True,
+                        text=True
+                    )
+                    
+                    lines_added = 0
+                    lines_deleted = 0
+                    if diff_stats.returncode == 0:
+                        import re
+                        match = re.search(r'(\d+) insertion', diff_stats.stdout)
+                        if match:
+                            lines_added = int(match.group(1))
+                        match = re.search(r'(\d+) deletion', diff_stats.stdout)
+                        if match:
+                            lines_deleted = int(match.group(1))
+                    
+                    # Determine if it's a bug fix
+                    is_bug_fix = any(keyword in commit_msg.lower() for keyword in ['fix', 'bug', 'issue', 'error', 'patch'])
+                    
+                    bug = {
+                        'bug_id': f'BUG_{repo["name"]}_{idx+1:05d}',
+                        'project': repo['name'],
+                        'commit_hash': commit_hash,
+                        'commit_message': commit_msg,
+                        'author': author_name,
+                        'is_bug_fix': is_bug_fix,
+                        'files_changed': len(changed_files),
+                        'java_files_changed': len(java_files),
+                        'lines_added': lines_added,
+                        'lines_deleted': lines_deleted,
+                        'total_changes': lines_added + lines_deleted,
+                        'dataset_type': 'bugs_jar_real',
+                        'extraction_method': 'git_commit_analysis'
+                    }
+                    
+                    dataset.append(bug)
+                    
+                    if (idx + 1) % 100 == 0:
+                        logger.info(f"Processed {idx + 1} commits...")
+                
+                logger.info(f"Extracted {len(dataset)} commits from {repo['name']}")
+                
+            except Exception as e:
+                logger.error(f"Error processing {repo['name']}: {e}")
 
-        bug_types = ['NullPointerException', 'ArrayIndexOutOfBounds', 'ClassCastException',
-                     'IllegalArgumentException', 'IOException', 'SQLException', 'NoSuchMethodError']
-        severities = ['Low', 'Medium', 'High', 'Critical']
-
-        for i in range(num_bugs):
-            project = random.choice(projects)
-            bug = {
-                'bug_id': f'BUG_{i+1:05d}',
-                'project': project,
-                'bug_type': random.choice(bug_types),
-                'severity': random.choice(severities),
-                'loc': random.randint(50, 5000),
-                'complexity': round(random.uniform(1.0, 8.0), 2),
-                'time_to_fix_minutes': random.randint(15, 1440),  # 15 min to 24 hours
-                'files_changed': random.randint(1, 10),
-                'methods_affected': random.randint(1, 5),
-                'test_coverage_before': round(random.uniform(0.1, 0.8), 2),
-                'test_coverage_after': round(random.uniform(0.6, 0.95), 2),
-                'lines_added': random.randint(1, 100),
-                'lines_deleted': random.randint(0, 50),
-                'dataset_type': 'bugs_jar_synthetic',
-                'research_paper': 'Saha et al. "Bugs.jar: A Large-scale, Diverse Dataset of Existing Bugs" (MSR 2018)'
-            }
-            dataset.append(bug)
-
-        # Save to JSON (first 1000 for readability)
+        # Save to JSON
         output_file = dataset_dir / "bugs_jar_dataset.json"
         with open(output_file, 'w', encoding='utf-8') as f:
             json.dump({
-                'dataset_type': 'BugsJar_Synthetic',
-                'description': 'Synthetic dataset mimicking Bugs.jar characteristics (MSR 2018)',
-                'research_basis': 'Saha et al. "Bugs.jar: A Large-scale, Diverse Dataset of Existing Bugs in Java" (MSR 2018)',
+                'dataset_type': 'BugsJar_Real',
+                'description': 'Real bug dataset extracted from Git commit history',
                 'generated_at': datetime.now().isoformat(),
                 'total_bugs': len(dataset),
-                'bugs': dataset[:1000],  # Save first 1000 for readability
-                'generation_method': 'synthetic_research_based'
+                'bugs': dataset,
+                'extraction_method': 'git_commit_analysis'
             }, f, indent=2)
+        
+        # Also save as CSV
+        csv_file = dataset_dir / "bugs_jar_dataset.csv"
+        if dataset:
+            import pandas as pd
+            df = pd.DataFrame(dataset)
+            df.to_csv(csv_file, index=False)
 
-        logger.info(f"✅ SYNTHETIC Bugs.jar dataset generated: {len(dataset)} bugs -> {dataset_dir.name}/")
-        logger.info(f"📊 Based on research: Saha et al. (MSR 2018) - Real Bugs.jar has 1,158 bugs across 9 projects")
-
-        logger.info(f"Bugs.jar dataset saved: {len(dataset)} records -> {output_file.name}")
+        logger.info(f"✅ REAL Bugs.jar dataset generated: {len(dataset)} commits -> {dataset_dir.name}/")
 
     def generate_codexglue_dataset(self):
         """Generate CodeXGLUE-style dataset with COMPREHENSIVE data (FILE ANALYSIS like OLD code)"""
@@ -623,76 +717,107 @@ class ProfessionalDatasetGenerator:
         logger.info(f"PROMISE dataset saved: {len(dataset)} records -> {output_file.name}")
 
     def generate_manystubs4j_dataset(self):
-        """Generate SYNTHETIC ManySStuBs4J-style dataset (Research Paper Based - MSR 2025)"""
-        import random
-        logger.info("🔧 Generating SYNTHETIC ManySStuBs4J-style dataset (mimicking MSR 2025 research)...")
+        """Generate REAL ManySStuBs4J-style dataset from method-level changes in Git"""
+        logger.info("🔧 Generating REAL ManySStuBs4J dataset from method-level Git changes...")
 
         dataset = []
         dataset_dir = self.output_dir / f"manystubs4j_dataset_{self.timestamp}"
         dataset_dir.mkdir(exist_ok=True)
 
-        # Generate synthetic issue data based on ManySStuBs4J research (MSR 2025)
-        num_issues = random.randint(5000, 15000)
-        projects = ["Apache Commons", "Spring Framework", "Hibernate", "JUnit", "Mockito", "Jackson", "Guava", "Eclipse JDT"]
+        for repo in self.repositories:
+            logger.info(f"Analyzing {repo['name']} for method-level changes...")
+            
+            if not (repo["path"] / ".git").exists():
+                logger.warning(f"{repo['name']} is not a Git repository. Skipping.")
+                continue
+            
+            try:
+                # Get commits with method-level changes
+                result = subprocess.run(
+                    ['git', 'log', '--all', '--oneline', '--no-merges'],
+                    cwd=repo["path"],
+                    capture_output=True,
+                    text=True,
+                    timeout=60
+                )
+                
+                if result.returncode != 0:
+                    continue
+                
+                commits = result.stdout.strip().split('\n')
+                logger.info(f"Found {len(commits)} commits in {repo['name']}")
+                
+                for idx, commit_line in enumerate(commits[:self.commit_limit] if self.commit_limit else commits):
+                    commit_hash = commit_line.split()[0]
+                    commit_msg = ' '.join(commit_line.split()[1:])
+                    
+                    # Get diff for Java files only
+                    diff_result = subprocess.run(
+                        ['git', 'show', '--unified=3', commit_hash, '--', '*.java'],
+                        cwd=repo["path"],
+                        capture_output=True,
+                        text=True,
+                        timeout=30
+                    )
+                    
+                    if diff_result.returncode != 0 or not diff_result.stdout.strip():
+                        continue
+                    
+                    diff_text = diff_result.stdout
+                    
+                    # Extract method changes using regex
+                    import re
+                    method_changes = re.findall(
+                        r'@@.*?@@\s*(public|private|protected|static)\s+[\w<>\[\]]+\s+(\w+)\s*\([^)]*\)',
+                        diff_text
+                    )
+                    
+                    if not method_changes:
+                        continue
+                    
+                    # Count additions and deletions
+                    additions = len(re.findall(r'^\+[^+]', diff_text, re.MULTILINE))
+                    deletions = len(re.findall(r'^-[^-]', diff_text, re.MULTILINE))
+                    
+                    for method_info in method_changes:
+                        issue = {
+                            'issue_id': f'ISSUE_{repo["name"]}_{idx+1:05d}',
+                            'project': repo['name'],
+                            'commit_hash': commit_hash,
+                            'commit_message': commit_msg,
+                            'method_modifier': method_info[0],
+                            'method_name': method_info[1],
+                            'lines_added': additions,
+                            'lines_deleted': deletions,
+                            'total_changes': additions + deletions,
+                            'diff_snippet': diff_text[:500],  # First 500 chars
+                            'dataset_type': 'manystubs4j_real',
+                            'extraction_method': 'method_level_git_analysis'
+                        }
+                        
+                        dataset.append(issue)
+                    
+                    if (idx + 1) % 50 == 0:
+                        logger.info(f"Processed {idx + 1} commits, found {len(dataset)} method changes...")
+                
+                logger.info(f"Extracted {len(dataset)} method changes from {repo['name']}")
+                
+            except Exception as e:
+                logger.error(f"Error processing {repo['name']}: {e}")
 
-        issue_types = ['Bug Fix', 'Feature Addition', 'Refactoring', 'Performance Improvement', 'Security Fix']
-        severities = ['Low', 'Medium', 'High', 'Critical']
-
-        # Generate synthetic Java code snippets for issues
-        java_snippets = [
-            """public class Calculator {
-    public int divide(int a, int b) {
-        return a / b; // Potential division by zero
-    }
-}""",
-            """public class ListProcessor {
-    public Object getElement(List<?> list, int index) {
-        return list.get(index); // Potential IndexOutOfBoundsException
-    }
-}""",
-            """public class StringUtils {
-    public boolean isEmpty(String str) {
-        return str.length() == 0; // Potential NullPointerException
-    }
-}"""
-        ]
-
-        for i in range(num_issues):
-            project = random.choice(projects)
-            issue = {
-                'issue_id': f'ISSUE_{i+1:05d}',
-                'project': project,
-                'file_path': f'src/main/java/{project.lower().replace(" ", "")}/Example.java',
-                'issue_type': random.choice(issue_types),
-                'severity': random.choice(severities),
-                'description': f'Issue #{i+1}: {random.choice(["Fixed null pointer exception", "Added bounds checking", "Improved error handling", "Enhanced performance", "Security vulnerability patched"])}',
-                'code_snippet': random.choice(java_snippets),
-                'loc': random.randint(10, 200),
-                'complexity': random.randint(1, 15),
-                'methods_affected': random.randint(1, 3),
-                'test_cases_added': random.randint(0, 5),
-                'review_comments': random.randint(0, 10),
-                'time_to_resolve_hours': random.randint(1, 168),  # 1 hour to 1 week
-                'dataset_type': 'manystubs4j_synthetic',
-                'research_paper': 'Research on ManySStuBs4J dataset (MSR 2025)'
-            }
-            dataset.append(issue)
-
-        # Save to JSON (first 2000 for readability)
+        # Save to JSON
         output_file = dataset_dir / "manystubs4j_dataset.json"
         with open(output_file, 'w', encoding='utf-8') as f:
             json.dump({
-                'dataset_type': 'ManySStuBs4J_Synthetic',
-                'description': 'Synthetic dataset mimicking ManySStuBs4J characteristics (MSR 2025)',
-                'research_basis': 'ManySStuBs4J: A Large and Diverse Dataset of Java Method Changes (MSR 2025)',
+                'dataset_type': 'ManySStuBs4J_Real',
+                'description': 'Real method-level changes extracted from Git history',
                 'generated_at': datetime.now().isoformat(),
                 'total_issues': len(dataset),
-                'issues': dataset[:2000],  # Save first 2000 for readability
-                'generation_method': 'synthetic_research_based'
+                'issues': dataset,
+                'extraction_method': 'method_level_git_analysis'
             }, f, indent=2)
 
-        logger.info(f"✅ SYNTHETIC ManySStuBs4J dataset generated: {len(dataset)} issues -> {dataset_dir.name}/")
-        logger.info(f"📊 Based on research: ManySStuBs4J (MSR 2025) - Large dataset of Java method changes")
+        logger.info(f"✅ REAL ManySStuBs4J dataset generated: {len(dataset)} method changes -> {dataset_dir.name}/")
 
 def main():
     """Main entry point"""
