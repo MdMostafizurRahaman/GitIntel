@@ -15,4 +15,5 @@ EXECUTIVE_SUMMARY.md
 output
 __pycache__
 docs
-repoDataset/major_dataset/
+Dataset/major_dataset/
+repo
