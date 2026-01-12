@@ -575,11 +575,13 @@ class AgenticDatasetGUI:
         self.repo_entry = ttk.Entry(repo_input_frame, textvariable=self.repo_var, 
                                      font=('Consolas', 10))
         self.repo_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
-        self.repo_entry.insert(0, "Enter path, GitHub URL, or owner/repo...")
+        self.repo_entry.insert(0, "Path or URL: apache/kafka or https://github.com/...")
         self.repo_entry.bind('<FocusIn>', self.on_repo_focus)
         
         ttk.Button(repo_input_frame, text="📂 Browse", width=10,
                    command=self.browse_folder).pack(side=tk.LEFT, padx=2)
+        ttk.Button(repo_input_frame, text="🔗 Clone", width=10,
+                   command=self.clone_repository).pack(side=tk.LEFT, padx=2)
         ttk.Button(repo_input_frame, text="✓ Set", 
                    command=self.set_repository).pack(side=tk.LEFT, padx=2)
         
@@ -3791,6 +3793,162 @@ These metrics will be used to calculate: {formula_name}
         if folder:
             self.repo_var.set(folder)
             self.set_repository()
+    
+    def clone_repository(self):
+        """Clone a Git repository from URL"""
+        repo_input = self.repo_var.get().strip()
+        
+        # Validate input
+        if not repo_input or 'Enter' in repo_input:
+            messagebox.showwarning("Clone Repository", 
+                "Please enter a GitHub URL (e.g., https://github.com/user/repo) or owner/repo")
+            return
+        
+        # Convert owner/repo to full URL
+        if '/' in repo_input and not repo_input.startswith(('http://', 'https://', 'git@')):
+            repo_input = f"https://github.com/{repo_input}.git"
+        
+        # Check if it looks like a Git URL
+        if not any(x in repo_input.lower() for x in ['github.com', 'gitlab.com', 'bitbucket.org', '.git']):
+            messagebox.showwarning("Clone Repository",
+                "Please enter a valid Git repository URL\n\nExamples:\n" +
+                "• https://github.com/apache/kafka\n" +
+                "• apache/kafka\n" +
+                "• git@github.com:apache/kafka.git")
+            return
+        
+        # Create clone dialog
+        clone_dialog = tk.Toplevel(self.root)
+        clone_dialog.title("🔗 Clone Repository")
+        clone_dialog.geometry("600x300")
+        clone_dialog.grab_set()
+        
+        # Header
+        ttk.Label(clone_dialog, text="Clone Git Repository", 
+                  font=('Segoe UI', 12, 'bold')).pack(pady=10)
+        
+        # Repository URL display
+        url_frame = ttk.LabelFrame(clone_dialog, text="Repository URL", padding=10)
+        url_frame.pack(fill=tk.X, padx=20, pady=(0, 10))
+        
+        url_text = tk.Text(url_frame, height=2, wrap=tk.WORD, font=('Consolas', 9))
+        url_text.pack(fill=tk.X)
+        url_text.insert('1.0', repo_input)
+        url_text.config(state=tk.DISABLED)
+        
+        # Destination selection
+        dest_frame = ttk.LabelFrame(clone_dialog, text="Clone Destination", padding=10)
+        dest_frame.pack(fill=tk.X, padx=20, pady=(0, 10))
+        
+        # Default destination
+        default_dest = os.path.join(os.path.expanduser("~"), "GitIntel_Clones")
+        dest_var = tk.StringVar(value=default_dest)
+        
+        dest_input_frame = ttk.Frame(dest_frame)
+        dest_input_frame.pack(fill=tk.X)
+        
+        ttk.Entry(dest_input_frame, textvariable=dest_var, 
+                  font=('Consolas', 9)).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
+        
+        def browse_destination():
+            folder = filedialog.askdirectory(title="Select Clone Destination")
+            if folder:
+                dest_var.set(folder)
+        
+        ttk.Button(dest_input_frame, text="📂 Browse", 
+                   command=browse_destination).pack(side=tk.LEFT)
+        
+        # Progress area
+        progress_frame = ttk.LabelFrame(clone_dialog, text="Progress", padding=10)
+        progress_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=(0, 10))
+        
+        progress_text = scrolledtext.ScrolledText(progress_frame, height=5, 
+                                                   font=('Consolas', 8), wrap=tk.WORD)
+        progress_text.pack(fill=tk.BOTH, expand=True)
+        
+        # Buttons
+        btn_frame = ttk.Frame(clone_dialog)
+        btn_frame.pack(fill=tk.X, padx=20, pady=(0, 10))
+        
+        clone_btn = ttk.Button(btn_frame, text="🚀 Start Clone", style='Accent.TButton')
+        cancel_btn = ttk.Button(btn_frame, text="❌ Cancel")
+        
+        def log_progress(message):
+            """Thread-safe progress logging"""
+            clone_dialog.after(0, lambda: progress_text.insert(tk.END, message + '\n'))
+            clone_dialog.after(0, lambda: progress_text.see(tk.END))
+        
+        def start_clone():
+            """Start cloning in background thread"""
+            clone_btn.config(state=tk.DISABLED)
+            cancel_btn.config(text="⏸️ Close")
+            
+            def clone_thread():
+                try:
+                    dest_path = dest_var.get()
+                    
+                    # Create destination directory
+                    os.makedirs(dest_path, exist_ok=True)
+                    log_progress(f"[INFO] Destination: {dest_path}")
+                    
+                    # Extract repo name from URL
+                    repo_name = repo_input.rstrip('/').split('/')[-1].replace('.git', '')
+                    clone_path = os.path.join(dest_path, repo_name)
+                    
+                    # Check if already exists
+                    if os.path.exists(clone_path):
+                        log_progress(f"[WARNING] Directory already exists: {repo_name}")
+                        log_progress(f"[ACTION] Using existing directory...")
+                        final_path = clone_path
+                    else:
+                        log_progress(f"[START] Cloning {repo_name}...")
+                        log_progress(f"[WAIT] This may take a few minutes...")
+                        
+                        # Run git clone
+                        process = subprocess.Popen(
+                            ['git', 'clone', '--progress', repo_input, clone_path],
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.STDOUT,
+                            universal_newlines=True,
+                            bufsize=1
+                        )
+                        
+                        # Stream output
+                        for line in process.stdout:
+                            log_progress(line.strip())
+                        
+                        process.wait()
+                        
+                        if process.returncode == 0:
+                            log_progress(f"\n[SUCCESS] ✅ Repository cloned successfully!")
+                            final_path = clone_path
+                        else:
+                            log_progress(f"\n[ERROR] ❌ Clone failed with code {process.returncode}")
+                            return
+                    
+                    # Set the repository in main window
+                    log_progress(f"[INFO] Setting up repository...")
+                    self.root.after(0, lambda: self.repo_var.set(final_path))
+                    self.root.after(0, lambda: self.set_repository())
+                    
+                    log_progress(f"\n[DONE] 🎉 Ready to analyze!")
+                    clone_dialog.after(2000, clone_dialog.destroy)
+                    
+                except subprocess.CalledProcessError as e:
+                    log_progress(f"\n[ERROR] Git error: {e}")
+                    log_progress(f"[HELP] Make sure Git is installed and URL is correct")
+                except Exception as e:
+                    log_progress(f"\n[ERROR] Unexpected error: {e}")
+                finally:
+                    clone_dialog.after(0, lambda: clone_btn.config(state=tk.NORMAL))
+            
+            threading.Thread(target=clone_thread, daemon=True).start()
+        
+        clone_btn.config(command=start_clone)
+        cancel_btn.config(command=clone_dialog.destroy)
+        
+        clone_btn.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=2)
+        cancel_btn.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=2)
             
     def set_repository(self):
         """Set the repository - supports local paths and GitHub URLs"""
