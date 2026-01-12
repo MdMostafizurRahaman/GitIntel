@@ -14,6 +14,18 @@ class NOCCalculator:
     """Calculate NOC - Number of Children (direct subclasses)"""
     
     @staticmethod
+    def calculate_from_file(file_path: str) -> int:
+        """
+        Calculate NOC for a single file
+        
+        Returns:
+            Number of subclasses/children (0 for single file analysis)
+        """
+        # NOC requires analyzing multiple files to find children
+        # For single file, return 0
+        return 0
+    
+    @staticmethod
     def calculate_from_directory(dir_path: str) -> Dict[str, int]:
         """
         Calculate NOC for all classes in a directory

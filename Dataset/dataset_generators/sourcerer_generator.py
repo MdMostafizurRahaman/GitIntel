@@ -29,9 +29,10 @@ logger = logging.getLogger(__name__)
 
 class SourcererGenerator:
     
-    def __init__(self, repo_path: str, output_dir: str = None):
+    def __init__(self, repo_path: str, output_dir: str = None, file_limit: int = None):
         self.repo_path = Path(repo_path)
         self.output_dir = Path(output_dir) if output_dir else Path(__file__).parent.parent / "major_dataset"
+        self.file_limit = file_limit
         self.timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         
         if not self.repo_path.exists():

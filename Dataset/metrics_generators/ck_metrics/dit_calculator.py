@@ -86,3 +86,43 @@ class DITCalculator:
         
         # Recursive: 1 + depth of parent
         return 1 + DITCalculator._calculate_depth(parent, inheritance_tree, visited.copy())
+    
+    @staticmethod
+    def calculate_from_file(file_path: str) -> int:
+        """
+        Calculate DIT for a single file (returns max DIT from all classes in file)
+        
+        Args:
+            file_path: Path to Java file
+            
+        Returns:
+            Maximum DIT value from all classes in file
+        """
+        try:
+            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                content = f.read()
+            
+            tree = javalang.parse.parse(content)
+            
+            # Build mini inheritance tree for this file
+            inheritance_tree = {}
+            package_name = tree.package.name if tree.package else ""
+            
+            for path, class_node in tree.filter(javalang.tree.ClassDeclaration):
+                class_name = f"{package_name}.{class_node.name}" if package_name else class_node.name
+                
+                if class_node.extends:
+                    parent = class_node.extends.name
+                    parent_name = f"{package_name}.{parent}" if package_name else parent
+                    inheritance_tree[class_name] = parent_name
+            
+            # Calculate depths and return max
+            if not inheritance_tree:
+                return 0
+            
+            depths = [DITCalculator._calculate_depth(cls, inheritance_tree) 
+                     for cls in inheritance_tree.keys()]
+            return max(depths) if depths else 0
+            
+        except Exception as e:
+            return 0

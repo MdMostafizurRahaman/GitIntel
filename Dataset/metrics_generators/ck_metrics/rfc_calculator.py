@@ -13,19 +13,28 @@ class RFCCalculator:
     """Calculate RFC - Response For a Class"""
     
     @staticmethod
-    def calculate_from_file(file_path: str) -> Dict[str, int]:
+    def calculate_from_file(file_path: str) -> int:
         """
-        Calculate RFC for all classes in a Java file
+        Calculate RFC for a file (count methods + external method calls)
         RFC = number of methods callable in response to a message to the class
-        Includes own methods + methods called by those methods
         
-        Args:
-            file_path: Path to Java source file
-            
         Returns:
-            Dictionary mapping class names to RFC values
+            Response set size
         """
-        results = {}
+        try:
+            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                content = f.read()
+            
+            import re
+            # Count local methods
+            local_methods = len(re.findall(r'\b(?:public|private|protected)\s+(?:static\s+)?\w+\s+\w+\s*\(', content))
+            
+            # Count method calls (simplified - count . operator before parenthesis)
+            method_calls = len(set(re.findall(r'\.\w+\s*\(', content)))
+            
+            return local_methods + method_calls
+        except:
+            return 0
         
         try:
             with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:

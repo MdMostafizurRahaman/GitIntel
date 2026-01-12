@@ -2549,9 +2549,19 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
             # MetricsHelper handles both absolute and relative paths
             result_dict = self.metrics_helper.get_all_metrics(file_path)
             
+            # CRITICAL DEBUG
+            safe_print(f"[METRICS EXTRACTION] File: {os.path.basename(file_path)}")
+            safe_print(f"[METRICS EXTRACTION] result_dict type: {type(result_dict)}")
+            safe_print(f"[METRICS EXTRACTION] result_dict keys: {list(result_dict.keys()) if isinstance(result_dict, dict) else 'NOT A DICT'}")
+            
             # Extract the actual metrics from the nested structure
             # MetricsHelper returns {'metrics': {actual metrics}, ...other keys...}
             all_metrics = result_dict.get('metrics', {})
+            
+            safe_print(f"[METRICS EXTRACTION] all_metrics type: {type(all_metrics)}")
+            safe_print(f"[METRICS EXTRACTION] all_metrics size: {len(all_metrics) if isinstance(all_metrics, dict) else 'NOT A DICT'}")
+            if isinstance(all_metrics, dict) and len(all_metrics) > 0:
+                safe_print(f"[METRICS EXTRACTION] Sample keys: {list(all_metrics.keys())[:5]}")
             
             # Debug on first file
             if not hasattr(self, '_metrics_debug_logged'):
@@ -4169,6 +4179,31 @@ Click **▶ Start Execution** to begin.
     def _generate_metrics_dataset_direct(self, selected_metrics: List[str]):
         """Generate dataset directly using analyzer tools"""
         try:
+            # CRITICAL: Check if metrics_helper is available
+            if not self.metrics_helper:
+                safe_print("[CRITICAL ERROR] self.metrics_helper is None in _generate_metrics_dataset_direct!")
+                safe_print(f"[DEBUG] repo_path: {self.repo_path}")
+                safe_print(f"[DEBUG] METRICS_HELPER_AVAILABLE: {METRICS_HELPER_AVAILABLE}")
+                
+                # Try to reinitialize
+                if METRICS_HELPER_AVAILABLE and self.repo_path:
+                    try:
+                        safe_print("[ATTEMPTING] Re-initializing MetricsHelper...")
+                        self.metrics_helper = MetricsHelper(str(self.repo_path))
+                        safe_print("[SUCCESS] MetricsHelper re-initialized!")
+                    except Exception as e:
+                        safe_print(f"[FAILED] Could not re-initialize MetricsHelper: {e}")
+                        self.root.after(0, lambda: self.add_agent_message(MessageType.ERROR,
+                            f"[ERROR] MetricsHelper not available - cannot extract metrics"))
+                        return
+                else:
+                    self.root.after(0, lambda: self.add_agent_message(MessageType.ERROR,
+                        f"[ERROR] MetricsHelper not available - please restart application"))
+                    return
+            
+            safe_print(f"[METRICS GENERATION] Starting with {len(selected_metrics)} selected metrics")
+            safe_print(f"[METRICS GENERATION] MetricsHelper status: {self.metrics_helper is not None}")
+            
             self.root.after(0, lambda: self.add_agent_message(MessageType.THINKING, 
                 f"[STEP 1] Scanning repository..."))
             
@@ -4189,12 +4224,25 @@ Click **▶ Start Execution** to begin.
             all_metrics = []
             for idx, file_path in enumerate(java_files, 1):
                 try:
+                    # CRITICAL DEBUG
+                    if idx == 1:
+                        safe_print(f"\n========== PROCESSING FIRST FILE ==========")
+                        safe_print(f"File path: {file_path}")
+                        safe_print(f"self.metrics_helper exists: {self.metrics_helper is not None}")
+                        safe_print(f"selected_metrics count: {len(selected_metrics)}")
+                        safe_print(f"selected_metrics sample: {selected_metrics[:5]}")
+                    
                     file_metrics = self._extract_file_metrics(file_path, selected_metrics)
                     
                     # DEBUG: Show what we got
                     if idx == 1:
+                        safe_print(f"\n[FIRST FILE RESULT]")
+                        safe_print(f"  Type: {type(file_metrics)}")
+                        safe_print(f"  Keys: {list(file_metrics.keys())}")
+                        safe_print(f"  Count: {len(file_metrics)}")
+                        safe_print(f"  Sample values: {list(file_metrics.items())[:3]}")
                         print(f"[FIRST METRICS] Keys: {list(file_metrics.keys())}, Count: {len(file_metrics)}")
-                        print(f"[FIRST METRICS] Content: {file_metrics}")
+                        print(f"[FIRST METRICS] Content preview: {dict(list(file_metrics.items())[:5])}")
                     
                     file_metrics['file'] = file_path.replace(self.repo_path, '').lstrip(os.sep)
                     all_metrics.append(file_metrics)

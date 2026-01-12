@@ -330,6 +330,90 @@ class InteractiveDatasetGenerator:
                 self.config = {}
                 self.iteration = 0
 
+    def generate_defects4j_dataset(self):
+        """Generate Defects4J dataset"""
+        try:
+            sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'dataset_generators'))
+            from defects4j_generator import Defects4JGenerator
+            
+            repo_path = self.config.get('repository', '.')
+            generator = Defects4JGenerator(repo_path, commit_limit=500)
+            return generator.generate()
+        except Exception as e:
+            return {"error": str(e)}
+    
+    def generate_bugs_jar_dataset(self):
+        """Generate Bugs.jar dataset"""
+        try:
+            sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'dataset_generators'))
+            from bugsjar_generator import BugsJarGenerator
+            
+            repo_path = self.config.get('repository', '.')
+            generator = BugsJarGenerator(repo_path, commit_limit=500)
+            return generator.generate()
+        except Exception as e:
+            return {"error": str(e)}
+    
+    def generate_codexglue_dataset(self):
+        """Generate CodeXGLUE dataset"""
+        try:
+            sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'dataset_generators'))
+            from codexglue_generator import CodeXGLUEGenerator
+            
+            repo_path = self.config.get('repository', '.')
+            generator = CodeXGLUEGenerator(repo_path, commit_limit=500)
+            return generator.generate()
+        except Exception as e:
+            return {"error": str(e)}
+    
+    def generate_manystubs4j_dataset(self):
+        """Generate ManySStuBs4J dataset"""
+        try:
+            sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'dataset_generators'))
+            from manystubs4j_generator import ManySStuBs4JGenerator
+            
+            repo_path = self.config.get('repository', '.')
+            generator = ManySStuBs4JGenerator(repo_path, commit_limit=500)
+            return generator.generate()
+        except Exception as e:
+            return {"error": str(e)}
+    
+    def generate_codesearchnet_dataset(self):
+        """Generate CodeSearchNet dataset"""
+        try:
+            sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'dataset_generators'))
+            from codesearchnet_generator import CodeSearchNetGenerator
+            
+            repo_path = self.config.get('repository', '.')
+            generator = CodeSearchNetGenerator(repo_path, file_limit=500)
+            return generator.generate()
+        except Exception as e:
+            return {"error": str(e)}
+    
+    def generate_sourcerer_dataset(self):
+        """Generate Sourcerer dataset"""
+        try:
+            sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'dataset_generators'))
+            from sourcerer_generator import SourcererGenerator
+            
+            repo_path = self.config.get('repository', '.')
+            generator = SourcererGenerator(repo_path, file_limit=500)
+            return generator.generate()
+        except Exception as e:
+            return {"error": str(e)}
+    
+    def generate_promise_dataset(self):
+        """Generate PROMISE dataset"""
+        try:
+            sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'dataset_generators'))
+            from promise_generator import PROMISEGenerator
+            
+            repo_path = self.config.get('repository', '.')
+            generator = PROMISEGenerator(repo_path, file_limit=500)
+            return generator.generate()
+        except Exception as e:
+            return {"error": str(e)}
+
 # ============================================================================
 # USAGE EXAMPLES
 # ============================================================================

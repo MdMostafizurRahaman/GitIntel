@@ -14,6 +14,30 @@ class CouplingAnalyzer:
     """Analyze coupling metrics between classes"""
     
     @staticmethod
+    def analyze_file(file_path: str) -> Dict[str, int]:
+        """
+        Analyze coupling metrics for a single file
+        
+        Returns:
+            Dictionary with afferent_coupling, efferent_coupling
+        """
+        try:
+            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                content = f.read()
+            
+            import re
+            # Efferent coupling = imports/dependencies
+            imports = set(re.findall(r'import\s+([\w\.]+);', content))
+            
+            # Afferent coupling requires multi-file analysis (set to 0 for single file)
+            return {
+                'afferent_coupling': 0,
+                'efferent_coupling': len(imports)
+            }
+        except:
+            return {'afferent_coupling': 0, 'efferent_coupling': 0}
+    
+    @staticmethod
     def analyze_directory(dir_path: str) -> Dict[str, Dict[str, int]]:
         """
         Analyze coupling metrics for all Java files in directory

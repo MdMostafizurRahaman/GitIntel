@@ -14,6 +14,79 @@ class ProcessAnalyzer:
     """Analyze software process metrics"""
     
     @staticmethod
+    def analyze_file(file_path: str, repo_path: str = None) -> Dict[str, int]:
+        """
+        Analyze process metrics for a file (REAL git data)
+        
+        Returns: num_authors, num_commits, code_age, change_frequency, 
+                pre_release_bugs, post_release_bugs, bug_fix_time, revision_count
+        """
+        try:
+            if repo_path is None:
+                repo_path = Path(file_path).parent
+            
+            # Get commits
+            result = subprocess.run(
+                ['git', 'log', '--oneline', '--', file_path],
+                cwd=repo_path,
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            
+            num_commits = len(result.stdout.strip().split('\n')) if result.stdout.strip() else 0
+            
+            # Get authors
+            result = subprocess.run(
+                ['git', 'log', '--format=%aN', '--', file_path],
+                cwd=repo_path,
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            
+            authors = set(result.stdout.strip().split('\n')) if result.stdout.strip() else set()
+            num_authors = len(authors)
+            
+            # Get first and last commit dates for age
+            result = subprocess.run(
+                ['git', 'log', '--format=%at', '--', file_path],
+                cwd=repo_path,
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            
+            timestamps = [int(t) for t in result.stdout.strip().split('\n') if t]
+            code_age = (max(timestamps) - min(timestamps)) if len(timestamps) > 1 else 0
+            code_age_days = code_age // 86400  # Convert seconds to days
+            
+            # Change frequency = commits per day
+            change_frequency = round(num_commits / max(1, code_age_days), 3)
+            
+            return {
+                'num_authors': num_authors,
+                'num_commits': num_commits,
+                'code_age': code_age_days,
+                'change_frequency': change_frequency,
+                'pre_release_bugs': 0,  # Requires release tagging
+                'post_release_bugs': 0,
+                'bug_fix_time': 0,  # Requires bug tracking integration
+                'revision_count': num_commits
+            }
+        except:
+            return {
+                'num_authors': 0,
+                'num_commits': 0,
+                'code_age': 0,
+                'change_frequency': 0,
+                'pre_release_bugs': 0,
+                'post_release_bugs': 0,
+                'bug_fix_time': 0,
+                'revision_count': 0
+            }
+    
+    @staticmethod
     def analyze_file_history(file_path: str, repo_path: str = None) -> Dict[str, int]:
         """
         Analyze process metrics from file's git history
