@@ -118,6 +118,8 @@ class ProfessionalDatasetGenerator:
                     cwd=repo["path"],
                     capture_output=True,
                     text=True,
+                    encoding='utf-8',
+                    errors='replace',
                     timeout=60
                 )
                 
@@ -149,6 +151,8 @@ class ProfessionalDatasetGenerator:
                         cwd=repo["path"],
                         capture_output=True,
                         text=True,
+                        encoding='utf-8',
+                        errors='replace',
                         timeout=30
                     )
                     
@@ -162,7 +166,9 @@ class ProfessionalDatasetGenerator:
                         ['git', 'rev-parse', f'{commit_hash}^'],
                         cwd=repo["path"],
                         capture_output=True,
-                        text=True
+                        text=True,
+                        encoding='utf-8',
+                        errors='replace'
                     )
                     
                     if parent_result.returncode != 0:
@@ -175,7 +181,9 @@ class ProfessionalDatasetGenerator:
                         ['git', 'diff', '--name-only', parent_hash, commit_hash, '--', '*.java'],
                         cwd=repo["path"],
                         capture_output=True,
-                        text=True
+                        text=True,
+                        encoding='utf-8',
+                        errors='replace'
                     )
                     
                     if changed_files.returncode != 0:
@@ -196,7 +204,9 @@ class ProfessionalDatasetGenerator:
                             ['git', 'show', f'{parent_hash}:{java_file}'],
                             cwd=repo["path"],
                             capture_output=True,
-                            text=True
+                            text=True,
+                            encoding='utf-8',
+                            errors='replace'
                         )
                         
                         # Get fixed version (current commit)
@@ -204,7 +214,9 @@ class ProfessionalDatasetGenerator:
                             ['git', 'show', f'{commit_hash}:{java_file}'],
                             cwd=repo["path"],
                             capture_output=True,
-                            text=True
+                            text=True,
+                            encoding='utf-8',
+                            errors='replace'
                         )
                         
                         if buggy_content.returncode == 0 and fixed_content.returncode == 0:
@@ -237,7 +249,9 @@ class ProfessionalDatasetGenerator:
                                 "diff": diff_text[:1000],  # First 1000 chars
                                 "files_changed": len(java_files),
                                 "dataset_type": "defects4j_real",
-                                "extraction_method": "git_commit_analysis"
+                                "extraction_method": "git_commit_analysis",
+                                "buggy_file": str(buggy_file.relative_to(dataset_dir)),
+                                "fixed_file": str(fixed_file.relative_to(dataset_dir))
                             }
                             
                             dataset.append(metadata)
@@ -265,13 +279,15 @@ class ProfessionalDatasetGenerator:
         info_file = dataset_dir / "dataset_info.json"
         with open(info_file, 'w', encoding='utf-8') as f:
             json.dump(info, f, indent=2)
+        logger.info(f"Saved dataset info to: {info_file}")
         
         # Save all bug metadata
         bugs_file = dataset_dir / "bugs_metadata.json"
         with open(bugs_file, 'w', encoding='utf-8') as f:
             json.dump(dataset, f, indent=2)
+        logger.info(f"Saved {len(dataset)} bug metadata entries to: {bugs_file}")
 
-        logger.info(f"✅ REAL Defects4J dataset generated: {len(dataset)} bugs -> {dataset_dir.name}/")
+        logger.info(f"REAL Defects4J dataset generated: {len(dataset)} bugs -> {dataset_dir.name}/")
 
     # Removed synthetic bug generation functions - using real Git data now
 
@@ -297,6 +313,8 @@ class ProfessionalDatasetGenerator:
                     cwd=repo["path"],
                     capture_output=True,
                     text=True,
+                    encoding='utf-8',
+                    errors='replace',
                     timeout=60
                 )
                 
@@ -315,7 +333,9 @@ class ProfessionalDatasetGenerator:
                         ['git', 'show', '--stat', '--format=%an|%ae|%ad|%s', commit_hash],
                         cwd=repo["path"],
                         capture_output=True,
-                        text=True
+                        text=True,
+                        encoding='utf-8',
+                        errors='replace'
                     )
                     
                     if stats_result.returncode != 0:
@@ -334,7 +354,9 @@ class ProfessionalDatasetGenerator:
                         ['git', 'show', '--name-only', '--format=', commit_hash],
                         cwd=repo["path"],
                         capture_output=True,
-                        text=True
+                        text=True,
+                        encoding='utf-8',
+                        errors='replace'
                     )
                     
                     changed_files = [f for f in files_changed.stdout.strip().split('\n') if f]
@@ -345,7 +367,9 @@ class ProfessionalDatasetGenerator:
                         ['git', 'show', '--shortstat', commit_hash],
                         cwd=repo["path"],
                         capture_output=True,
-                        text=True
+                        text=True,
+                        encoding='utf-8',
+                        errors='replace'
                     )
                     
                     lines_added = 0

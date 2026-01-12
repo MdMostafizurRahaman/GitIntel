@@ -446,6 +446,14 @@ class AgenticDatasetGUI:
         # TAB 1: Dataset Generator (Original functionality)
         self.dataset_tab = ttk.Frame(self.main_notebook)
         self.main_notebook.add(self.dataset_tab, text="[DATA] Dataset Generator")
+        
+        # TAB 2: Formula Generator (isolated)
+        self.formula_tab = ttk.Frame(self.main_notebook)
+        self.main_notebook.add(self.formula_tab, text="[FORMULA] Formula Generator")
+        
+        # TAB 3: Logs
+        self.logs_tab = ttk.Frame(self.main_notebook)
+        self.main_notebook.add(self.logs_tab, text="[LOGS] Activity Logs")
                 
         # Build Tab 1: Dataset Generator (original split panel)
         self.build_dataset_tab()
@@ -2357,7 +2365,13 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
             
             # Extract metrics and generate data
             rows = []
-            selected_metrics = config.get('selected_metrics', ['loc', 'cyclomatic_complexity'])
+            # Use config metrics OR fall back to defaults
+            selected_metrics = config.get('selected_metrics', self.selected_metrics if self.selected_metrics else ['loc', 'cyclomatic_complexity'])
+            
+            if not selected_metrics:
+                selected_metrics = ['loc', 'cyclomatic_complexity']
+                self.add_agent_message(MessageType.WARNING, 
+                    f"[WARNING] No metrics selected, using defaults: {selected_metrics}")
             
             # Get user-specified file limit (no hardcoding!)
             file_limit = config.get('file_limit', 'All')
@@ -2376,9 +2390,22 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
             
             # Process files
             total_files = len(files_to_process)
+            first_metrics_debug_logged = False
             for idx, file_path in enumerate(files_to_process, 1):
                 try:
                     metrics = self._extract_file_metrics(file_path, selected_metrics)
+                    
+                    # Debug: Check what we got on first file
+                    if not first_metrics_debug_logged and metrics:
+                        metric_count = len(metrics) - 1  # Subtract 1 for 'file' column
+                        if metric_count <= 1:
+                            self.add_agent_message(MessageType.ERROR, 
+                                f"[ALERT] First file metrics dict has only {len(metrics)} keys: {list(metrics.keys())}")
+                        else:
+                            self.add_agent_message(MessageType.SUCCESS,
+                                f"[OK] First file metrics dict has {len(metrics)} keys")
+                        first_metrics_debug_logged = True
+                    
                     metrics['file'] = os.path.relpath(file_path, self.repo_path) if self.repo_path else file_path
                     rows.append(metrics)
                     
@@ -2388,6 +2415,8 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
                             f"[DATA] Extracting base metrics: {idx}/{total_files} files processed")
                 except Exception as e:
                     print(f"Error processing {file_path}: {e}")
+                    import traceback
+                    print(traceback.format_exc())
                     pass
         
         # [OK] APPLY CUSTOM METRICS FROM JURY PROCESS
@@ -2503,16 +2532,71 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
         """
         Use MetricsHelper to get all metrics - NO local calculation!
         All metric extraction is delegated to metrics_generators via MetricsHelper.
+        
+        IMPORTANT: MetricsHelper.get_all_metrics() returns a nested structure:
+            {'metrics': {actual_64_metrics_dict}, ...other_keys...}
+        
+        So we must extract the 'metrics' key before filtering/returning.
         """
+        # AGGRESSIVE DEBUG
+        safe_print(f"[DEBUG] _extract_file_metrics called with {len(selected_metrics)} metrics")
+        
         if not self.metrics_helper:
+            safe_print(f"[CRITICAL] self.metrics_helper is None!")
             return {'file': file_path}
         
         try:
-            all_metrics = self.metrics_helper.get_all_metrics(file_path)
+            # MetricsHelper handles both absolute and relative paths
+            result_dict = self.metrics_helper.get_all_metrics(file_path)
+            
+            # Extract the actual metrics from the nested structure
+            # MetricsHelper returns {'metrics': {actual metrics}, ...other keys...}
+            all_metrics = result_dict.get('metrics', {})
+            
+            # Debug on first file
+            if not hasattr(self, '_metrics_debug_logged'):
+                safe_print(f"[FIRST FILE] Path: {file_path}")
+                safe_print(f"[FIRST FILE] Result type: {type(result_dict)}, keys: {list(result_dict.keys())}")
+                safe_print(f"[FIRST FILE] Metrics dict size: {len(all_metrics)}")
+                
+                self.add_agent_message(MessageType.INFO,
+                    f"[DEBUG] MetricsHelper returned {len(all_metrics)} metrics for {os.path.basename(file_path)}")
+                if all_metrics:
+                    sample_keys = list(all_metrics.keys())[:10]
+                    self.add_agent_message(MessageType.INFO,
+                        f"[DEBUG] Sample metric keys: {sample_keys}...")
+                    self.add_agent_message(MessageType.INFO,
+                        f"[DEBUG] Filtering to {len(selected_metrics)} selected metrics")
+                else:
+                    self.add_agent_message(MessageType.ERROR,
+                        f"[CRITICAL] MetricsHelper returned NO metrics for {os.path.basename(file_path)}")
+                    safe_print(f"[CRITICAL] Result dict: {result_dict}")
+                self._metrics_debug_logged = True
+            
             # Filter to selected metrics only
-            return {k: v for k, v in all_metrics.items() if k in selected_metrics or not selected_metrics}
+            if selected_metrics and len(selected_metrics) > 0:
+                result = {}
+                found_count = 0
+                for metric_name in selected_metrics:
+                    if metric_name in all_metrics:
+                        result[metric_name] = all_metrics[metric_name]
+                        found_count += 1
+                    else:
+                        result[metric_name] = None
+                if not hasattr(self, '_metrics_filter_logged'):
+                    self.add_agent_message(MessageType.INFO,
+                        f"[DEBUG] Filtered {len(all_metrics)} → {found_count} matching metrics")
+                    self._metrics_filter_logged = True
+            else:
+                result = all_metrics
+                safe_print(f"[WARNING] No selected_metrics provided! Using all {len(result)} metrics")
+            
+            result['file'] = file_path
+            return result
         except Exception as e:
-            safe_print(f"[WARNING] MetricsHelper error for {file_path}: {e}")
+            safe_print(f"[ERROR] _extract_file_metrics exception: {str(e)}")
+            import traceback
+            safe_print(traceback.format_exc())
             return {'file': file_path}
     
     def task_validate(self):
@@ -4106,6 +4190,12 @@ Click **▶ Start Execution** to begin.
             for idx, file_path in enumerate(java_files, 1):
                 try:
                     file_metrics = self._extract_file_metrics(file_path, selected_metrics)
+                    
+                    # DEBUG: Show what we got
+                    if idx == 1:
+                        print(f"[FIRST METRICS] Keys: {list(file_metrics.keys())}, Count: {len(file_metrics)}")
+                        print(f"[FIRST METRICS] Content: {file_metrics}")
+                    
                     file_metrics['file'] = file_path.replace(self.repo_path, '').lstrip(os.sep)
                     all_metrics.append(file_metrics)
                     
@@ -4143,6 +4233,15 @@ Click **▶ Start Execution** to begin.
             
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             output_file = output_dir / f"custom_dataset_{timestamp}.csv"
+            
+            # DEBUG: Check first row metrics
+            if all_metrics and len(all_metrics) > 0:
+                first_row = all_metrics[0]
+                num_cols = len(first_row)
+                col_names = list(first_row.keys())
+                print(f"[DATASET CSV] First row has {num_cols} columns: {col_names}")
+                self.root.after(0, lambda: self.add_agent_message(MessageType.INFO,
+                    f"[DEBUG] First row keys: {col_names}"))
             
             df = pd.DataFrame(all_metrics)
             df.to_csv(output_file, index=False)

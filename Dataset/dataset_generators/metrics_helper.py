@@ -10,7 +10,15 @@ try:
     METRICS_AVAILABLE = True
 except ImportError:
     METRICS_AVAILABLE = False
-    print("WARNING: metrics_generators not available. Install with: pip install -e ../metrics_generators")
+    print("WARNING: metrics_generators not available. Will use simple fallback metrics.")
+
+# Import simple metrics as fallback
+try:
+    from .simple_metrics import SimpleMetricsExtractor
+    SIMPLE_METRICS_AVAILABLE = True
+except ImportError:
+    SIMPLE_METRICS_AVAILABLE = False
+    print("WARNING: simple_metrics not available either")
 
 
 class MetricsHelper:
@@ -34,7 +42,7 @@ class MetricsHelper:
         Get all 64 metrics for a file or repository
         
         Args:
-            file_path: Specific file path (relative to repo) or None for entire repo
+            file_path: Specific file path (absolute or relative to repo) or None for entire repo
             
         Returns:
             Dictionary with all calculated metrics
@@ -42,12 +50,34 @@ class MetricsHelper:
         try:
             # Full path to file
             if file_path:
-                full_path = Path(self.repo_path) / file_path
-                return self.generator.generate_all_metrics(str(full_path))
+                # Handle both absolute and relative paths
+                if os.path.isabs(file_path):
+                    # Already absolute path
+                    actual_path = file_path
+                else:
+                    # Relative path - join with repo_path
+                    actual_path = str(Path(self.repo_path) / file_path)
+                
+                # Check if file exists
+                if not os.path.isfile(actual_path):
+                    print(f"[WARNING MetricsHelper] File not found: {actual_path}")
+                    return {'metrics': {}}
+                
+                result = self.generator.generate_all_metrics(actual_path)
+                # Debug logging
+                if result and 'metrics' in result:
+                    metric_count = len(result['metrics'])
+                    if metric_count > 0:
+                        print(f"[DEBUG MetricsHelper] {os.path.basename(actual_path)}: {metric_count} metrics")
+                    else:
+                        print(f"[WARNING MetricsHelper] {os.path.basename(actual_path)}: 0 metrics returned!")
+                return result
             else:
                 return self.generator.generate_all_metrics()
         except Exception as e:
-            print(f"Error calculating metrics: {e}")
+            print(f"[ERROR MetricsHelper] Exception for {file_path}: {type(e).__name__}: {str(e)[:100]}")
+            import traceback
+            print(f"[TRACEBACK] {traceback.format_exc()[:500]}")
             return {'metrics': {}}
     
     def get_loc_metrics(self, file_path: str) -> Dict[str, int]:
