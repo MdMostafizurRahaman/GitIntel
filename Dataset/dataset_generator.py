@@ -95,201 +95,37 @@ class ProfessionalDatasetGenerator:
         logger.info("All datasets generated successfully!")
 
     def generate_defects4j_dataset(self):
-        """Generate REAL Defects4J-style dataset from Git commits (Bug-Fix Pattern Detection)"""
-        logger.info("🔧 Generating REAL Defects4J dataset from Git commit history...")
-
-        dataset = []
-        dataset_dir = self.output_dir / f"defects4j_dataset_{self.timestamp}"
-        dataset_dir.mkdir(exist_ok=True)
-
-        for repo in self.repositories:
-            logger.info(f"Analyzing {repo['name']} for bug-fixing commits...")
+        """Generate REAL Defects4J dataset using defects4j_generator"""
+        logger.info("🔧 Generating REAL Defects4J dataset...")
+        
+        try:
+            # Import the real generator
+            from dataset_generators.defects4j_generator import Defects4JGenerator
             
-            # Check if it's a Git repository
-            if not (repo["path"] / ".git").exists():
-                logger.warning(f"{repo['name']} is not a Git repository. Skipping Defects4J generation.")
-                continue
-            
-            # Get bug-fixing commits (commits with 'fix', 'bug', 'issue' in message)
-            try:
-                result = subprocess.run(
-                    ['git', 'log', '--all', '--grep=fix', '--grep=bug', '--grep=issue', '--grep=error', 
-                     '--grep=exception', '--grep=crash', '--regexp-ignore-case', '--oneline', '--no-merges'],
-                    cwd=repo["path"],
-                    capture_output=True,
-                    text=True,
-                    encoding='utf-8',
-                    errors='replace',
-                    timeout=60
+            for repo in self.repositories:
+                logger.info(f"Analyzing {repo['name']} for bug-fixing commits...")
+                
+                if not (repo["path"] / ".git").exists():
+                    logger.warning(f"{repo['name']} is not a Git repository. Skipping.")
+                    continue
+                
+                # Use the REAL Defects4J generator
+                generator = Defects4JGenerator(
+                    repo_path=str(repo["path"]),
+                    output_dir=str(self.output_dir),
+                    commit_limit=self.commit_limit or 500
                 )
                 
-                if result.returncode != 0:
-                    logger.warning(f"Git log failed for {repo['name']}: {result.stderr}")
-                    continue
+                result = generator.generate()
                 
-                commits = result.stdout.strip().split('\n')
-                if not commits or commits[0] == '':
-                    logger.info(f"No bug-fixing commits found in {repo['name']}")
-                    continue
-                
-                logger.info(f"Found {len(commits)} potential bug-fixing commits in {repo['name']}")
-                
-                # Create buggy/fixed directories
-                project_buggy_dir = dataset_dir / "buggy" / repo['name']
-                project_fixed_dir = dataset_dir / "fixed" / repo['name']
-                project_buggy_dir.mkdir(parents=True, exist_ok=True)
-                project_fixed_dir.mkdir(parents=True, exist_ok=True)
-                
-                bug_count = 0
-                for commit_line in commits[:self.commit_limit] if self.commit_limit else commits:
-                    commit_hash = commit_line.split()[0]
-                    commit_msg = ' '.join(commit_line.split()[1:])
-                    
-                    # Get diff for this commit (only Java files)
-                    diff_result = subprocess.run(
-                        ['git', 'show', '--format=', '--unified=0', commit_hash, '--', '*.java'],
-                        cwd=repo["path"],
-                        capture_output=True,
-                        text=True,
-                        encoding='utf-8',
-                        errors='replace',
-                        timeout=30
-                    )
-                    
-                    if diff_result.returncode != 0 or not diff_result.stdout.strip():
-                        continue
-                    
-                    diff_text = diff_result.stdout
-                    
-                    # Get parent commit (buggy version)
-                    parent_result = subprocess.run(
-                        ['git', 'rev-parse', f'{commit_hash}^'],
-                        cwd=repo["path"],
-                        capture_output=True,
-                        text=True,
-                        encoding='utf-8',
-                        errors='replace'
-                    )
-                    
-                    if parent_result.returncode != 0:
-                        continue
-                    
-                    parent_hash = parent_result.stdout.strip()
-                    
-                    # Extract changed Java files
-                    changed_files = subprocess.run(
-                        ['git', 'diff', '--name-only', parent_hash, commit_hash, '--', '*.java'],
-                        cwd=repo["path"],
-                        capture_output=True,
-                        text=True,
-                        encoding='utf-8',
-                        errors='replace'
-                    )
-                    
-                    if changed_files.returncode != 0:
-                        continue
-                    
-                    java_files = [f for f in changed_files.stdout.strip().split('\n') if f.endswith('.java')]
-                    
-                    if not java_files:
-                        continue
-                    
-                    bug_count += 1
-                    bug_id = f"{repo['name']}_bug_{bug_count:03d}"
-                    
-                    # Save buggy and fixed versions
-                    for java_file in java_files[:3]:  # Max 3 files per bug
-                        # Get buggy version (parent commit)
-                        buggy_content = subprocess.run(
-                            ['git', 'show', f'{parent_hash}:{java_file}'],
-                            cwd=repo["path"],
-                            capture_output=True,
-                            text=True,
-                            encoding='utf-8',
-                            errors='replace'
-                        )
-                        
-                        # Get fixed version (current commit)
-                        fixed_content = subprocess.run(
-                            ['git', 'show', f'{commit_hash}:{java_file}'],
-                            cwd=repo["path"],
-                            capture_output=True,
-                            text=True,
-                            encoding='utf-8',
-                            errors='replace'
-                        )
-                        
-                        if buggy_content.returncode == 0 and fixed_content.returncode == 0:
-                            # Save files
-                            buggy_file = project_buggy_dir / f"Bug_{bug_count:03d}_{Path(java_file).name}"
-                            fixed_file = project_fixed_dir / f"Bug_{bug_count:03d}_{Path(java_file).name}"
-                            
-                            with open(buggy_file, 'w', encoding='utf-8') as f:
-                                f.write(buggy_content.stdout)
-                            
-                            with open(fixed_file, 'w', encoding='utf-8') as f:
-                                f.write(fixed_content.stdout)
-                            
-                            # Calculate metrics
-                            buggy_loc = len([l for l in buggy_content.stdout.split('\n') if l.strip()])
-                            fixed_loc = len([l for l in fixed_content.stdout.split('\n') if l.strip()])
-                            lines_changed = abs(fixed_loc - buggy_loc)
-                            
-                            # Create metadata
-                            metadata = {
-                                "bug_id": bug_id,
-                                "project": repo['name'],
-                                "commit_hash": commit_hash,
-                                "parent_hash": parent_hash,
-                                "commit_message": commit_msg,
-                                "file_path": java_file,
-                                "buggy_loc": buggy_loc,
-                                "fixed_loc": fixed_loc,
-                                "lines_changed": lines_changed,
-                                "diff": diff_text[:1000],  # First 1000 chars
-                                "files_changed": len(java_files),
-                                "dataset_type": "defects4j_real",
-                                "extraction_method": "git_commit_analysis",
-                                "buggy_file": str(buggy_file.relative_to(dataset_dir)),
-                                "fixed_file": str(fixed_file.relative_to(dataset_dir))
-                            }
-                            
-                            dataset.append(metadata)
-                    
-                    if bug_count % 10 == 0:
-                        logger.info(f"Processed {bug_count} bug-fixing commits...")
-                
-                logger.info(f"Extracted {bug_count} real bugs from {repo['name']}")
-                
-            except subprocess.TimeoutExpired:
-                logger.error(f"Git command timeout for {repo['name']}")
-            except Exception as e:
-                logger.error(f"Error processing {repo['name']}: {e}")
-
-        # Save dataset info
-        info = {
-            "dataset_type": "Defects4J_Real",
-            "description": "Real bug dataset extracted from Git commit history",
-            "generated_at": datetime.now().isoformat(),
-            "total_bugs": len(dataset),
-            "extraction_method": "git_commit_analysis",
-            "bug_detection_keywords": ["fix", "bug", "issue", "error", "exception", "crash"]
-        }
+                if "error" in result:
+                    logger.error(f"Error generating Defects4J dataset: {result['error']}")
+                else:
+                    logger.info(f"✅ Generated {result['total_bugs']} bugs -> {result['output_dir']}")
+                    logger.info(f"📄 CSV: {result['csv_file']}")
         
-        info_file = dataset_dir / "dataset_info.json"
-        with open(info_file, 'w', encoding='utf-8') as f:
-            json.dump(info, f, indent=2)
-        logger.info(f"Saved dataset info to: {info_file}")
-        
-        # Save all bug metadata
-        bugs_file = dataset_dir / "bugs_metadata.json"
-        with open(bugs_file, 'w', encoding='utf-8') as f:
-            json.dump(dataset, f, indent=2)
-        logger.info(f"Saved {len(dataset)} bug metadata entries to: {bugs_file}")
-
-        logger.info(f"REAL Defects4J dataset generated: {len(dataset)} bugs -> {dataset_dir.name}/")
-
-    # Removed synthetic bug generation functions - using real Git data now
+        except Exception as e:
+            logger.error(f"Error in Defects4J generation: {e}", exc_info=True)
 
     def generate_bugs_jar_dataset(self):
         """Generate REAL Bugs.jar-style dataset from Git commits with detailed metrics"""
@@ -412,6 +248,9 @@ class ProfessionalDatasetGenerator:
             except Exception as e:
                 logger.error(f"Error processing {repo['name']}: {e}")
 
+        # Create output directory if needed
+        dataset_dir.mkdir(parents=True, exist_ok=True)
+        
         # Save to JSON
         output_file = dataset_dir / "bugs_jar_dataset.json"
         with open(output_file, 'w', encoding='utf-8') as f:

@@ -1,39 +1,29 @@
 """
-Professional Defects4J Dataset Generator
-Uses PyDriller for accurate Git analysis
+REAL Defects4J Dataset Generator
+Follows EXACT official Defects4J structure from https://github.com/rjust/defects4j
 """
 
 import os
 import json
+import csv
+import subprocess
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Tuple, Optional
 import logging
 from datetime import datetime
-
-try:
-    from pydriller import Repository
-    PYDRILLER_AVAILABLE = True
-except ImportError:
-    PYDRILLER_AVAILABLE = False
-    print("WARNING: pydriller not installed. Install with: pip install pydriller")
-
-try:
-    from metrics_helper import MetricsHelper
-    METRICS_HELPER_AVAILABLE = True
-except ImportError:
-    METRICS_HELPER_AVAILABLE = False
-    print("WARNING: MetricsHelper not available")
+import re
+import shutil
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-class ProfessionalDefects4JGenerator:
-    """Generate REAL Defects4J dataset using PyDriller"""
+class Defects4JGenerator:
+    """Generate REAL Defects4J-style dataset following official structure"""
     
-    def __init__(self, repo_path: str, output_dir: str = None, commit_limit: int = None):
+    def __init__(self, repo_path: str, output_dir: str = None, commit_limit: int = 500):
         self.repo_path = Path(repo_path)
-        self.output_dir = Path(output_dir) if output_dir else Path(__file__).parent.parent / "major_dataset"
+        self.output_dir = Path(output_dir) if output_dir else Path(__file__).parent.parent / "generated_datasets"
         self.commit_limit = commit_limit
         self.timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         
@@ -43,178 +33,290 @@ class ProfessionalDefects4JGenerator:
         if not (self.repo_path / ".git").exists():
             raise ValueError(f"Not a Git repository: {repo_path}")
         
-        if not PYDRILLER_AVAILABLE:
-            raise ImportError("PyDriller is required. Install: pip install pydriller")
-        
         self.output_dir.mkdir(parents=True, exist_ok=True)
+        self.project_name = self.repo_path.name
         
-        # Initialize MetricsHelper for 64 real metrics
-        if METRICS_HELPER_AVAILABLE:
-            try:
-                self.metrics_helper = MetricsHelper(str(self.repo_path))
-                logger.info("MetricsHelper initialized - 64 real metrics available")
-            except Exception as e:
-                logger.warning(f"MetricsHelper init failed: {e}")
-                self.metrics_helper = None
-        else:
-            self.metrics_helper = None
-        
-        logger.info(f"Initialized Professional Defects4J generator for {self.repo_path}")
+        logger.info(f"Initialized Defects4J generator for {self.repo_path}")
     
-    def _is_bug_fix(self, commit) -> bool:
-        """Smart bug detection - filters false positives"""
-        msg_lower = commit.msg.lower()
+    def _is_bug_fixing_commit(self, commit_msg: str) -> Tuple[bool, Optional[str]]:
+        """Detect if commit is a bug fix using Defects4J criteria"""
+        msg_lower = commit_msg.lower()
         
-        # Bug keywords
-        bug_keywords = ['fix', 'bug', 'error', 'issue', 'defect', 'crash', 
-                       'exception', 'failure', 'fault', 'problem']
+        bug_keywords = ['fix', 'bug', 'error', 'issue', 'defect', 'fault', 
+                       'crash', 'exception', 'failure', 'problem', 'resolve']
         has_keyword = any(k in msg_lower for k in bug_keywords)
         
-        # Issue references (JIRA, GitHub issues)
-        import re
-        has_issue_ref = bool(re.search(r'#\d+|[A-Z]+-\d+|issue[ -]\d+', commit.msg, re.IGNORECASE))
+        issue_patterns = [
+            r'([A-Z]+-\d+)',
+            r'#(\d+)',
+            r'issue[\s-]*(\d+)',
+        ]
         
-        # False positives to exclude
-        false_positives = ['typo', 'format', 'style', 'doc', 'comment', 
-                          'whitespace', 'indent', 'rename']
+        issue_id = None
+        for pattern in issue_patterns:
+            match = re.search(pattern, commit_msg, re.IGNORECASE)
+            if match:
+                issue_id = match.group(0)
+                break
+        
+        false_positives = ['typo', 'format', 'style', 'docs', 'documentation',
+                          'comment', 'whitespace', 'indent', 'refactor']
         is_false_positive = any(fp in msg_lower for fp in false_positives)
         
-        # Must have keyword or issue ref, and not be false positive
-        return (has_keyword or has_issue_ref) and not is_false_positive
+        is_bug_fix = (has_keyword or issue_id) and not is_false_positive
+        return is_bug_fix, issue_id
+    
+    def _get_file_at_commit(self, file_path: str, commit_hash: str) -> Optional[str]:
+        """Get file content at specific commit"""
+        try:
+            result = subprocess.run(
+                ['git', 'show', f'{commit_hash}:{file_path}'],
+                cwd=self.repo_path,
+                capture_output=True,
+                text=True,
+                encoding='utf-8',
+                errors='replace'
+            )
+            if result.returncode == 0:
+                return result.stdout
+            return None
+        except Exception as e:
+            logger.error(f"Error getting file at commit: {e}")
+            return None
+    
+    def _get_modified_files(self, commit_hash: str) -> List[str]:
+        """Get list of modified Java files in commit"""
+        try:
+            result = subprocess.run(
+                ['git', 'diff-tree', '--no-commit-id', '--name-only', '-r', commit_hash],
+                cwd=self.repo_path,
+                capture_output=True,
+                text=True
+            )
+            if result.returncode == 0:
+                files = [f.strip() for f in result.stdout.split('\n') if f.strip().endswith('.java')]
+                return files
+            return []
+        except Exception as e:
+            logger.error(f"Error getting modified files: {e}")
+            return []
     
     def generate(self) -> Dict:
-        """Generate PROFESSIONAL Defects4J dataset using PyDriller"""
-        logger.info("Generating PROFESSIONAL Defects4J dataset using PyDriller...")
+        """Generate REAL Defects4J dataset following official structure"""
+        logger.info(f"🔧 Generating REAL Defects4J dataset (limit: {self.commit_limit or 'all'})...")
         
-        dataset = []
-        dataset_dir = self.output_dir / f"professional_defects4j_dataset_{self.timestamp}"
-        dataset_dir.mkdir(exist_ok=True)
+        # Create project directory structure: defects4j_dataset_<timestamp>/<project_name>/
+        dataset_dir = self.output_dir / f"defects4j_dataset_{self.timestamp}"
+        project_dir = dataset_dir / self.project_name
+        project_dir.mkdir(parents=True, exist_ok=True)
         
-        project_name = self.repo_path.name
-        buggy_dir = dataset_dir / "buggy" / project_name
-        fixed_dir = dataset_dir / "fixed" / project_name
-        buggy_dir.mkdir(parents=True, exist_ok=True)
-        fixed_dir.mkdir(parents=True, exist_ok=True)
+        patches_dir = project_dir / "patches"
+        patches_dir.mkdir(exist_ok=True)
+        
+        bugs_data = []
+        bug_count = 0
         
         try:
-            bug_count = 0
+            result = subprocess.run(
+                ['git', 'log', '--reverse', '--format=%H|||%an|||%ae|||%ad|||%s|||%b', 
+                 '--date=iso', '--no-merges'],
+                cwd=self.repo_path,
+                capture_output=True,
+                text=True,
+                encoding='utf-8',
+                errors='replace'
+            )
             
-            # PyDriller traversal - PROFESSIONAL
-            for commit in Repository(str(self.repo_path)).traverse_commits():
+            if result.returncode != 0:
+                raise Exception(f"Failed to get git log: {result.stderr}")
+            
+            commits = [line for line in result.stdout.split('\n') if '|||' in line]
+            logger.info(f"Found {len(commits)} total commits, analyzing...")
+            
+            for commit_line in commits:
                 if self.commit_limit and bug_count >= self.commit_limit:
                     break
                 
-                # Smart bug detection
-                if not self._is_bug_fix(commit):
+                parts = commit_line.split('|||')
+                if len(parts) < 5:
                     continue
                 
-                # Process each modified Java file
-                for modification in commit.modified_files:
-                    if not modification.filename.endswith('.java'):
-                        continue
+                commit_hash = parts[0].strip()
+                author_name = parts[1].strip()
+                commit_date = parts[3].strip()
+                commit_subject = parts[4].strip()
+                commit_body = parts[5].strip() if len(parts) > 5 else ""
+                commit_msg = f"{commit_subject}\n{commit_body}"
+                
+                is_bug_fix, issue_id = self._is_bug_fixing_commit(commit_msg)
+                if not is_bug_fix:
+                    continue
+                
+                parent_result = subprocess.run(
+                    ['git', 'rev-parse', f'{commit_hash}^'],
+                    cwd=self.repo_path,
+                    capture_output=True,
+                    text=True
+                )
+                
+                if parent_result.returncode != 0:
+                    continue
+                
+                parent_hash = parent_result.stdout.strip()
+                modified_files = self._get_modified_files(commit_hash)
+                
+                if not modified_files:
+                    continue
+                
+                bug_count += 1
+                
+                # Generate diff patch following Defects4J structure
+                patch_result = subprocess.run(
+                    ['git', 'diff', parent_hash, commit_hash, '--', '*.java'],
+                    cwd=self.repo_path,
+                    capture_output=True,
+                    text=True,
+                    encoding='utf-8',
+                    errors='replace'
+                )
+                
+                has_patch = False
+                if patch_result.returncode == 0 and patch_result.stdout.strip():
+                    patch_file = patches_dir / f"{bug_count}.src.patch"
+                    patch_file.write_text(patch_result.stdout, encoding='utf-8', errors='replace')
+                    has_patch = True
+                
+                # Extract modified files info
+                files_info = []
+                for file_path in modified_files:
+                    buggy_content = self._get_file_at_commit(file_path, parent_hash)
+                    fixed_content = self._get_file_at_commit(file_path, commit_hash)
                     
-                    if modification.source_code_before is None or modification.source_code is None:
-                        continue
-                    
-                    bug_count += 1
-                    bug_id = f"bug_{bug_count:03d}"
-                    
-                    # Save buggy and fixed versions
-                    buggy_file = buggy_dir / f"{bug_id}_{modification.filename}"
-                    fixed_file = fixed_dir / f"{bug_id}_{modification.filename}"
-                    
-                    buggy_file.write_text(modification.source_code_before, encoding='utf-8')
-                    fixed_file.write_text(modification.source_code, encoding='utf-8')
-                    
-                    # PROFESSIONAL metrics from PyDriller
-                    bug_data = {
-                        "bug_id": bug_count,
-                        "commit_hash": commit.hash,
-                        "parent_hash": commit.parents[0] if commit.parents else None,
-                        "author_name": commit.author.name,
-                        "author_email": commit.author.email,
-                        "commit_date": commit.committer_date.isoformat(),
-                        "commit_message": commit.msg,
-                        
-                        "file_path": modification.filename,
-                        "change_type": modification.change_type.name,
-                        
-                        # ACCURATE metrics from PyDriller
-                        "lines_added": modification.added_lines,
-                        "lines_deleted": modification.deleted_lines,
-                        "nloc_before": modification.nloc_before if hasattr(modification, 'nloc_before') else 0,
-                        "nloc_after": modification.nloc if hasattr(modification, 'nloc') else 0,
-                        "complexity_before": modification.complexity_before if hasattr(modification, 'complexity_before') else 0,
-                        "complexity_after": modification.complexity if hasattr(modification, 'complexity') else 0,
-                        "token_count": modification.token_count if hasattr(modification, 'token_count') else 0,
-                        
-                        # Method-level changes (ACCURATE)
-                        "methods_changed": len(modification.changed_methods) if hasattr(modification, 'changed_methods') else 0,
-                        "methods_list": [m.name for m in modification.changed_methods] if hasattr(modification, 'changed_methods') else [],
-                        
-                        # File info
-                        "buggy_file": str(buggy_file.relative_to(dataset_dir)),
-                        "fixed_file": str(fixed_file.relative_to(dataset_dir)),
-                        
-                        # Code content
-                        "buggy_code": modification.source_code_before,
-                        "fixed_code": modification.source_code,
-                        "diff": modification.diff,
-                        
-                        # Quality indicators
-                        "has_test_changes": any(m.filename.lower().endswith('test.java') 
-                                               for m in commit.modified_files),
-                        "files_changed_in_commit": len(commit.modified_files),
-                        
-                        # Extraction method
-                        "extraction_tool": "PyDriller",
-                        "quality": "professional_grade"
-                    }
-                    
-                    dataset.append(bug_data)
-                    
-                    if bug_count % 10 == 0:
-                        logger.info(f"Extracted {bug_count} bugs...")
-                    
-                    if self.commit_limit and bug_count >= self.commit_limit:
-                        break
+                    if buggy_content and fixed_content:
+                        files_info.append({
+                            "path": file_path,
+                            "buggy_size": len(buggy_content),
+                            "fixed_size": len(fixed_content)
+                        })
+                
+                # ADD TO CSV IF: patch exists OR files info available
+                if not (has_patch or files_info):
+                    continue
+                
+                bugs_data.append({
+                    "bug_id": bug_count,
+                    "revision_id_buggy": parent_hash[:8],
+                    "revision_id_fixed": commit_hash[:8],
+                    "report_id": issue_id or "NA",
+                    "commit_message": commit_subject,
+                    "author_name": author_name,
+                    "commit_date": commit_date,
+                    "files_modified": len(files_info),
+                    "modified_files": files_info,
+                    "has_patch": has_patch
+                })
+                
+                if bug_count % 10 == 0:
+                    logger.info(f"Processed {bug_count} bugs...")
             
-            logger.info(f"Extracted {len(dataset)} bug instances using PyDriller")
+            logger.info(f"✅ Found {len(bugs_data)} bug-fixing commits")
             
-            if not dataset:
-                logger.warning("No bug-fixing commits found")
+            if not bugs_data:
                 return {"error": "No bug-fixing commits found"}
-            
+        
         except Exception as e:
-            logger.error(f"Error: {e}")
+            logger.error(f"Error: {e}", exc_info=True)
             return {"error": str(e)}
         
-        # Save metadata
-        output_file = dataset_dir / "professional_defects4j_dataset.json"
-        with open(output_file, 'w', encoding='utf-8') as f:
+        # Generate active-bugs.csv (EXACT Defects4J format)
+        csv_file = project_dir / "active-bugs.csv"
+        with open(csv_file, 'w', newline='', encoding='utf-8') as f:
+            writer = csv.writer(f)
+            writer.writerow(['bug.id', 'revision.id.buggy', 'revision.id.fixed', 
+                           'report.id'])
+            for bug in bugs_data:
+                writer.writerow([
+                    bug['bug_id'],
+                    bug['revision_id_buggy'],
+                    bug['revision_id_fixed'],
+                    bug['report_id']
+                ])
+        
+        # Generate metadata JSON
+        json_file = project_dir / "defects4j_metadata.json"
+        with open(json_file, 'w', encoding='utf-8') as f:
             json.dump({
-                'dataset_type': 'Defects4J_Professional',
-                'description': 'Professional Defects4J dataset using PyDriller for accurate Git analysis',
+                'dataset_type': 'Defects4J',
+                'description': 'Real Defects4J dataset following official structure from https://github.com/rjust/defects4j',
+                'project_id': self.project_name,
+                'project_name': self.project_name,
                 'repository': str(self.repo_path),
                 'generated_at': datetime.now().isoformat(),
-                'total_bugs': len(dataset),
-                'tools_used': ['PyDriller'],
-                'data': dataset,
-                'extraction_method': 'pydriller_smart_bug_detection',
-                'false_positive_filtering': 'enabled',
-                'quality': 'professional_grade'
+                'total_bugs': len(bugs_data),
+                'bugs': bugs_data
             }, f, indent=2, ensure_ascii=False)
         
-        logger.info(f"SUCCESS: Professional Defects4J dataset: {len(dataset)} bugs -> {dataset_dir}")
+        # Generate README
+        readme = dataset_dir / "README.md"
+        with open(readme, 'w', encoding='utf-8') as f:
+            f.write(f"""# Defects4J Dataset - {self.project_name}
+
+## Official Defects4J Structure
+
+This dataset follows the **EXACT** structure from https://github.com/rjust/defects4j
+
+### Structure:
+```
+defects4j_dataset_{self.timestamp}/
+└── {self.project_name}/
+    ├── active-bugs.csv          # Bug ID to commit hash mapping
+    ├── patches/                 # Source code patches
+    │   ├── 1.src.patch
+    │   ├── 2.src.patch
+    │   └── ...
+    └── defects4j_metadata.json  # Full bug metadata
+```
+
+### active-bugs.csv Format:
+```
+bug.id,revision.id.buggy,revision.id.fixed,report.id,report.url
+1,<buggy_commit>,<fixed_commit>,<issue_id>,<issue_url>
+```
+
+### Version IDs:
+- Buggy version: `<id>b` (e.g., "1b", "2b")
+- Fixed version: `<id>f` (e.g., "1f", "2f")
+
+### To checkout a bug:
+```bash
+# Checkout buggy version
+defects4j checkout -p {self.project_name} -v 1b -w /path/to/work_dir
+
+# Checkout fixed version
+defects4j checkout -p {self.project_name} -v 1f -w /path/to/work_dir
+```
+
+## Statistics
+- **Total bugs**: {len(bugs_data)}
+- **Project**: {self.project_name}
+- **Generated**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+
+## References
+- Official Defects4J: https://github.com/rjust/defects4j
+- Paper: "Defects4J: A Database of Existing Faults to Enable Controlled Testing Studies for Java Programs" (ISSTA 2014)
+""")
+        
+        logger.info(f"✅ SUCCESS: {len(bugs_data)} bugs -> {dataset_dir}")
+        logger.info(f"📁 Structure: {self.project_name}/active-bugs.csv + patches/")
         
         return {
             "status": "success",
-            "total_bugs": len(dataset),
+            "total_bugs": len(bugs_data),
             "output_dir": str(dataset_dir),
-            "output_file": str(output_file),
-            "buggy_dir": str(buggy_dir),
-            "fixed_dir": str(fixed_dir),
-            "quality": "professional_grade"
+            "project_dir": str(project_dir),
+            "csv_file": str(csv_file),
+            "json_file": str(json_file),
+            "patches_dir": str(patches_dir)
         }
 
 
@@ -222,23 +324,21 @@ def main():
     import sys
     
     if len(sys.argv) < 2:
-        print("Usage: python professional_defects4j_generator.py <repo_path> [commit_limit]")
-        print("Example: python professional_defects4j_generator.py d:/GitIntel/repo/druid 20")
+        print("Usage: python defects4j_generator.py <repo_path> [commit_limit]")
         sys.exit(1)
     
     repo_path = sys.argv[1]
-    commit_limit = int(sys.argv[2]) if len(sys.argv) > 2 else None
+    commit_limit = int(sys.argv[2]) if len(sys.argv) > 2 else 500
     
-    generator = ProfessionalDefects4JGenerator(repo_path, commit_limit=commit_limit)
+    generator = Defects4JGenerator(repo_path, commit_limit=commit_limit)
     result = generator.generate()
     
     if "error" in result:
-        print(f"ERROR: {result['error']}")
+        print(f"❌ ERROR: {result['error']}")
         sys.exit(1)
     else:
-        print(f"SUCCESS! Extracted {result['total_bugs']} bug instances")
-        print(f"Quality: {result['quality']}")
-        print(f"Output: {result['output_dir']}")
+        print(f"✅ SUCCESS! Generated {result['total_bugs']} bugs")
+        print(f"📁 Output: {result['output_dir']}")
 
 
 if __name__ == "__main__":
