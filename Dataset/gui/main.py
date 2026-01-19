@@ -63,6 +63,7 @@ try:
     from enhanced_agentic_system import EnhancedAgenticSystem, AgentMode as EnhancedMode
     from llm_code_jury_system import LLMCodeJurySystem
     from agentic_code_test_executor import AgenticCodeTestExecutor
+    from integrated_jury_system import IntegratedJurySystem
     AGENT_AVAILABLE = True
 except ImportError as e:
     print(f"Warning: Some imports failed: {e}")
@@ -103,12 +104,12 @@ def rate_limited(max_per_minute=10):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 class TaskStatus(Enum):
-    PENDING = "⏳ Pending"
-    WAITING_APPROVAL = "❓ Waiting Approval"
+    PENDING = "Pending"
+    WAITING_APPROVAL = "Waiting Approval"
     IN_PROGRESS = "[PROCESSING] In Progress"
     COMPLETED = "[OK] Completed"
     FAILED = "[ERROR] Failed"
-    SKIPPED = "⏭️ Skipped"
+    SKIPPED = "Skipped"
 
 
 @dataclass
@@ -282,7 +283,7 @@ class AgenticDatasetGUI:
     
     def __init__(self, root):
         self.root = root
-        self.root.title("🤖 GitIntel Agentic Dataset Generator - Copilot Style")
+        self.root.title("GitIntel Agentic Dataset Generator - Copilot Style")
         self.root.geometry("1400x900")
         self.root.minsize(1200, 800)
         
@@ -387,6 +388,25 @@ class AgenticDatasetGUI:
             print(f"[WARNING] Test executor not available: {e}")
             self.test_executor = None
             
+        # Initialize integrated jury system
+        try:
+            self.integrated_jury = IntegratedJurySystem()
+            self.jury_session_active = False
+            self.jury_clarification_pending = False
+            print("[OK] Integrated Jury System initialized (Question Clarifier + Generator + 3 Test LLMs)")
+            self.add_agent_message(MessageType.SUCCESS, 
+                "[OK] Integrated Jury System ready:\n"
+                "   • Question Clarifier: Asks until understands\n"
+                "   • Code Generator: Creates code from clarified requirements\n"
+                "   • 3 Test LLMs: Independent test generation\n"
+                "   • Validation: 2/3 tests must pass\n"
+                "   • Max 5 iterations before human help")
+        except Exception as e:
+            print(f"[WARNING] Integrated jury system not available: {e}")
+            self.integrated_jury = None
+            self.jury_session_active = False
+            self.jury_clarification_pending = False
+            
         # Style configuration
         self.configure_styles()
         
@@ -451,7 +471,11 @@ class AgenticDatasetGUI:
         self.formula_tab = ttk.Frame(self.main_notebook)
         self.main_notebook.add(self.formula_tab, text="[FORMULA] Formula Generator")
         
-        # TAB 3: Logs
+        # TAB 3: Integrated Jury System (NEW)
+        self.jury_tab = ttk.Frame(self.main_notebook)
+        self.main_notebook.add(self.jury_tab, text="Integrated Jury System")
+        
+        # TAB 4: Logs
         self.logs_tab = ttk.Frame(self.main_notebook)
         self.main_notebook.add(self.logs_tab, text="[LOGS] Activity Logs")
                 
@@ -461,7 +485,10 @@ class AgenticDatasetGUI:
         # Build Tab 2: Formula Generator (isolated)
         self.build_formula_tab()
         
-        # Build Tab 3: Logs
+        # Build Tab 3: Integrated Jury System
+        self.build_integrated_jury_tab()
+        
+        # Build Tab 4: Logs
         self.build_logs_tab()
     
     def build_dataset_tab(self):
@@ -513,7 +540,7 @@ class AgenticDatasetGUI:
         btn_frame = ttk.Frame(self.formula_tab, padding=10)
         btn_frame.pack(fill=tk.X)
         
-        ttk.Button(btn_frame, text="🚀 Generate & Apply Formulas",
+        ttk.Button(btn_frame, text="Generate & Apply Formulas",
                   command=self.execute_formula_only,
                   style='Accent.TButton').pack(side=tk.LEFT, padx=5)
         
@@ -522,7 +549,7 @@ class AgenticDatasetGUI:
                  foreground='green', font=('Segoe UI', 9)).pack(side=tk.LEFT, padx=10)
         
         # Logs
-        logs_frame = ttk.LabelFrame(self.formula_tab, text="📋 Execution Logs", padding=10)
+        logs_frame = ttk.LabelFrame(self.formula_tab, text="Execution Logs", padding=10)
         logs_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
         self.formula_execution_logs = scrolledtext.ScrolledText(logs_frame, height=15, wrap=tk.WORD,
@@ -536,12 +563,85 @@ class AgenticDatasetGUI:
         
         self.log_to_formula("info", "[OK] Ready to generate formulas. Type natural language and click Generate.")
     
+    def build_integrated_jury_tab(self):
+        """TAB 3: Integrated Jury System - Complete workflow with clarification"""
+        if not hasattr(self, 'integrated_jury') or not self.integrated_jury:
+            ttk.Label(self.jury_tab, text="[ERROR] Integrated Jury System not available",
+                     font=('Arial', 14), foreground='red').pack(pady=50)
+            return
+        
+        # Top info panel
+        info_frame = ttk.Frame(self.jury_tab, padding=10)
+        info_frame.pack(fill=tk.X)
+        
+        ttk.Label(info_frame, 
+                 text="Integrated Multi-LLM Jury System",
+                 font=('Segoe UI', 14, 'bold')).pack(anchor=tk.W)
+        
+        ttk.Label(info_frame,
+                 text="Complete workflow: Question Clarification → Code Generation → 3-LLM Testing → Validation → Iteration (max 5) → Human Help",
+                 font=('Segoe UI', 9), foreground='gray').pack(anchor=tk.W, pady=(5, 0))
+        
+        # Conversation area (shows clarification Q&A and progress)
+        conversation_frame = ttk.LabelFrame(self.jury_tab, text="Conversation & Progress", padding=10)
+        conversation_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        
+        self.jury_conversation = scrolledtext.ScrolledText(conversation_frame, height=20, wrap=tk.WORD,
+                                                           bg='#1e1e1e', fg='#ffffff', state=tk.DISABLED,
+                                                           font=('Segoe UI', 10))
+        self.jury_conversation.pack(fill=tk.BOTH, expand=True)
+        
+        # Configure tags for conversation
+        self.jury_conversation.tag_configure('question', foreground='#2196f3', font=('Segoe UI', 10, 'bold'))
+        self.jury_conversation.tag_configure('answer', foreground='#ffffff')
+        self.jury_conversation.tag_configure('system', foreground='#4caf50')
+        self.jury_conversation.tag_configure('error', foreground='#f44336')
+        self.jury_conversation.tag_configure('thinking', foreground='#ff9800')
+        
+        # Input area
+        input_frame = ttk.LabelFrame(self.jury_tab, text="Your Input", padding=10)
+        input_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
+        
+        # Status display
+        self.jury_status_var = tk.StringVar(value="Ready to help! Describe what you need...")
+        ttk.Label(input_frame, textvariable=self.jury_status_var,
+                 font=('Segoe UI', 9, 'italic'), foreground='#2196f3').pack(anchor=tk.W, pady=(0, 5))
+        
+        # Text input
+        input_container = ttk.Frame(input_frame)
+        input_container.pack(fill=tk.X)
+        
+        self.jury_input = scrolledtext.ScrolledText(input_container, height=4, wrap=tk.WORD,
+                                                    font=('Segoe UI', 10))
+        self.jury_input.pack(fill=tk.BOTH, expand=True)
+        
+        # Button row
+        button_row = ttk.Frame(self.jury_tab, padding=(10, 0, 10, 10))
+        button_row.pack(fill=tk.X)
+        
+        ttk.Button(button_row, text="Start New Request",
+                  command=self.jury_start_new_request,
+                  style='Accent.TButton').pack(side=tk.LEFT, padx=5)
+        
+        self.jury_answer_btn = ttk.Button(button_row, text="Answer Questions",
+                                          command=self.jury_provide_feedback,
+                                          state=tk.DISABLED)
+        self.jury_answer_btn.pack(side=tk.LEFT, padx=5)
+        
+        ttk.Button(button_row, text="Reset Session",
+                  command=self.jury_reset_session).pack(side=tk.LEFT, padx=5)
+        
+        # Session info
+        self.jury_session_info = tk.StringVar(value="No active session")
+        ttk.Label(button_row, textvariable=self.jury_session_info,
+                 font=('Segoe UI', 9), foreground='gray').pack(side=tk.RIGHT, padx=10)
+    
     def build_logs_tab(self):
-        """TAB 3: System Logs"""
+        """TAB 4: System Logs"""
         logs_frame = ttk.Frame(self.logs_tab, padding=10)
         logs_frame.pack(fill=tk.BOTH, expand=True)
         
-        ttk.Label(logs_frame, text="📜 System Logs", font=('Segoe UI', 14, 'bold')).pack(anchor=tk.W, pady=5)
+        ttk.Label(logs_frame, text="System Logs", font=('Segoe UI', 14, 'bold')).pack(anchor=tk.W, pady=5)
         
         self.system_logs_text = scrolledtext.ScrolledText(logs_frame, wrap=tk.WORD,
                                                           bg='#1e1e1e', fg='#ffffff', state=tk.DISABLED)
@@ -559,7 +659,7 @@ class AgenticDatasetGUI:
         title_frame = ttk.Frame(self.left_frame)
         title_frame.pack(fill=tk.X, pady=(0, 10))
         
-        ttk.Label(title_frame, text="🔬 Dataset Generator", 
+        ttk.Label(title_frame, text="Dataset Generator", 
                   style='Title.TLabel').pack(side=tk.LEFT)
         
         # ═══════════════════════════════════════════════════════════════════
@@ -578,9 +678,9 @@ class AgenticDatasetGUI:
         self.repo_entry.insert(0, "Path or URL: apache/kafka or https://github.com/...")
         self.repo_entry.bind('<FocusIn>', self.on_repo_focus)
         
-        ttk.Button(repo_input_frame, text="📂 Browse", width=10,
+        ttk.Button(repo_input_frame, text="Browse", width=10,
                    command=self.browse_folder).pack(side=tk.LEFT, padx=2)
-        ttk.Button(repo_input_frame, text="🔗 Clone", width=10,
+        ttk.Button(repo_input_frame, text="Clone", width=10,
                    command=self.clone_repository).pack(side=tk.LEFT, padx=2)
         ttk.Button(repo_input_frame, text="✓ Set", 
                    command=self.set_repository).pack(side=tk.LEFT, padx=2)
@@ -607,7 +707,7 @@ class AgenticDatasetGUI:
                                                values=benchmark_options, state="readonly", width=18)
         self.benchmark_dropdown.pack(side=tk.LEFT, padx=5)
         
-        ttk.Button(bench_row, text="📋 Info", width=6,
+        ttk.Button(bench_row, text="Info", width=6,
                   command=self.show_benchmark_info).pack(side=tk.LEFT, padx=2)
         
         # Row 2: Metrics selector button & combine option
@@ -645,17 +745,17 @@ class AgenticDatasetGUI:
         action_row = ttk.Frame(selector_frame)
         action_row.pack(fill=tk.X, pady=(5, 0))
         
-        ttk.Button(action_row, text="🚀 Generate Dataset",
+        ttk.Button(action_row, text="Generate Dataset",
                   command=self.generate_from_selection,
                   style='Accent.TButton').pack(side=tk.LEFT, padx=2)
         
-        ttk.Button(action_row, text="🗑️ Clear Selection",
+        ttk.Button(action_row, text="Clear Selection",
                   command=self.clear_selection).pack(side=tk.LEFT, padx=2)
         
         # ═══════════════════════════════════════════════════════════════════
         # CHAT INPUT (Ask me anything)
         # ═══════════════════════════════════════════════════════════════════
-        input_frame = ttk.LabelFrame(self.left_frame, text="💬 Chat - Ask me anything", padding=10)
+        input_frame = ttk.LabelFrame(self.left_frame, text="Chat - Ask me anything", padding=10)
         input_frame.pack(fill=tk.X, pady=(0, 10))
         
         # Mode dropdown
@@ -683,7 +783,7 @@ class AgenticDatasetGUI:
         self.unified_input.bind('<Return>', lambda e: self.process_chat_input())
         
         # Send button
-        ttk.Button(input_frame, text="💬 Send", 
+        ttk.Button(input_frame, text="Send", 
                    command=self.process_chat_input,
                    style='Accent.TButton').pack(fill=tk.X, pady=(5, 0))
         
@@ -720,7 +820,7 @@ class AgenticDatasetGUI:
         control_frame = ttk.Frame(todo_header)
         control_frame.pack(side=tk.RIGHT)
         
-        self.start_btn = ttk.Button(control_frame, text="▶ Start",
+        self.start_btn = ttk.Button(control_frame, text="Start",
                                      command=self.start_execution,
                                      style='Accent.TButton')
         self.start_btn.pack(side=tk.LEFT, padx=2)
@@ -731,7 +831,7 @@ class AgenticDatasetGUI:
         self.pause_btn.pack(side=tk.LEFT, padx=2)
         self.pause_btn.config(state=tk.DISABLED)
         
-        ttk.Button(control_frame, text="🗑️ Clear",
+        ttk.Button(control_frame, text="Clear",
                    command=self.clear_plan).pack(side=tk.LEFT, padx=2)
         
         # Progress bar below header
@@ -785,7 +885,7 @@ class AgenticDatasetGUI:
         header_frame = ttk.Frame(self.right_frame)
         header_frame.pack(fill=tk.X, pady=(0, 10))
         
-        ttk.Label(header_frame, text="🤖 Agent Assistant",
+        ttk.Label(header_frame, text="Agent Assistant",
                   style='Header.TLabel').pack(side=tk.LEFT)
         
         # Message area (optimized height for visibility)
@@ -839,7 +939,7 @@ class AgenticDatasetGUI:
                                       style='Reject.TButton')
         self.reject_btn.pack(side=tk.LEFT, padx=2, expand=True, fill=tk.X)
         
-        self.skip_btn = ttk.Button(approval_btns, text="⏭️ Skip",
+        self.skip_btn = ttk.Button(approval_btns, text="Skip",
                                     command=self.skip_action)
         self.skip_btn.pack(side=tk.LEFT, padx=2, expand=True, fill=tk.X)
         
@@ -849,7 +949,7 @@ class AgenticDatasetGUI:
         # ═══════════════════════════════════════════════════════════════════
         # FEEDBACK INPUT
         # ═══════════════════════════════════════════════════════════════════
-        feedback_frame = ttk.LabelFrame(self.right_frame, text="💬 Your Feedback", padding=10)
+        feedback_frame = ttk.LabelFrame(self.right_frame, text="Your Feedback", padding=10)
         feedback_frame.pack(fill=tk.X)
         
         self.feedback_var = tk.StringVar()
@@ -858,7 +958,7 @@ class AgenticDatasetGUI:
         self.feedback_entry.pack(fill=tk.X, pady=(0, 5))
         self.feedback_entry.bind('<Return>', lambda e: self.send_feedback())
         
-        ttk.Button(feedback_frame, text="📤 Send",
+        ttk.Button(feedback_frame, text="Send",
                    command=self.send_feedback).pack(side=tk.RIGHT)
         
     # ═══════════════════════════════════════════════════════════════════════════
@@ -1018,7 +1118,7 @@ class AgenticDatasetGUI:
         if is_benchmark_request:
             # USE ORIGINAL: Benchmark dataset generation (predefined formats)
             self.add_agent_message(MessageType.INFO, 
-                "🎯 Detected benchmark dataset request. Using predefined format generation.")
+                "Detected benchmark dataset request. Using predefined format generation.")
             threading.Thread(target=self._create_plan_from_input, 
                             args=(query,), daemon=True).start()
         else:
@@ -1033,7 +1133,7 @@ class AgenticDatasetGUI:
             
             if self.enhanced_system:
                 self.add_agent_message(MessageType.INFO, 
-                    "🔬 Using AI-powered repository analysis with LLM.")
+                    "Using AI-powered repository analysis with LLM.")
                 self._process_with_enhanced_system(query)
             else:
                 # Fallback to basic
@@ -1049,7 +1149,7 @@ class AgenticDatasetGUI:
         if is_benchmark:
             # Use old working benchmark generation DIRECTLY
             self.add_agent_message(MessageType.INFO, 
-                "🎯 Benchmark dataset detected. Using proven benchmark generator.")
+                "Benchmark dataset detected. Using proven benchmark generator.")
             threading.Thread(target=self._create_plan_from_input, 
                             args=(query,), daemon=True).start()
             return
@@ -1114,7 +1214,7 @@ class AgenticDatasetGUI:
                     
                 elif result['status'] == 'needs_approval_for_formula_generation':
                     # Show formulas that need to be generated
-                    formulas_text = "🔧 **New Formulas Needed:**\n\n"
+                    formulas_text = "**New Formulas Needed:**\n\n"
                     for formula_name in result['missing_formulas']:
                         formulas_text += f"  • {formula_name}\n"
                     formulas_text += "\nLLM will generate Python code for these. Approve?"
@@ -1143,11 +1243,11 @@ class AgenticDatasetGUI:
                     
                     for col_preview in result['preview']:
                         preview_text += f"**{col_preview.column_name}** ({col_preview.data_type})\n"
-                        preview_text += f"  📐 Formula: {col_preview.formula}\n"
+                        preview_text += f"  Formula: {col_preview.formula}\n"
                         preview_text += f"  [DATA] Sample: {col_preview.sample_values[:3]}\n"
                         if col_preview.min_value is not None:
                             preview_text += f"  [CHART] Range: [{col_preview.min_value:.2f} - {col_preview.max_value:.2f}]\n"
-                        preview_text += f"  🔢 Unique: {col_preview.unique_count}\n\n"
+                        preview_text += f"Unique: {col_preview.unique_count}\n\n"
                     
                     self.root.after(0, lambda: self.add_agent_message(MessageType.PREVIEW, preview_text))
                     self.root.after(0, lambda: self._setup_final_approval_buttons(
@@ -1536,7 +1636,7 @@ class AgenticDatasetGUI:
         )
         
         # Show summary
-        summary = f"""📋 **Task Plan Created ({len(self.task_manager.tasks)} tasks)**
+        summary = f"""**Task Plan Created ({len(self.task_manager.tasks)} tasks)**
 
 Ready to execute. Click **▶ Start Execution** to begin."""
         
@@ -1575,7 +1675,7 @@ Ready to execute. Click **▶ Start Execution** to begin."""
                    style='Reject.TButton').pack(side=tk.LEFT, padx=5)
         
         if on_modify:
-            ttk.Button(btn_frame, text="✏️ Modify", command=on_modify).pack(side=tk.LEFT, padx=5)
+            ttk.Button(btn_frame, text="Modify", command=on_modify).pack(side=tk.LEFT, padx=5)
     
     def _setup_final_approval_buttons(self, on_confirm, on_cancel):
         """Setup final approval buttons"""
@@ -1717,7 +1817,7 @@ Ready to execute. Click **▶ Start Execution** to begin."""
         
         # Show summary
         summary = f"""
-📋 **Plan Created with {len(self.task_manager.tasks)} tasks:**
+**Plan Created with {len(self.task_manager.tasks)} tasks:**
 
 """
         for task in self.task_manager.tasks:
@@ -1807,10 +1907,10 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
         success_msg = "Dataset generated successfully!" if failed == 0 else "Some tasks failed. Please review."
         
         self.add_agent_message(MessageType.SYSTEM,
-            f"🏁 Execution Complete!\n\n"
+            f"Execution Complete!\n\n"
             f"[OK] Completed: {completed}\n"
             f"[ERROR] Failed: {failed}\n"
-            f"⏭️ Skipped: {skipped}\n\n"
+            f"Skipped: {skipped}\n\n"
             f"{success_msg}\n\n"
             f"**Next Steps:**\n"
             f"• Check the output in 'generated_datasets' folder\n"
@@ -1826,14 +1926,14 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
         self.task_manager.is_running = False
         self.pause_btn.config(state=tk.DISABLED)
         self.start_btn.config(state=tk.NORMAL)
-        self.add_agent_message(MessageType.INFO, "⏸️ Execution paused. Click Start to resume.")
+        self.add_agent_message(MessageType.INFO, "Execution paused. Click Start to resume.")
         
     def clear_plan(self):
         """Clear the task plan"""
         self.task_manager.clear_tasks()
         self.progress_var.set(0)
         self.execution_complete = False
-        self.add_agent_message(MessageType.INFO, "🗑️ Plan cleared. Describe what you need to create a new plan.")
+        self.add_agent_message(MessageType.INFO, "Plan cleared. Describe what you need to create a new plan.")
         
     # ═══════════════════════════════════════════════════════════════════════════
     # APPROVAL SYSTEM
@@ -1845,7 +1945,7 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
         self.set_approval_visible(True)
         
         self.add_agent_message(MessageType.QUESTION,
-            f"❓ **Approval Required**\n\n"
+            f"**Approval Required**\n\n"
             f"**Task:** {task.title}\n"
             f"**Description:** {task.description}\n\n"
             f"Please approve, reject, or skip this task."
@@ -1879,7 +1979,7 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
         """Skip the current action"""
         self.set_approval_visible(False)
         self.task_manager.skip_current()
-        self.add_agent_message(MessageType.INFO, "⏭️ Action skipped.")
+        self.add_agent_message(MessageType.INFO, "Action skipped.")
         
     # ═══════════════════════════════════════════════════════════════════════════
     # FEEDBACK SYSTEM
@@ -1896,7 +1996,7 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
         self.feedback_var.set("")
         
         # Show user message
-        self.add_agent_message(MessageType.USER, f"💬 {feedback}")
+        self.add_agent_message(MessageType.USER, f"{feedback}")
         
         # Add to conversation
         self.conversation_history.append({"role": "user", "content": feedback})
@@ -1915,7 +2015,7 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
             else:
                 self.awaiting_extraction_approval = False
                 self.add_agent_message(MessageType.INFO,
-                    "💬 Please describe an alternative approach or start a new query.")
+                    "Please describe an alternative approach or start a new query.")
                 self.current_plan = None
                 return
         
@@ -1931,13 +2031,13 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
         # Check if user is rejecting/modifying
         elif any(word in feedback_lower for word in ['no', 'wrong', 'change', 'modify', 'different']):
             self.add_agent_message(MessageType.INFO, 
-                "💬 Please describe what you'd like to change, or start over with a new request.")
+                "Please describe what you'd like to change, or start over with a new request.")
             self.current_plan = None
         
         # Help request
         elif any(word in feedback_lower for word in ['help', 'how', 'what can']):
             self.add_agent_message(MessageType.INFO,
-                "**💡 Here's what you can do:**\n\n"
+                "**Here's what you can do:**\n\n"
                 "**1. Describe your dataset:**\n"
                 "   • 'Create a complexity dataset'\n"
                 "   • 'I need CK metrics for Java files'\n"
@@ -2064,7 +2164,7 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
             
             # Start execution
             self.root.after(0, lambda: self.add_agent_message(MessageType.SYSTEM,
-                f"🚀 Plan created with {len(self.task_manager.tasks)} tasks. Executing..."))
+                f"Plan created with {len(self.task_manager.tasks)} tasks. Executing..."))
             
             self.root.after(100, self.start_execution)
             
@@ -2137,7 +2237,7 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
                 # Progress update every 50 files
                 if idx % 50 == 0 or idx == total_to_process:
                     self.add_agent_message(MessageType.INFO, 
-                        f"⏳ Extracting: {idx}/{total_to_process} files ({int(idx/total_to_process*100)}%)")
+                        f"Extracting: {idx}/{total_to_process} files ({int(idx/total_to_process*100)}%)")
             except Exception as e:
                 print(f"Error extracting metrics from {file_path}: {e}")
                 continue
@@ -2794,7 +2894,7 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
             workspace_path = str(self.repo_path)  # Use user's loaded repository
             
             self.add_agent_message(MessageType.INFO, 
-                f"📂 Generating datasets from YOUR repository: {Path(workspace_path).name}")
+                f"Generating datasets from YOUR repository: {Path(workspace_path).name}")
             
             generator = ProfessionalDatasetGenerator(
                 workspace_path=workspace_path,
@@ -3054,7 +3154,7 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
                                      for i, f in enumerate(formulas)])
             
             self.root.after(0, lambda: self.add_agent_message(MessageType.QUESTION,
-                f"📋 I understood your request:\n\n"
+                f"I understood your request:\n\n"
                 f"Formulas to calculate:\n{formula_list}\n\n"
                 f"Data source: Mock data (50 rows)\n"
                 f"Output folder: generate_dataset/\n\n"
@@ -3063,7 +3163,7 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
                 f"  2. Verify with 3 independent LLMs (Jury)\n"
                 f"  3. Execute code temporarily (self-destructs after)\n"
                 f"  4. Save result CSV to generate_dataset/\n\n"
-                f"💰 Cost: ~$0.005 (5 AWS calls)\n\n"
+                f"Cost: ~$0.005 (5 AWS calls)\n\n"
                 f"Type 'yes' or 'confirm' in chat to proceed, or 'no' to cancel."))
             
             # Store for later execution
@@ -3168,7 +3268,7 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
                 self.root.after(0, lambda: self.add_agent_message(MessageType.SUCCESS,
                     f"[OK] Dataset saved to: {output_path}\n"
                     f"[DATA] Rows: {len(result_df)}, Columns: {len(result_df.columns)}\n"
-                    f"💰 Estimated cost: ~$0.005"))
+                    f"Estimated cost: ~$0.005"))
                 
             else:
                 self.root.after(0, lambda: self.add_agent_message(MessageType.ERROR,
@@ -3209,7 +3309,7 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
             return
         
         # Show user message
-        self.add_agent_message(MessageType.USER, f"💬 {query}")
+        self.add_agent_message(MessageType.USER, f"{query}")
         self.unified_input_var.set("")
         self.current_query = query
         
@@ -3384,7 +3484,7 @@ CRITICAL RULES:
                 question = understanding.get('clarification_needed', 
                                             'Can you provide more details?')
                 self.root.after(0, lambda q=question: self.add_agent_message(
-                    MessageType.QUESTION, f"❓ {q}"))
+                    MessageType.QUESTION, f"{q}"))
                 return
             
             # Step 3: CHECK IF FORMULA OR UNKNOWN METRICS
@@ -3402,7 +3502,7 @@ CRITICAL RULES:
                 ])
                 
                 self.root.after(0, lambda: self.add_agent_message(MessageType.QUESTION,
-                    f"❓ **CLARIFICATION NEEDED**\n\n"
+                    f"**CLARIFICATION NEEDED**\n\n"
                     f"You want to calculate: **{formula_name}**\n"
                     f"Formula: `{formula_expr}`\n\n"
                     f"But these base metrics are NOT available:\n{unknown_list}\n\n"
@@ -3473,7 +3573,7 @@ CRITICAL RULES:
                         
                         # Step 2: Generate code
                         self.root.after(0, lambda: self.add_agent_message(
-                            MessageType.INFO, "🤖 Generator LLM creating code..."))
+                            MessageType.INFO, "Generator LLM creating code..."))
                         
                         generated_code = self.llm_jury_system.generate_code(
                             formula_structure, 
@@ -3617,7 +3717,7 @@ These metrics will be used to calculate: {formula_name}
             
             # Step 1: Generate extraction code
             self.root.after(0, lambda: self.add_agent_message(MessageType.INFO,
-                "🤖 Generator LLM creating extraction code..."))
+                "Generator LLM creating extraction code..."))
             
             formula_structure = [{
                 'name': formula_name,
@@ -3727,7 +3827,7 @@ These metrics will be used to calculate: {formula_name}
         dtype = req.get('dataset_type', 'custom')
         
         self.root.after(0, lambda: self.add_agent_message(MessageType.ACTION, 
-            "🚀 Starting generation based on your request..."))
+            "Starting generation based on your request..."))
         
         if dtype == 'benchmark' and req.get('benchmark'):
             threading.Thread(target=self._generate_benchmark_dataset,
@@ -3819,7 +3919,7 @@ These metrics will be used to calculate: {formula_name}
         
         # Create clone dialog
         clone_dialog = tk.Toplevel(self.root)
-        clone_dialog.title("🔗 Clone Repository")
+        clone_dialog.title("Clone Repository")
         clone_dialog.geometry("600x300")
         clone_dialog.grab_set()
         
@@ -3855,7 +3955,7 @@ These metrics will be used to calculate: {formula_name}
             if folder:
                 dest_var.set(folder)
         
-        ttk.Button(dest_input_frame, text="📂 Browse", 
+        ttk.Button(dest_input_frame, text="Browse", 
                    command=browse_destination).pack(side=tk.LEFT)
         
         # Progress area
@@ -3870,8 +3970,8 @@ These metrics will be used to calculate: {formula_name}
         btn_frame = ttk.Frame(clone_dialog)
         btn_frame.pack(fill=tk.X, padx=20, pady=(0, 10))
         
-        clone_btn = ttk.Button(btn_frame, text="🚀 Start Clone", style='Accent.TButton')
-        cancel_btn = ttk.Button(btn_frame, text="❌ Cancel")
+        clone_btn = ttk.Button(btn_frame, text="Start Clone", style='Accent.TButton')
+        cancel_btn = ttk.Button(btn_frame, text="Cancel")
         
         def log_progress(message):
             """Thread-safe progress logging"""
@@ -3881,7 +3981,7 @@ These metrics will be used to calculate: {formula_name}
         def start_clone():
             """Start cloning in background thread"""
             clone_btn.config(state=tk.DISABLED)
-            cancel_btn.config(text="⏸️ Close")
+            cancel_btn.config(text="Close")
             
             def clone_thread():
                 try:
@@ -3920,10 +4020,10 @@ These metrics will be used to calculate: {formula_name}
                         process.wait()
                         
                         if process.returncode == 0:
-                            log_progress(f"\n[SUCCESS] ✅ Repository cloned successfully!")
+                            log_progress(f"\n[SUCCESS] Repository cloned successfully!")
                             final_path = clone_path
                         else:
-                            log_progress(f"\n[ERROR] ❌ Clone failed with code {process.returncode}")
+                            log_progress(f"\n[ERROR] Clone failed with code {process.returncode}")
                             return
                     
                     # Set the repository in main window
@@ -4139,7 +4239,7 @@ These metrics will be used to calculate: {formula_name}
                 benchmark_str += f", ... and {len(selected)-3} more"
             
             self.add_agent_message(MessageType.SYSTEM,
-                f"🚀 Generating {len(selected)} benchmark dataset(s)...\n"
+                f"Generating {len(selected)} benchmark dataset(s)...\n"
                 f"Benchmarks: {benchmark_str}"
             )
             
@@ -4290,7 +4390,7 @@ These metrics will be used to calculate: {formula_name}
         
         # Show summary
         summary = f"""
-📋 **Plan Created with {len(self.task_manager.tasks)} tasks:**
+**Plan Created with {len(self.task_manager.tasks)} tasks:**
 
 """
         for task in self.task_manager.tasks:
@@ -4484,7 +4584,7 @@ Click **▶ Start Execution** to begin.
             mode = AgentMode.ASK if mode_str == "ask" else AgentMode.AGENT
             
             # Add thinking message
-            self.add_agent_message(MessageType.THINKING, f"💭 Analyzing: {query}")
+            self.add_agent_message(MessageType.THINKING, f"Analyzing: {query}")
             
             # Parse input
             actual_mode, actual_query = self.autonomous_agent.parse_user_input(
@@ -4492,18 +4592,18 @@ Click **▶ Start Execution** to begin.
             )
             
             # Generate plan
-            self.add_agent_message(MessageType.ACTION, "📋 Generating task plan...")
+            self.add_agent_message(MessageType.ACTION, "Generating task plan...")
             plan = self.autonomous_agent.generate_task_plan(actual_query)
             
             # Show plan details
             self.add_agent_message(MessageType.INFO, 
-                f"🎯 Intent: {plan.get('intent')}\n"
+                f"Intent: {plan.get('intent')}\n"
                 f"[DATA] Metrics: {', '.join(plan.get('metrics', []))}\n"
                 f"[CHART] Type: {plan.get('dataset_type')}"
             )
             
             # Show tasks
-            tasks_text = "📋 Tasks:\n"
+            tasks_text = "Tasks:\n"
             for i, task in enumerate(plan.get('tasks', []), 1):
                 auto = "🤖" if task.get('auto_execute') else "❓"
                 tasks_text += f"  {i}. {auto} {task.get('task')}\n"
@@ -4543,7 +4643,7 @@ Click **▶ Start Execution** to begin.
     def _execute_agent_autonomous_mode(self, plan: dict):
         """Execute agent in AGENT mode (autonomous)"""
         self.add_agent_message(MessageType.ACTION, 
-            "🤖 AGENT MODE - Autonomous execution started"
+            "AGENT MODE - Autonomous execution started"
         )
         
         # Execute plan
@@ -4571,7 +4671,7 @@ Click **▶ Start Execution** to begin.
             
             # Ask for feedback
             self.add_agent_message(MessageType.QUESTION,
-                "💬 Do you have feedback or need changes?\n\n"
+                "Do you have feedback or need changes?\n\n"
                 "Type your feedback in the agent input field and press Enter."
             )
         else:
@@ -4592,8 +4692,8 @@ Click **▶ Start Execution** to begin.
             self.log_to_formula("error", "[ERROR] Please enter a formula")
             return
         
-        self.log_to_formula("info", f"🚀 Starting formula generation...\n   Input: {formula_text[:150]}...")
-        self.formula_status_display.set("⚡ Processing...")
+        self.log_to_formula("info", f"Starting formula generation...\n   Input: {formula_text[:150]}...")
+        self.formula_status_display.set("Processing...")
         
         # Run in background
         threading.Thread(target=self._execute_formula_background, args=(formula_text,), daemon=True).start()
@@ -4750,7 +4850,7 @@ Click **▶ Start Execution** to begin.
         ttk.Label(stats_frame, text=f"File: {output_path.name}", font=('Segoe UI', 10)).pack(anchor=tk.W)
         
         # Actions
-        actions_frame = ttk.LabelFrame(feedback_window, text="📂 Actions", padding=10)
+        actions_frame = ttk.LabelFrame(feedback_window, text="Actions", padding=10)
         actions_frame.pack(fill=tk.X, padx=10, pady=10)
         
         def open_csv():
@@ -4775,11 +4875,11 @@ Click **▶ Start Execution** to begin.
             except Exception as e:
                 messagebox.showerror("Error", f"Could not open folder: {e}")
         
-        ttk.Button(actions_frame, text="📄 Open CSV", command=open_csv).pack(side=tk.LEFT, padx=5)
+        ttk.Button(actions_frame, text="Open CSV", command=open_csv).pack(side=tk.LEFT, padx=5)
         ttk.Button(actions_frame, text="[FILES] Open Folder", command=open_folder).pack(side=tk.LEFT, padx=5)
         
         # Feedback
-        feedback_frame = ttk.LabelFrame(feedback_window, text="💬 Rate This Generation", padding=10)
+        feedback_frame = ttk.LabelFrame(feedback_window, text="Rate This Generation", padding=10)
         feedback_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
         ttk.Label(feedback_frame, text="Was the result correct?").pack(anchor=tk.W)
@@ -4788,7 +4888,7 @@ Click **▶ Start Execution** to begin.
         
         ttk.Radiobutton(feedback_frame, text="[OK] Perfect - exactly what I needed", 
                        variable=rating_var, value="perfect").pack(anchor=tk.W)
-        ttk.Radiobutton(feedback_frame, text="👍 Good - mostly correct", 
+        ttk.Radiobutton(feedback_frame, text="Good - mostly correct", 
                        variable=rating_var, value="good").pack(anchor=tk.W)
         ttk.Radiobutton(feedback_frame, text="[WARNING] Okay - needs some fixes", 
                        variable=rating_var, value="okay").pack(anchor=tk.W)
@@ -4808,6 +4908,267 @@ Click **▶ Start Execution** to begin.
                   style='Accent.TButton').pack(pady=10)
         
         ttk.Button(feedback_window, text="Close", command=feedback_window.destroy).pack(pady=10)
+    
+    # ═══════════════════════════════════════════════════════════════════
+    # INTEGRATED JURY SYSTEM HANDLERS
+    # ═══════════════════════════════════════════════════════════════════
+    
+    def jury_log(self, message: str, tag: str = 'system'):
+        """Log message to jury conversation panel"""
+        if not hasattr(self, 'jury_conversation'):
+            return
+        
+        self.jury_conversation.configure(state=tk.NORMAL)
+        timestamp = datetime.now().strftime('%H:%M:%S')
+        self.jury_conversation.insert(tk.END, f"[{timestamp}] {message}\n", tag)
+        self.jury_conversation.see(tk.END)
+        self.jury_conversation.configure(state=tk.DISABLED)
+
+    def jury_start_new_request(self):
+        """Start a new request in integrated jury system"""
+        if not self.integrated_jury:
+            messagebox.showerror("Error", "Integrated jury system not available")
+            return
+        
+        user_question = self.jury_input.get('1.0', tk.END).strip()
+        
+        if not user_question:
+            messagebox.showwarning("Empty Input", "Please describe what you need")
+            return
+        
+        # Clear input
+        self.jury_input.delete('1.0', tk.END)
+        
+        # Log user question
+        self.jury_log(f"YOU: {user_question}", 'question')
+        self.jury_log("Starting integrated jury workflow...", 'thinking')
+        
+        # Update status
+        self.jury_status_var.set("Processing your request...")
+        self.jury_session_active = True
+        self.jury_session_info.set(f"Session: {self.integrated_jury.session_id}")
+        
+        # Run workflow in background thread
+        thread = threading.Thread(
+            target=self._jury_run_workflow_thread,
+            args=(user_question,),
+            daemon=True
+        )
+        thread.start()
+
+    def _jury_run_workflow_thread(self, user_question: str):
+        """Run integrated jury workflow in background thread"""
+        try:
+            def progress_callback(msg):
+                self.root.after(0, lambda m=msg: self.jury_log(m, 'system'))
+            
+            result = self.integrated_jury.run_full_workflow(
+                user_question=user_question,
+                progress_callback=progress_callback
+            )
+            
+            # Handle result on main thread
+            self.root.after(0, lambda r=result: self._jury_handle_result(r))
+            
+        except Exception as e:
+            import traceback
+            error_msg = f"ERROR: {str(e)}\n{traceback.format_exc()}"
+            self.root.after(0, lambda m=error_msg: self.jury_log(m, 'error'))
+            self.root.after(0, lambda: self.jury_status_var.set("Error occurred"))
+
+    def _jury_handle_result(self, result: Dict):
+        """Handle result from jury workflow"""
+        status = result.get('status')
+        
+        if status == 'needs_clarification':
+            # Need user to answer clarifying questions
+            self.jury_clarification_pending = True
+            self.jury_answer_btn.configure(state=tk.NORMAL)
+            
+            self.jury_log("I need more information to help you:", 'question')
+            for q in result.get('questions', []):
+                self.jury_log(f"  • {q}", 'question')
+            
+            self.jury_log(f"\nMy current understanding ({result.get('confidence', 0)}% confident):", 'thinking')
+            self.jury_log(result.get('current_understanding', ''), 'thinking')
+            
+            self.jury_status_var.set("Please answer the clarifying questions above")
+            
+        elif status == 'success':
+            # Success! Show code
+            self.jury_clarification_pending = False
+            self.jury_answer_btn.configure(state=tk.DISABLED)
+            
+            self.jury_log("✅ SUCCESS! Code generated and validated!", 'system')
+            self.jury_log(f"\nIterations: {result['iterations']}", 'system')
+            self.jury_log(f"Test Results: {result['test_results']['passing_llms']}/3 LLMs passed", 'system')
+            self.jury_log(f"Total Tests: {result['test_results']['total_passed']}/{result['test_results']['total_tests']} passed", 'system')
+            
+            self.jury_log("\n" + "="*60, 'system')
+            self.jury_log("GENERATED CODE:", 'system')
+            self.jury_log("="*60, 'system')
+            self.jury_log(result['code'], 'answer')
+            
+            self.jury_status_var.set("✅ Complete! Code ready to use")
+            self.jury_session_info.set(f"Session: {result['session_id']} | Results: {result['session_dir']}")
+            
+            # Offer to save code
+            self.root.after(100, lambda r=result: self._jury_offer_save_code(r))
+            
+        elif status == 'human_intervention_required':
+            # Failed after max iterations
+            self.jury_clarification_pending = False
+            self.jury_answer_btn.configure(state=tk.DISABLED)
+            
+            self.jury_log("⚠️ HUMAN INTERVENTION NEEDED", 'error')
+            self.jury_log(f"\n{result['message']}", 'error')
+            self.jury_log(f"\nAttempted {len(result['iterations'])} iterations", 'error')
+            
+            if result.get('last_code'):
+                self.jury_log("\nLast generated code (may have issues):", 'thinking')
+                self.jury_log(result['last_code'], 'answer')
+            
+            if result.get('last_feedback'):
+                self.jury_log("\nLast test feedback:", 'error')
+                self.jury_log(result['last_feedback'], 'error')
+            
+            self.jury_status_var.set("⚠️ Failed - Human help needed")
+            self.jury_session_info.set(f"Session: {result['session_id']} | Results: {result['session_dir']}")
+            
+        else:
+            self.jury_log(f"Unknown status: {status}", 'error')
+
+    def jury_provide_feedback(self):
+        """Provide answers to clarifying questions"""
+        if not self.jury_clarification_pending:
+            messagebox.showinfo("Info", "No clarification needed at this time")
+            return
+        
+        user_feedback = self.jury_input.get('1.0', tk.END).strip()
+        
+        if not user_feedback:
+            messagebox.showwarning("Empty Input", "Please provide your answers")
+            return
+        
+        # Clear input
+        self.jury_input.delete('1.0', tk.END)
+        
+        # Log feedback
+        self.jury_log(f"\nYOU: {user_feedback}", 'answer')
+        self.jury_log("Processing your feedback...", 'thinking')
+        
+        # Update status
+        self.jury_status_var.set("Processing feedback...")
+        self.jury_answer_btn.configure(state=tk.DISABLED)
+        
+        # Continue clarification in thread
+        thread = threading.Thread(
+            target=self._jury_continue_clarification_thread,
+            args=(user_feedback,),
+            daemon=True
+        )
+        thread.start()
+
+    def _jury_continue_clarification_thread(self, user_feedback: str):
+        """Continue clarification process in background"""
+        try:
+            result = self.integrated_jury.provide_clarification(user_feedback)
+            
+            self.root.after(0, lambda r=result: self._jury_handle_clarification_result(r))
+            
+        except Exception as e:
+            import traceback
+            error_msg = f"ERROR: {str(e)}\n{traceback.format_exc()}"
+            self.root.after(0, lambda m=error_msg: self.jury_log(m, 'error'))
+            self.root.after(0, lambda: self.jury_status_var.set("Error occurred"))
+
+    def _jury_handle_clarification_result(self, result: Dict):
+        """Handle clarification result"""
+        if result['status'] == 'clarified':
+            self.jury_log("✅ Requirements clarified! Ready to generate code.", 'system')
+            self.jury_log("Please click 'Start New Request' to begin generation with clarified requirements.", 'question')
+            self.jury_status_var.set("Clarified! Ready for code generation")
+            self.jury_clarification_pending = False
+            self.jury_answer_btn.configure(state=tk.DISABLED)
+        else:
+            # Need more clarification
+            self.jury_clarification_pending = True
+            self.jury_answer_btn.configure(state=tk.NORMAL)
+            
+            self.jury_log("\nI still need a bit more information:", 'question')
+            for q in result.get('questions', []):
+                self.jury_log(f"  • {q}", 'question')
+            
+            self.jury_log(f"\nMy understanding so far ({result.get('confidence', 0)}% confident):", 'thinking')
+            self.jury_log(result.get('current_understanding', ''), 'thinking')
+            
+            self.jury_status_var.set("Please provide more details")
+
+    def jury_reset_session(self):
+        """Reset jury session"""
+        if self.jury_session_active:
+            confirm = messagebox.askyesno("Confirm Reset", 
+                                          "Are you sure you want to reset the current session?")
+            if not confirm:
+                return
+        
+        # Reset state
+        try:
+            from integrated_jury_system import IntegratedJurySystem
+            self.integrated_jury = IntegratedJurySystem()
+            self.jury_session_active = False
+            self.jury_clarification_pending = False
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to reset: {str(e)}")
+            return
+        
+        # Clear UI
+        self.jury_conversation.configure(state=tk.NORMAL)
+        self.jury_conversation.delete('1.0', tk.END)
+        self.jury_conversation.configure(state=tk.DISABLED)
+        
+        self.jury_input.delete('1.0', tk.END)
+        
+        # Reset status
+        self.jury_status_var.set("Ready to help! Describe what you need...")
+        self.jury_session_info.set("No active session")
+        self.jury_answer_btn.configure(state=tk.DISABLED)
+        
+        self.jury_log("Session reset. Ready for new request!", 'system')
+
+    def _jury_offer_save_code(self, result: Dict):
+        """Offer to save generated code"""
+        response = messagebox.askyesnocancel(
+            "Save Code?",
+            f"Code generated successfully!\n\n"
+            f"Function: {result['function_name']}\n"
+            f"Tests passed: {result['test_results']['passing_llms']}/3 LLMs\n\n"
+            f"Would you like to save the code to a file?"
+        )
+        
+        if response is None:  # Cancel
+            return
+        
+        if response:  # Yes - save
+            file_path = filedialog.asksaveasfilename(
+                defaultextension=".py",
+                filetypes=[("Python files", "*.py"), ("All files", "*.*")],
+                initialfile=f"{result['function_name']}.py"
+            )
+            
+            if file_path:
+                try:
+                    with open(file_path, 'w') as f:
+                        f.write(f"# Generated by Integrated Jury System\n")
+                        f.write(f"# Session: {result['session_id']}\n")
+                        f.write(f"# Validation: {result['test_results']['passing_llms']}/3 LLMs passed\n")
+                        f.write(f"# Description: {result['description']}\n\n")
+                        f.write(result['code'])
+                    
+                    messagebox.showinfo("Success", f"Code saved to:\n{file_path}")
+                    self.jury_log(f"\n✅ Code saved to: {file_path}", 'system')
+                except Exception as e:
+                    messagebox.showerror("Error", f"Failed to save code:\n{str(e)}")
     
     def log_system(self, text: str):
         """Add log to system logs tab"""

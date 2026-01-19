@@ -28,7 +28,7 @@ class MetricsCollector:
     
     def collect_all_metrics(self) -> Dict[str, Any]:
         """Main method to collect all possible metrics"""
-        print(f"📊 Collecting metrics from: {self.repo_path}")
+        print(f"Collecting metrics from: {self.repo_path}")
         
         # Git-based metrics
         self.collect_commit_metrics()
@@ -64,7 +64,7 @@ class MetricsCollector:
             )
             return result.stdout.strip()
         except Exception as e:
-            print(f"⚠️ Git command failed: {e}")
+            print(f"Git command failed: {e}")
             return ""
     
     def collect_commit_metrics(self):
@@ -323,7 +323,7 @@ class FormulaParser:
             return float(result) if result is not None else None
             
         except Exception as e:
-            print(f"⚠️ Formula evaluation error: {e}")
+            print(f"Formula evaluation error: {e}")
             return None
     
     def _replace_metrics_in_formula(self, formula: str) -> str:
@@ -413,10 +413,10 @@ class AgenticDatasetMaker:
         repo_path = Path(repo_path).resolve()
         
         if not repo_path.exists():
-            print(f"❌ Repository not found: {repo_path}")
+            print(f"Repository not found: {repo_path}")
             return {}
         
-        print(f"\n🔍 Processing repository: {repo_path.name}")
+        print(f"\nProcessing repository: {repo_path.name}")
         
         # Collect all metrics
         collector = MetricsCollector(repo_path)
@@ -426,7 +426,7 @@ class AgenticDatasetMaker:
         metrics['repo_name'] = repo_path.name
         metrics['repo_path'] = str(repo_path)
         
-        print(f"✅ Collected {len(metrics)} metrics")
+        print(f"Collected {len(metrics)} metrics")
         
         return metrics
     
@@ -438,22 +438,22 @@ class AgenticDatasetMaker:
         parser = FormulaParser(metrics)
         
         for metric_name, formula in custom_formulas.items():
-            print(f"\n🧮 Evaluating custom metric: {metric_name}")
+            print(f"\nEvaluating custom metric: {metric_name}")
             print(f"   Formula: {formula}")
             
             # Validate first
             is_valid, message = parser.validate_formula(formula)
             if not is_valid:
-                print(f"   ❌ {message}")
+                print(f"{message}")
                 continue
             
             # Evaluate
             result = parser.parse_and_evaluate(formula)
             if result is not None:
                 metrics[metric_name] = result
-                print(f"   ✅ Result: {result}")
+                print(f"Result: {result}")
             else:
-                print(f"   ❌ Could not evaluate")
+                print(f"Could not evaluate")
         
         return metrics
     
@@ -472,7 +472,7 @@ class AgenticDatasetMaker:
             output_filename: Output CSV filename
         """
         print("\n" + "="*60)
-        print("🚀 AGENTIC DATASET MAKER STARTING")
+        print("AGENTIC DATASET MAKER STARTING")
         print("="*60)
         
         all_metrics = []
@@ -495,9 +495,9 @@ class AgenticDatasetMaker:
         output_path = self.output_dir / output_filename
         df.to_csv(output_path, index=False)
         
-        print(f"\n✅ Dataset generated: {output_path}")
-        print(f"📊 Total repositories: {len(all_metrics)}")
-        print(f"📊 Total metrics: {len(df.columns)}")
+        print(f"\nDataset generated: {output_path}")
+        print(f"Total repositories: {len(all_metrics)}")
+        print(f"Total metrics: {len(df.columns)}")
         
         return df
     
@@ -506,7 +506,7 @@ class AgenticDatasetMaker:
         metrics = self.process_repository(sample_repo)
         
         print("\n" + "="*60)
-        print("📋 AVAILABLE METRICS")
+        print("AVAILABLE METRICS")
         print("="*60)
         
         # Group metrics by category
@@ -592,7 +592,7 @@ def example_usage():
         output_filename="custom_metrics_dataset.csv"
     )
     
-    print("\n✅ All done! Check the datasets folder.")
+    print("\nAll done! Check the datasets folder.")
 
 
 if __name__ == "__main__":
