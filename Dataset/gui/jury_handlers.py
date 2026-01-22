@@ -1,8 +1,3 @@
-"""
-Handler Methods for Integrated Jury System in GUI
-Add these methods to the AgenticDatasetGUI class in main.py
-"""
-
 import tkinter as tk
 from tkinter import messagebox, filedialog
 from datetime import datetime

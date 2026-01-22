@@ -1,8 +1,3 @@
-"""
-Comprehensive Metrics Catalog - 63+ Metrics
-সব metrics predefined - user সিলেক্ট করে dataset বানাবে
-"""
-
 from typing import Dict, List
 import logging
 
@@ -518,6 +513,76 @@ class MetricsCatalog:
             counts[cat] = counts.get(cat, 0) + 1
         return counts
     
+    # ============ BENCHMARK DATASETS (7) ============
+    BENCHMARKS = {
+        'defects4j': {
+            'name': 'Defects4J',
+            'description': 'Real bugs from 17 Java projects with test suites',
+            'projects': 17,
+            'bugs': 835,
+            'language': 'Java',
+            'source': 'https://github.com/rjust/defects4j'
+        },
+        'bugsjar': {
+            'name': 'Bugs.jar',
+            'description': 'Collection of Java bugs from popular libraries',
+            'projects': 8,
+            'bugs': 1158,
+            'language': 'Java',
+            'source': 'https://github.com/bugs-dot-jar/bugs-dot-jar'
+        },
+        'manystubs4j': {
+            'name': 'ManySStuBs4J',
+            'description': 'Dataset of simple bugs and fixes in Java',
+            'projects': 'Multiple',
+            'bugs': 153000,
+            'language': 'Java',
+            'source': 'https://github.com/maldil/ManySStuBs4J'
+        },
+        'codexglue': {
+            'name': 'CodeXGLUE',
+            'description': 'Benchmark for code understanding and generation',
+            'projects': 'Multiple',
+            'bugs': 'Various',
+            'language': 'Multiple',
+            'source': 'https://github.com/microsoft/CodeXGLUE'
+        },
+        'codesearchnet': {
+            'name': 'CodeSearchNet',
+            'description': 'Large corpus of code with documentation',
+            'projects': 'Multiple',
+            'bugs': 'N/A',
+            'language': 'Multiple',
+            'source': 'https://github.com/github/CodeSearchNet'
+        },
+        'sourcerer': {
+            'name': 'Sourcerer Dataset',
+            'description': 'Large-scale code dataset from open source',
+            'projects': '18M methods',
+            'bugs': 'N/A',
+            'language': 'Java',
+            'source': 'https://sourcerer.ics.uci.edu/'
+        },
+        'promise': {
+            'name': 'PROMISE Repository',
+            'description': 'Software engineering research datasets',
+            'projects': 'Multiple',
+            'bugs': 'Various',
+            'language': 'Multiple',
+            'source': 'http://promise.site.uottawa.ca/'
+        }
+    }
+    
+    @classmethod
+    def get_benchmarks(cls) -> Dict:
+        """Get all available benchmark datasets"""
+        return cls.BENCHMARKS
+    
+    @classmethod
+    def get_benchmark_names(cls) -> List[str]:
+        """Get list of benchmark dataset names"""
+        return list(cls.BENCHMARKS.keys())
+    
     @classmethod
     def print_catalog(cls):
         """Print formatted metric catalog"""
@@ -533,10 +598,20 @@ class MetricsCatalog:
                 print(f"  {key:30} {metric['name']}")
                 print(f"  {' '*30} -> {metric['description']}")
         
+        # Benchmarks
+        print("\n" + "="*80)
+        print("BENCHMARK DATASETS (7 available)")
+        print("="*80)
+        for key, benchmark in cls.BENCHMARKS.items():
+            print(f"\n  {benchmark['name']}")
+            print(f"    {benchmark['description']}")
+            print(f"    Language: {benchmark['language']} | Projects: {benchmark['projects']} | Bugs: {benchmark['bugs']}")
+        
         # Summary
         print("\n" + "="*80)
         print(f" Total Metrics Available: {cls.get_metrics_count()}")
         print(f" Categories: {len(cls.get_categories())}")
+        print(f" Benchmarks: {len(cls.BENCHMARKS)}")
         print(" Metrics by Category:")
         for cat, count in sorted(cls.get_category_counts().items()):
             print(f"   {cat.upper()}: {count} metrics")

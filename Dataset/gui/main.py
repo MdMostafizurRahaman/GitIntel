@@ -64,6 +64,7 @@ try:
     from llm_code_jury_system import LLMCodeJurySystem
     from agentic_code_test_executor import AgenticCodeTestExecutor
     from integrated_jury_system import IntegratedJurySystem
+    from multi_agent_orchestrator import MultiAgentOrchestrator, create_orchestrator, WorkflowStatus
     AGENT_AVAILABLE = True
 except ImportError as e:
     print(f"Warning: Some imports failed: {e}")
@@ -135,47 +136,7 @@ class TaskManager:
         self.on_update = on_update
         self.is_running = False
         self.approval_queue = queue.Queue()
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# GIT METRICS EXTRACTION - REAL DATA
-# ═══════════════════════════════════════════════════════════════════════════════
-
-def is_git_repo(repo_path: str) -> bool:
-    """Check if path is a Git repository"""
-    if not repo_path or not os.path.exists(repo_path):
-        return False
     
-    git_dir = os.path.join(repo_path, '.git')
-    if os.path.exists(git_dir):
-        return True
-    
-    # Check if we're inside a git repo (check parent directories)
-    current = repo_path
-    while current != os.path.dirname(current):
-        if os.path.exists(os.path.join(current, '.git')):
-            return True
-        current = os.path.dirname(current)
-    
-    return False
-
-
-def get_git_root(file_path: str) -> Optional[str]:
-    """Find the Git repository root for a file"""
-    current = os.path.dirname(os.path.abspath(file_path))
-    
-    while current != os.path.dirname(current):
-        if os.path.exists(os.path.join(current, '.git')):
-            return current
-        current = os.path.dirname(current)
-    
-    return None
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# All metric extraction now handled by MetricsHelper - use dataset_generators only
-# ═══════════════════════════════════════════════════════════════════════════════
-        
     def add_task(self, title: str, description: str, action: Callable = None, 
                  requires_approval: bool = True) -> Task:
         """Add a new task"""
@@ -228,6 +189,46 @@ def get_git_root(file_path: str) -> Optional[str]:
         """Notify UI of updates"""
         if self.on_update:
             self.on_update()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# GIT METRICS EXTRACTION - REAL DATA
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def is_git_repo(repo_path: str) -> bool:
+    """Check if path is a Git repository"""
+    if not repo_path or not os.path.exists(repo_path):
+        return False
+    
+    git_dir = os.path.join(repo_path, '.git')
+    if os.path.exists(git_dir):
+        return True
+    
+    # Check if we're inside a git repo (check parent directories)
+    current = repo_path
+    while current != os.path.dirname(current):
+        if os.path.exists(os.path.join(current, '.git')):
+            return True
+        current = os.path.dirname(current)
+    
+    return False
+
+
+def get_git_root(file_path: str) -> Optional[str]:
+    """Find the Git repository root for a file"""
+    current = os.path.dirname(os.path.abspath(file_path))
+    
+    while current != os.path.dirname(current):
+        if os.path.exists(os.path.join(current, '.git')):
+            return current
+        current = os.path.dirname(current)
+    
+    return None
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# All metric extraction now handled by MetricsHelper - use dataset_generators only
+# ═══════════════════════════════════════════════════════════════════════════════
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -471,11 +472,15 @@ class AgenticDatasetGUI:
         self.formula_tab = ttk.Frame(self.main_notebook)
         self.main_notebook.add(self.formula_tab, text="[FORMULA] Formula Generator")
         
-        # TAB 3: Integrated Jury System (NEW)
+        # TAB 3: Multi-Agent Orchestrator (NEW - Primary Workflow)
+        self.orchestrator_tab = ttk.Frame(self.main_notebook)
+        self.main_notebook.add(self.orchestrator_tab, text="🤖 Multi-Agent Workflow")
+        
+        # TAB 4: Integrated Jury System
         self.jury_tab = ttk.Frame(self.main_notebook)
         self.main_notebook.add(self.jury_tab, text="Integrated Jury System")
         
-        # TAB 4: Logs
+        # TAB 5: Logs
         self.logs_tab = ttk.Frame(self.main_notebook)
         self.main_notebook.add(self.logs_tab, text="[LOGS] Activity Logs")
                 
@@ -485,10 +490,13 @@ class AgenticDatasetGUI:
         # Build Tab 2: Formula Generator (isolated)
         self.build_formula_tab()
         
-        # Build Tab 3: Integrated Jury System
+        # Build Tab 3: Multi-Agent Orchestrator (NEW)
+        self.build_orchestrator_tab()
+        
+        # Build Tab 4: Integrated Jury System
         self.build_integrated_jury_tab()
         
-        # Build Tab 4: Logs
+        # Build Tab 5: Logs
         self.build_logs_tab()
     
     def build_dataset_tab(self):
@@ -636,8 +644,186 @@ class AgenticDatasetGUI:
         ttk.Label(button_row, textvariable=self.jury_session_info,
                  font=('Segoe UI', 9), foreground='gray').pack(side=tk.RIGHT, padx=10)
     
+    def build_orchestrator_tab(self):
+        """TAB 3: Multi-Agent Orchestrator - PRIMARY Workflow for Dataset Generation"""
+        # ═══════════════════════════════════════════════════════════════════
+        # Multi-Agent Workflow Tab - Complete System
+        # ═══════════════════════════════════════════════════════════════════
+        
+        # Top info panel
+        info_frame = ttk.Frame(self.orchestrator_tab, padding=10)
+        info_frame.pack(fill=tk.X)
+        
+        ttk.Label(info_frame, 
+                 text="🤖 Multi-Agent Dataset Generator Orchestrator",
+                 font=('Segoe UI', 16, 'bold')).pack(anchor=tk.W)
+        
+        ttk.Label(info_frame,
+                 text="Complete automated workflow: Requirement Analysis → Code Generation → 3-Agent Testing Trio → Refinement → Dataset Output",
+                 font=('Segoe UI', 9), foreground='gray').pack(anchor=tk.W, pady=(5, 0))
+        
+        # Split panel: Left (Config) | Right (Progress)
+        split_container = ttk.PanedWindow(self.orchestrator_tab, orient=tk.HORIZONTAL)
+        split_container.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        
+        # ═══════════════════════════════════════════════════════════════════
+        # LEFT PANEL: Configuration & Metrics Selection
+        # ═══════════════════════════════════════════════════════════════════
+        left_panel = ttk.Frame(split_container, padding=10)
+        split_container.add(left_panel, weight=1)
+        
+        # Repository selection
+        repo_frame = ttk.LabelFrame(left_panel, text="[REPO] Repository Source", padding=10)
+        repo_frame.pack(fill=tk.X, pady=(0, 10))
+        
+        self.orch_repo_var = tk.StringVar()
+        ttk.Entry(repo_frame, textvariable=self.orch_repo_var, font=('Consolas', 10)).pack(fill=tk.X, pady=5)
+        
+        repo_btn_frame = ttk.Frame(repo_frame)
+        repo_btn_frame.pack(fill=tk.X)
+        ttk.Button(repo_btn_frame, text="Browse Folder", command=self.orch_browse_repo).pack(side=tk.LEFT, padx=2)
+        ttk.Button(repo_btn_frame, text="Clone from GitHub", command=self.orch_clone_repo).pack(side=tk.LEFT, padx=2)
+        
+        # User request (natural language)
+        request_frame = ttk.LabelFrame(left_panel, text="[REQUEST] What do you want to generate?", padding=10)
+        request_frame.pack(fill=tk.X, pady=(0, 10))
+        
+        self.orch_request_text = scrolledtext.ScrolledText(request_frame, height=4, wrap=tk.WORD,
+                                                           font=('Segoe UI', 10))
+        self.orch_request_text.pack(fill=tk.BOTH, expand=True)
+        self.orch_request_text.insert('1.0', 
+            "Example: 'Generate bug prediction dataset with complexity and change metrics'\n"
+            "or: 'Create Defects4J-style dataset with CK metrics and defect labels'")
+        
+        # Metrics selection (from catalog)
+        metrics_frame = ttk.LabelFrame(left_panel, text="[METRICS] Pre-defined Metrics (64 available)", padding=10)
+        metrics_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
+        
+        # Category filter
+        cat_frame = ttk.Frame(metrics_frame)
+        cat_frame.pack(fill=tk.X, pady=(0, 5))
+        ttk.Label(cat_frame, text="Category:").pack(side=tk.LEFT, padx=5)
+        
+        self.orch_category_var = tk.StringVar(value="All")
+        categories = ["All", "LOC", "SIZE", "COMPLEXITY", "CK", "CHANGE", "DEFECT", 
+                     "QUALITY", "HALSTEAD", "MAINTAINABILITY", "OOP", "COUPLING", 
+                     "AUTHOR", "PROCESS", "LABEL"]
+        ttk.Combobox(cat_frame, textvariable=self.orch_category_var, values=categories,
+                    state='readonly', width=15).pack(side=tk.LEFT, padx=5)
+        ttk.Button(cat_frame, text="Filter", command=self.orch_filter_metrics).pack(side=tk.LEFT, padx=5)
+        
+        # Metrics listbox with checkboxes
+        metrics_list_frame = ttk.Frame(metrics_frame)
+        metrics_list_frame.pack(fill=tk.BOTH, expand=True)
+        
+        metrics_scroll = ttk.Scrollbar(metrics_list_frame)
+        metrics_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        self.orch_metrics_listbox = tk.Listbox(metrics_list_frame, selectmode=tk.MULTIPLE,
+                                               yscrollcommand=metrics_scroll.set,
+                                               font=('Segoe UI', 9))
+        self.orch_metrics_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        metrics_scroll.config(command=self.orch_metrics_listbox.yview)
+        
+        # Load all metrics
+        self.orch_load_metrics()
+        
+        # Quick select buttons
+        quick_frame = ttk.Frame(metrics_frame)
+        quick_frame.pack(fill=tk.X, pady=(5, 0))
+        ttk.Button(quick_frame, text="Select All", command=self.orch_select_all).pack(side=tk.LEFT, padx=2)
+        ttk.Button(quick_frame, text="Clear All", command=self.orch_clear_all).pack(side=tk.LEFT, padx=2)
+        ttk.Button(quick_frame, text="Popular Set", command=self.orch_popular_set).pack(side=tk.LEFT, padx=2)
+        
+        # Benchmarks
+        benchmark_frame = ttk.LabelFrame(left_panel, text="[BENCHMARK] Compare with (7 available)", padding=10)
+        benchmark_frame.pack(fill=tk.X, pady=(0, 10))
+        
+        self.orch_benchmark_var = tk.StringVar(value="None")
+        benchmarks = ["None", "Defects4J", "Bugs.jar", "ManySStuBs4J", "CodeXGLUE", 
+                     "CodeSearchNet", "Sourcerer", "PROMISE"]
+        ttk.Combobox(benchmark_frame, textvariable=self.orch_benchmark_var, values=benchmarks,
+                    state='readonly').pack(fill=tk.X)
+        
+        # Control buttons
+        control_frame = ttk.Frame(left_panel)
+        control_frame.pack(fill=tk.X, pady=(10, 0))
+        
+        ttk.Button(control_frame, text="▶ Start Multi-Agent Workflow",
+                  command=self.orch_start_workflow,
+                  style='Accent.TButton').pack(fill=tk.X, pady=2)
+        ttk.Button(control_frame, text="⏸ Pause", command=self.orch_pause).pack(fill=tk.X, pady=2)
+        ttk.Button(control_frame, text="🔄 Reset", command=self.orch_reset).pack(fill=tk.X, pady=2)
+        
+        # ═══════════════════════════════════════════════════════════════════
+        # RIGHT PANEL: Progress & Agent Activities
+        # ═══════════════════════════════════════════════════════════════════
+        right_panel = ttk.Frame(split_container, padding=10)
+        split_container.add(right_panel, weight=2)
+        
+        # Status bar
+        status_frame = ttk.Frame(right_panel)
+        status_frame.pack(fill=tk.X, pady=(0, 10))
+        
+        self.orch_status_var = tk.StringVar(value="⏸ Ready - Configure and start workflow")
+        ttk.Label(status_frame, textvariable=self.orch_status_var,
+                 font=('Segoe UI', 11, 'bold'), foreground='#007acc').pack(anchor=tk.W)
+        
+        self.orch_progress_var = tk.StringVar(value="Cycle: 0/5 | Status: Idle")
+        ttk.Label(status_frame, textvariable=self.orch_progress_var,
+                 font=('Segoe UI', 9), foreground='gray').pack(anchor=tk.W, pady=(5, 0))
+        
+        # Agent activity log
+        log_frame = ttk.LabelFrame(right_panel, text="[ACTIVITY] Multi-Agent Workflow Log", padding=10)
+        log_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
+        
+        self.orch_log = scrolledtext.ScrolledText(log_frame, wrap=tk.WORD,
+                                                  bg='#1e1e1e', fg='#ffffff',
+                                                  font=('Consolas', 9), state=tk.DISABLED)
+        self.orch_log.pack(fill=tk.BOTH, expand=True)
+        
+        # Configure tags for colored output
+        self.orch_log.tag_configure('agent1', foreground='#2196f3')  # Blue - Agent 1
+        self.orch_log.tag_configure('agent2', foreground='#4caf50')  # Green - Agent 2
+        self.orch_log.tag_configure('agent3', foreground='#ff9800')  # Orange - Agent 3-5
+        self.orch_log.tag_configure('success', foreground='#4caf50', font=('Consolas', 9, 'bold'))
+        self.orch_log.tag_configure('error', foreground='#f44336', font=('Consolas', 9, 'bold'))
+        self.orch_log.tag_configure('warning', foreground='#ff9800')
+        self.orch_log.tag_configure('info', foreground='#ffffff')
+        
+        # Results panel
+        results_frame = ttk.LabelFrame(right_panel, text="[RESULTS] Generated Dataset Preview", padding=10)
+        results_frame.pack(fill=tk.BOTH, expand=True)
+        
+        result_scroll = ttk.Scrollbar(results_frame)
+        result_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        self.orch_results_text = scrolledtext.ScrolledText(results_frame, height=10, wrap=tk.NONE,
+                                                           yscrollcommand=result_scroll.set,
+                                                           font=('Consolas', 9))
+        self.orch_results_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        result_scroll.config(command=self.orch_results_text.yview)
+        
+        # Save/Export buttons
+        export_frame = ttk.Frame(right_panel)
+        export_frame.pack(fill=tk.X, pady=(10, 0))
+        ttk.Button(export_frame, text="💾 Save Dataset", command=self.orch_save_dataset).pack(side=tk.LEFT, padx=5)
+        ttk.Button(export_frame, text="📊 View Full Dataset", command=self.orch_view_dataset).pack(side=tk.LEFT, padx=5)
+        ttk.Button(export_frame, text="📁 Open Output Folder", command=self.orch_open_folder).pack(side=tk.LEFT, padx=5)
+        
+        # Initialize orchestrator state
+        self.orchestrator = None
+        self.orch_result = None
+        self.orch_running = False
+        
+        # Log welcome message
+        self.orch_log_message("Multi-Agent Orchestrator initialized", 'success')
+        self.orch_log_message("64 metrics available across 14 categories", 'info')
+        self.orch_log_message("7 benchmark datasets available for comparison", 'info')
+        self.orch_log_message("Configure your request and start the workflow →", 'info')
+    
     def build_logs_tab(self):
-        """TAB 4: System Logs"""
+        """TAB 5: System Logs"""
         logs_frame = ttk.Frame(self.logs_tab, padding=10)
         logs_frame.pack(fill=tk.BOTH, expand=True)
         
@@ -3079,13 +3265,42 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
             self.root.after(0, lambda msg=error_msg: self.add_agent_message(MessageType.ERROR, f"Error: {msg}"))
     
     def _generate_metrics_dataset(self, metrics: List[str]):
-        """Generate dataset with selected metrics"""
+        """Generate dataset with selected metrics using Multi-Agent Orchestrator"""
         try:
             self.add_agent_message(MessageType.ACTION, f"Generating dataset with {len(metrics)} metrics...")
-            # Use task system
-            self._create_plan_from_metrics(metrics)
+            self.add_agent_message(MessageType.THINKING, "Starting Multi-Agent Orchestrator...")
+            
+            # Initialize Multi-Agent Orchestrator
+            orchestrator = MultiAgentOrchestrator(
+                metrics_catalog=self.catalog,
+                max_refinement_cycles=3,
+                progress_callback=lambda msg: self.root.after(0, 
+                    lambda m=msg: self.add_agent_message(MessageType.SYSTEM, m))
+            )
+            
+            # Run full workflow
+            result = orchestrator.run_full_workflow(
+                user_request=f"Calculate metrics for repository: {', '.join(metrics)}",
+                repo_path=str(self.repo_path),
+                selected_predefined_metrics=metrics
+            )
+            
+            # Handle result
+            if result.status == WorkflowStatus.SUCCESS:
+                self.root.after(0, lambda: self.add_agent_message(MessageType.SUCCESS,
+                    f"[OK] Dataset generated successfully with {len(metrics)} metrics!"))
+                self.root.after(0, lambda: self.add_agent_message(MessageType.SUCCESS,
+                    f"Output: {result.output_path}"))
+            elif result.status == WorkflowStatus.NEEDS_HUMAN_INTERVENTION:
+                self.root.after(0, lambda: self.add_agent_message(MessageType.WARNING,
+                    f"[WARN] Workflow needs human intervention after {result.cycles_completed} cycles"))
+            else:
+                self.root.after(0, lambda: self.add_agent_message(MessageType.ERROR,
+                    f"[ERROR] Workflow failed: {result.final_message}"))
+                    
         except Exception as e:
-            error_msg = str(e)
+            import traceback
+            error_msg = f"{str(e)}\n{traceback.format_exc()}"
             self.root.after(0, lambda msg=error_msg: self.add_agent_message(MessageType.ERROR, f"Error: {msg}"))
     
     def _generate_combined_dataset(self, benchmark: str, metrics: List[str]):
@@ -4999,7 +5214,7 @@ Click **▶ Start Execution** to begin.
             self.jury_clarification_pending = False
             self.jury_answer_btn.configure(state=tk.DISABLED)
             
-            self.jury_log("✅ SUCCESS! Code generated and validated!", 'system')
+            self.jury_log("[SUCCESS] Code generated and validated!", 'system')
             self.jury_log(f"\nIterations: {result['iterations']}", 'system')
             self.jury_log(f"Test Results: {result['test_results']['passing_llms']}/3 LLMs passed", 'system')
             self.jury_log(f"Total Tests: {result['test_results']['total_passed']}/{result['test_results']['total_tests']} passed", 'system')
@@ -5009,7 +5224,7 @@ Click **▶ Start Execution** to begin.
             self.jury_log("="*60, 'system')
             self.jury_log(result['code'], 'answer')
             
-            self.jury_status_var.set("✅ Complete! Code ready to use")
+            self.jury_status_var.set("[COMPLETE] Code ready to use")
             self.jury_session_info.set(f"Session: {result['session_id']} | Results: {result['session_dir']}")
             
             # Offer to save code
@@ -5020,7 +5235,7 @@ Click **▶ Start Execution** to begin.
             self.jury_clarification_pending = False
             self.jury_answer_btn.configure(state=tk.DISABLED)
             
-            self.jury_log("⚠️ HUMAN INTERVENTION NEEDED", 'error')
+            self.jury_log("[WARNING] HUMAN INTERVENTION NEEDED", 'error')
             self.jury_log(f"\n{result['message']}", 'error')
             self.jury_log(f"\nAttempted {len(result['iterations'])} iterations", 'error')
             
@@ -5032,7 +5247,7 @@ Click **▶ Start Execution** to begin.
                 self.jury_log("\nLast test feedback:", 'error')
                 self.jury_log(result['last_feedback'], 'error')
             
-            self.jury_status_var.set("⚠️ Failed - Human help needed")
+            self.jury_status_var.set("[WARNING] Failed - Human help needed")
             self.jury_session_info.set(f"Session: {result['session_id']} | Results: {result['session_dir']}")
             
         else:
@@ -5085,7 +5300,7 @@ Click **▶ Start Execution** to begin.
     def _jury_handle_clarification_result(self, result: Dict):
         """Handle clarification result"""
         if result['status'] == 'clarified':
-            self.jury_log("✅ Requirements clarified! Ready to generate code.", 'system')
+            self.jury_log("[SUCCESS] Requirements clarified! Ready to generate code.", 'system')
             self.jury_log("Please click 'Start New Request' to begin generation with clarified requirements.", 'question')
             self.jury_status_var.set("Clarified! Ready for code generation")
             self.jury_clarification_pending = False
@@ -5166,7 +5381,7 @@ Click **▶ Start Execution** to begin.
                         f.write(result['code'])
                     
                     messagebox.showinfo("Success", f"Code saved to:\n{file_path}")
-                    self.jury_log(f"\n✅ Code saved to: {file_path}", 'system')
+                    self.jury_log(f"\n[SUCCESS] Code saved to: {file_path}", 'system')
                 except Exception as e:
                     messagebox.showerror("Error", f"Failed to save code:\n{str(e)}")
     
@@ -5181,6 +5396,333 @@ Click **▶ Start Execution** to begin.
         self.system_logs_text.insert(tk.END, f"[{timestamp}] {text}\n")
         self.system_logs_text.see(tk.END)
         self.system_logs_text.configure(state=tk.DISABLED)
+
+
+    def orch_browse_repo(self):
+        """Browse for repository folder in orchestrator tab"""
+        folder = filedialog.askdirectory(title="Select Repository Folder")
+        if folder:
+            self.orch_repo_var.set(folder)
+    
+    def orch_clone_repo(self):
+        """Clone a Git repository in orchestrator tab"""
+        repo_input = self.orch_repo_var.get().strip()
+        
+        if not repo_input:
+            messagebox.showwarning("Clone Repository", 
+                "Please enter a GitHub URL or owner/repo")
+            return
+        
+        # Convert owner/repo to full URL
+        if '/' in repo_input and not repo_input.startswith(('http://', 'https://', 'git@')):
+            repo_input = f"https://github.com/{repo_input}.git"
+        
+        if not any(x in repo_input.lower() for x in ['github.com', 'gitlab.com', '.git']):
+            messagebox.showwarning("Clone Repository",
+                "Please enter a valid Git URL")
+            return
+        
+        messagebox.showinfo("Clone Repository", 
+            f"Clone functionality would clone:\n{repo_input}\n\nThis feature requires Git CLI installed.")
+    
+    def orch_load_metrics(self):
+        """Load all metrics into listbox"""
+        if not hasattr(self, 'catalog') or not self.catalog:
+            return
+        
+        self.orch_metrics_listbox.delete(0, tk.END)
+        all_metrics = self.catalog.get_all_metrics()
+        
+        for metric_name, info in all_metrics.items():
+            display = f"{metric_name:30} - {info['description'][:50]}"
+            self.orch_metrics_listbox.insert(tk.END, display)
+    
+    def orch_filter_metrics(self):
+        """Filter metrics by category"""
+        if not hasattr(self, 'catalog') or not self.catalog:
+            return
+        
+        category = self.orch_category_var.get()
+        self.orch_metrics_listbox.delete(0, tk.END)
+        
+        if category == "All":
+            all_metrics = self.catalog.get_all_metrics()
+        else:
+            all_metrics = self.catalog.get_metrics_by_category(category.lower())
+        
+        for metric_name, info in all_metrics.items():
+            display = f"{metric_name:30} - {info['description'][:50]}"
+            self.orch_metrics_listbox.insert(tk.END, display)
+    
+    def orch_select_all(self):
+        """Select all metrics"""
+        self.orch_metrics_listbox.select_set(0, tk.END)
+    
+    def orch_clear_all(self):
+        """Clear all selections"""
+        self.orch_metrics_listbox.selection_clear(0, tk.END)
+    
+    def orch_popular_set(self):
+        """Select popular metrics set"""
+        popular = ['loc', 'cyclomatic_complexity', 'cbo', 'wmc', 'dit', 'churn', 
+                   'bug_density', 'maintainability_index', 'test_coverage']
+        
+        self.orch_metrics_listbox.selection_clear(0, tk.END)
+        
+        for i in range(self.orch_metrics_listbox.size()):
+            item_text = self.orch_metrics_listbox.get(i)
+            for metric in popular:
+                if item_text.startswith(metric):
+                    self.orch_metrics_listbox.selection_set(i)
+                    break
+    
+    def orch_log_message(self, message: str, tag: str = 'info'):
+        """Log message to orchestrator log"""
+        if not hasattr(self, 'orch_log'):
+            return
+        self.orch_log.configure(state=tk.NORMAL)
+        self.orch_log.insert(tk.END, f"{message}\n", tag)
+        self.orch_log.see(tk.END)
+        self.orch_log.configure(state=tk.DISABLED)
+    
+    def orch_start_workflow(self):
+        """Start multi-agent workflow"""
+        if not hasattr(self, 'orch_running'):
+            self.orch_running = False
+        
+        if self.orch_running:
+            messagebox.showwarning("Already Running", "Workflow is already in progress")
+            return
+        
+        # Get configuration
+        repo_path = self.orch_repo_var.get().strip()
+        if not repo_path:
+            messagebox.showwarning("Missing Repository", "Please select a repository")
+            return
+        
+        user_request = self.orch_request_text.get('1.0', tk.END).strip()
+        if not user_request or "Example:" in user_request:
+            messagebox.showwarning("Missing Request", "Please describe what you want to generate")
+            return
+        
+        # Get selected metrics
+        selections = self.orch_metrics_listbox.curselection()
+        if not selections:
+            messagebox.showwarning("No Metrics", "Please select at least one metric")
+            return
+        
+        selected_metrics = []
+        for i in selections:
+            item_text = self.orch_metrics_listbox.get(i)
+            metric_name = item_text.split()[0]  # First word is metric name
+            selected_metrics.append(metric_name)
+        
+        # Clear logs
+        if hasattr(self, 'orch_log'):
+            self.orch_log.configure(state=tk.NORMAL)
+            self.orch_log.delete('1.0', tk.END)
+            self.orch_log.configure(state=tk.DISABLED)
+        
+        # Update status
+        self.orch_running = True
+        if hasattr(self, 'orch_status_var'):
+            self.orch_status_var.set("[STARTING] Multi-Agent Workflow...")
+        
+        self.orch_log_message("="*70, 'info')
+        self.orch_log_message("MULTI-AGENT WORKFLOW STARTING", 'success')
+        self.orch_log_message("="*70, 'info')
+        self.orch_log_message(f"Repository: {repo_path}", 'info')
+        self.orch_log_message(f"User Request: {user_request[:100]}...", 'info')
+        self.orch_log_message(f"Selected Metrics: {len(selected_metrics)}", 'info')
+        self.orch_log_message("="*70, 'info')
+        
+        # Run in background thread
+        thread = threading.Thread(
+            target=self._orch_run_workflow_thread,
+            args=(user_request, repo_path, selected_metrics),
+            daemon=True
+        )
+        thread.start()
+    
+    def _orch_run_workflow_thread(self, user_request: str, repo_path: str, selected_metrics: list):
+        """Run orchestrator workflow in background"""
+        try:
+            from multi_agent_orchestrator import MultiAgentOrchestrator
+            
+            def progress_callback(msg: str):
+                tag = 'info'
+                if '[AGENT 1]' in msg:
+                    tag = 'agent1'
+                elif '[AGENT 2]' in msg:
+                    tag = 'agent2'
+                elif '[AGENTS 3-5]' in msg or '[TESTING]' in msg:
+                    tag = 'agent3'
+                elif '[SUCCESS]' in msg or 'SUCCESS' in msg or 'PASSED' in msg:
+                    tag = 'success'
+                elif '[ERROR]' in msg or 'ERROR' in msg or 'FAILED' in msg:
+                    tag = 'error'
+                elif '[WARNING]' in msg or 'WARNING' in msg:
+                    tag = 'warning'
+                
+                self.root.after(0, lambda m=msg, t=tag: self.orch_log_message(m, t))
+            
+            self.root.after(0, lambda: self.orch_log_message("\nInitializing orchestrator...", 'info'))
+            
+            orchestrator = MultiAgentOrchestrator(
+                progress_callback=progress_callback
+            )
+            
+            result = orchestrator.run_full_workflow(
+                user_request=user_request,
+                repo_path=repo_path,
+                selected_predefined_metrics=selected_metrics
+            )
+            
+            self.root.after(0, lambda r=result: self._orch_handle_result(r))
+            
+        except Exception as e:
+            error_msg = f"ERROR: {str(e)}"
+            self.root.after(0, lambda em=error_msg: self.orch_log_message(em, 'error'))
+            if hasattr(self, 'orch_status_var'):
+                self.root.after(0, lambda: self.orch_status_var.set("[ERROR] Workflow Failed"))
+            self.orch_running = False
+    
+    def _orch_handle_result(self, result):
+        """Handle workflow result"""
+        self.orch_running = False
+        self.orch_result = result
+        
+        from multi_agent_orchestrator import WorkflowStatus
+        
+        status = result.status
+        
+        self.orch_log_message("", 'info')
+        self.orch_log_message("="*70, 'info')
+        
+        if status == WorkflowStatus.SUCCESS:
+            if hasattr(self, 'orch_status_var'):
+                self.orch_status_var.set(f"[SUCCESS] Dataset Generated ({result.iterations} iterations)")
+            if hasattr(self, 'orch_progress_var'):
+                self.orch_progress_var.set(f"Cycle: {result.iterations}/5 | Completed in {result.execution_time:.2f}s")
+            
+            self.orch_log_message("[SUCCESS] WORKFLOW COMPLETED SUCCESSFULLY", 'success')
+            self.orch_log_message(f"Iterations: {result.iterations}", 'success')
+            self.orch_log_message(f"Execution Time: {result.execution_time:.2f}s", 'success')
+            
+            if result.dataset is not None:
+                self.orch_log_message(f"Dataset Shape: {result.dataset.shape}", 'success')
+                self.orch_log_message(f"Output: {result.metadata.get('dataset_file', 'N/A')}", 'success')
+                
+                if hasattr(self, 'orch_results_text'):
+                    self.orch_results_text.delete('1.0', tk.END)
+                    self.orch_results_text.insert('1.0', result.dataset.to_string())
+        
+        elif status == WorkflowStatus.NEEDS_HUMAN_INTERVENTION:
+            if hasattr(self, 'orch_status_var'):
+                self.orch_status_var.set("[WARNING] HUMAN INTERVENTION REQUIRED")
+            if hasattr(self, 'orch_progress_var'):
+                self.orch_progress_var.set(f"Cycle: {result.iterations}/5 | Max cycles exceeded")
+            
+            self.orch_log_message("[WARNING] HUMAN INTERVENTION REQUIRED", 'warning')
+            self.orch_log_message(f"Error: {result.error_message}", 'warning')
+            self.orch_log_message(f"Attempted {result.iterations} iterations", 'warning')
+        
+        else:
+            if hasattr(self, 'orch_status_var'):
+                self.orch_status_var.set("[ERROR] WORKFLOW FAILED")
+            self.orch_log_message("[ERROR] WORKFLOW FAILED", 'error')
+            self.orch_log_message(f"Error: {result.error_message}", 'error')
+        
+        self.orch_log_message("="*70, 'info')
+    
+    def orch_pause(self):
+        """Pause workflow"""
+        if not self.orch_running:
+            messagebox.showinfo("Not Running", "No workflow is currently running")
+            return
+        
+        messagebox.showinfo("Pause", "Pause functionality will be implemented")
+    
+    def orch_reset(self):
+        """Reset orchestrator state"""
+        if self.orch_running:
+            confirm = messagebox.askyesno("Confirm Reset", 
+                                          "Workflow is running. Stop and reset?")
+            if not confirm:
+                return
+        
+        self.orch_running = False
+        if hasattr(self, 'orch_log'):
+            self.orch_log.configure(state=tk.NORMAL)
+            self.orch_log.delete('1.0', tk.END)
+            self.orch_log.configure(state=tk.DISABLED)
+        
+        if hasattr(self, 'orch_results_text'):
+            self.orch_results_text.delete('1.0', tk.END)
+        
+        if hasattr(self, 'orch_status_var'):
+            self.orch_status_var.set("⏸ Ready - Configure and start workflow")
+        
+        self.orch_log_message("Orchestrator reset. Ready for new workflow!", 'success')
+    
+    def orch_save_dataset(self):
+        """Save generated dataset"""
+        if not hasattr(self, 'orch_result') or not self.orch_result or not self.orch_result.dataset:
+            messagebox.showwarning("No Dataset", "No dataset available to save")
+            return
+        
+        file_path = filedialog.asksaveasfilename(
+            title="Save Dataset",
+            defaultextension=".csv",
+            filetypes=[("CSV files", "*.csv"), ("JSON files", "*.json"), ("All files", "*.*")]
+        )
+        
+        if file_path:
+            try:
+                if file_path.endswith('.json'):
+                    self.orch_result.dataset.to_json(file_path, orient='records', indent=2)
+                else:
+                    self.orch_result.dataset.to_csv(file_path, index=False)
+                
+                messagebox.showinfo("Success", f"Dataset saved to:\n{file_path}")
+                self.orch_log_message(f"Dataset saved: {file_path}", 'success')
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to save dataset:\n{str(e)}")
+    
+    def orch_view_dataset(self):
+        """View full dataset in new window"""
+        if not hasattr(self, 'orch_result') or not self.orch_result or not self.orch_result.dataset:
+            messagebox.showwarning("No Dataset", "No dataset available to view")
+            return
+        
+        view_window = tk.Toplevel(self.root)
+        view_window.title("Dataset Viewer")
+        view_window.geometry("1000x600")
+        
+        frame = ttk.Frame(view_window, padding=10)
+        frame.pack(fill=tk.BOTH, expand=True)
+        
+        text = scrolledtext.ScrolledText(frame, wrap=tk.NONE, font=('Consolas', 9))
+        text.pack(fill=tk.BOTH, expand=True)
+        
+        text.insert('1.0', self.orch_result.dataset.to_string())
+        text.configure(state=tk.DISABLED)
+    
+    def orch_open_folder(self):
+        """Open output folder"""
+        if not self.orch_result or not self.orch_result.metadata.get('output_dir'):
+            messagebox.showwarning("No Output", "No output directory available")
+            return
+        
+        import subprocess
+        import os
+        
+        output_dir = self.orch_result.metadata['output_dir']
+        
+        if os.path.exists(output_dir):
+            subprocess.Popen(['explorer', output_dir])
+        else:
+            messagebox.showwarning("Not Found", f"Directory not found:\n{output_dir}")
 
 
 def main():

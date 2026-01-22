@@ -25,7 +25,7 @@ try:
     LLM_AVAILABLE = True
 except ImportError:
     LLM_AVAILABLE = False
-    print("⚠️ LLM required for autonomous GitHub agent")
+    print("[WARNING] LLM required for autonomous GitHub agent")
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +58,7 @@ class GitHubAutonomousAgent:
         if self.repo_path:
             print(f"✅ Repository auto-detected: {self.repo_path}")
         else:
-            print("⚠️ No Git repository detected - please set repository path manually")
+            print("[WARNING] No Git repository detected - please set repository path manually")
     
     def _load_knowledge(self) -> Dict[str, Any]:
         """Load learned knowledge"""
@@ -206,7 +206,7 @@ class GitHubAutonomousAgent:
                     self._analyze_repository_context()
                     return True
                 except Exception as e:
-                    print(f"⚠️ Could not initialize git: {e}")
+                    print(f"[WARNING] Could not initialize git: {e}")
                     # Still allow analysis even without git
                     self.repo_path = repo_path
                     self.llm.set_repository(repo_path)
@@ -547,7 +547,7 @@ class GitHubAutonomousAgent:
                 
                 return understanding
             else:
-                print(f"⚠️ Error: {e}")
+                print(f"[WARNING] Error: {e}")
                 return {
                     'error': str(e),
                     'fallback': True,
@@ -747,7 +747,7 @@ If unsure, make an intelligent decision and proceed with the most likely interpr
         
         # If no metrics detected, add basic ones
         if not metrics:
-            print("⚠️ No metrics detected in query, using default set")
+            print("[WARNING] No metrics detected in query, using default set")
             metrics = [
                 {'name': 'KLOC', 'description': 'Thousands of Lines of Code'},
                 {'name': 'Complexity', 'description': 'Cyclomatic Complexity'},
@@ -767,7 +767,7 @@ If unsure, make an intelligent decision and proceed with the most likely interpr
             output_format = 'csv'
             print("📊 Detected output format: CSV")
         else:
-            print("⚠️ No format specified, defaulting to JSON")
+            print("[WARNING] No format specified, defaulting to JSON")
             print(f"   Query: {query_lower[:100]}")  # Debug: show query
         
         # Detect custom formula
@@ -891,7 +891,7 @@ If unsure, make an intelligent decision and proceed with the most likely interpr
    {info['description']}
 
 📏 Estimated Size: {info.get('size', 'Varies by project')}
-⚠️  Processing Time: {info.get('processing_time', 'Several minutes to hours')}
+[WARNING] Processing Time: {info.get('processing_time', 'Several minutes to hours')}
 💾 System Requirements: {info.get('requirements', 'Git, Java/Python environment')}
 
 🌐 Homepage:
@@ -1471,7 +1471,7 @@ If unsure, make an intelligent decision and proceed with the most likely interpr
             
             if not format_match and requested_formats:
                 # We didn't deliver the requested format - inform user
-                format_message = f"⚠️ Note: Generated in {output_format.upper()} format, but you requested {'/'.join(requested_formats)}. Would you like me to convert it?"
+                format_message = f"[WARNING] Note: Generated in {output_format.upper()} format, but you requested {'/'.join(requested_formats)}. Would you like me to convert it?"
             
             # Build informative message about the dataset type
             dataset_description = self._describe_generated_dataset(understanding, metrics_results)
