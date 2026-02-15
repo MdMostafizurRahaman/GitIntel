@@ -21,22 +21,21 @@ try:
     parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     env_path = os.path.join(parent_dir, '.env')
     
-    print(f"[DEBUG] Main file location: {__file__}")
-    print(f"[DEBUG] Looking for .env at: {env_path}")
+    print(f"  Main file location: {__file__}")
+    print(f"  Looking for .env at: {env_path}")
     
     if os.path.exists(env_path):
         load_dotenv(env_path)
-        print(f"[OK] Loaded .env from {parent_dir}")
-        # Verify AWS credentials loaded
+        print(f"Loaded .env from {parent_dir}")
         if os.environ.get('AWS_ACCESS_KEY_ID'):
-            print(f"[OK] AWS_ACCESS_KEY_ID loaded successfully")
+            print(f"AWS_ACCESS_KEY_ID loaded successfully")
         if os.environ.get('GEMINI_API_KEY'):
-            print(f"[OK] GEMINI_API_KEY loaded successfully")
+            print(f"GEMINI_API_KEY loaded successfully")
     else:
         # Try current directory
-        print(f"[WARNING] .env not found at {env_path}, trying current directory...")
+        print(f"  .env not found at {env_path}, trying current directory...")
         load_dotenv()
-        print(f"[OK] Attempted to load from current directory")
+        print(f"Attempted to load from current directory")
 except ImportError:
     pass
 
@@ -107,9 +106,9 @@ def rate_limited(max_per_minute=10):
 class TaskStatus(Enum):
     PENDING = "Pending"
     WAITING_APPROVAL = "Waiting Approval"
-    IN_PROGRESS = "[PROCESSING] In Progress"
-    COMPLETED = "[OK] Completed"
-    FAILED = "[ERROR] Failed"
+    IN_PROGRESS = "In Progress"
+    COMPLETED = "Completed"
+    FAILED = "Failed"
     SKIPPED = "Skipped"
 
 
@@ -240,7 +239,7 @@ class MessageType(Enum):
     USER = "👤"
     THINKING = "💭"
     ACTION = "⚡"
-    SUCCESS = "[OK]"
+    SUCCESS = "✓"
     ERROR = "[ERROR]"
     QUESTION = "❓"
     INFO = "[INFO]"
@@ -261,9 +260,7 @@ class AgentMessage:
 # NOTE: LLMJurySystem/LLMCodeJurySystem is imported from llm_code_jury_system.py (see imports above)
 
 class AgenticDatasetGUI:
-    """
-    VS Code Copilot-Style Agentic Dataset Generator
-    
+    """    
     Features:
     - Split view with main content and agent panel
     - Todo list showing all planned tasks
@@ -284,7 +281,7 @@ class AgenticDatasetGUI:
     
     def __init__(self, root):
         self.root = root
-        self.root.title("GitIntel Agentic Dataset Generator - Copilot Style")
+        self.root.title("GitIntel Agentic Dataset Generator")
         self.root.geometry("1400x900")
         self.root.minsize(1200, 800)
         
@@ -331,12 +328,12 @@ class AgenticDatasetGUI:
                     
                     if aws_configured:
                         self.add_agent_message(MessageType.SUCCESS, 
-                            f"[OK] Multi-LLM Jury System initialized (1 Generator + 3 Verifiers)\n"
-                            f"   [PROCESSING] AWS Bedrock fallback: ENABLED (unlimited quota)")
+                            f"Multi-LLM Jury System initialized (1 Generator + 3 Verifiers)\n"
+                            f"AWS Bedrock fallback: ENABLED (unlimited quota)")
                     else:
                         self.add_agent_message(MessageType.SUCCESS, 
-                            f"[OK] Multi-LLM Jury System initialized (1 Generator + 3 Verifiers)\n"
-                            f"   [WARNING] AWS fallback: DISABLED (add AWS credentials to .env for unlimited)")
+                            f"Multi-LLM Jury System initialized (1 Generator + 3 Verifiers)\n"
+                            f"AWS fallback: DISABLED (add AWS credentials to .env for unlimited)")
                 else:
                     self.llm_jury_system = None
                     missing = []
@@ -345,10 +342,10 @@ class AgenticDatasetGUI:
                     if not jury_keys[1]: missing.append('Jurry_2')
                     if not jury_keys[2]: missing.append('Jurry_3')
                     self.add_agent_message(MessageType.INFO, 
-                        f"[INFO] Multi-LLM Jury disabled - missing: {', '.join(missing)}")
+                        f"Multi-LLM Jury disabled - missing: {', '.join(missing)}")
                     
             except Exception as e:
-                safe_print(f"[WARNING] Autonomous agent initialization failed: {e}")
+                safe_print(f"Autonomous agent initialization failed: {e}")
                 self.autonomous_agent = None
                 self.enhanced_system = None
                 self.llm_jury_system = None
@@ -361,10 +358,10 @@ class AgenticDatasetGUI:
         try:
             self.catalog = MetricsCatalog()
             all_metrics = self.catalog.get_all_metrics()
-            self.add_agent_message(MessageType.SUCCESS, f"[OK] Loaded {len(all_metrics)} metrics from catalog")
+            self.add_agent_message(MessageType.SUCCESS, f"Loaded {len(all_metrics)} metrics from catalog")
         except Exception as e:
             self.catalog = None
-            self.add_agent_message(MessageType.ERROR, f"[WARNING] Metrics catalog not available: {e}")
+            self.add_agent_message(MessageType.ERROR, f"Metrics catalog not available: {e}")
             
         try:
             self.agent = GitHubAutonomousAgent()
@@ -384,9 +381,9 @@ class AgenticDatasetGUI:
         # Initialize test executor for custom metrics validation
         try:
             self.test_executor = AgenticCodeTestExecutor()
-            print("[OK] Test executor initialized (5-iteration validation)")
+            print("Test executor initialized (5-iteration validation)")
         except Exception as e:
-            print(f"[WARNING] Test executor not available: {e}")
+            print(f"  Test executor not available: {e}")
             self.test_executor = None
             
         # Initialize integrated jury system
@@ -394,16 +391,16 @@ class AgenticDatasetGUI:
             self.integrated_jury = IntegratedJurySystem()
             self.jury_session_active = False
             self.jury_clarification_pending = False
-            print("[OK] Integrated Jury System initialized (Question Clarifier + Generator + 3 Test LLMs)")
+            print("Integrated Jury System initialized (Question Clarifier + Generator + 3 Test LLMs)")
             self.add_agent_message(MessageType.SUCCESS, 
-                "[OK] Integrated Jury System ready:\n"
+                " Integrated Jury System ready:\n"
                 "   • Question Clarifier: Asks until understands\n"
                 "   • Code Generator: Creates code from clarified requirements\n"
                 "   • 3 Test LLMs: Independent test generation\n"
                 "   • Validation: 2/3 tests must pass\n"
                 "   • Max 5 iterations before human help")
         except Exception as e:
-            print(f"[WARNING] Integrated jury system not available: {e}")
+            print(f"  Integrated jury system not available: {e}")
             self.integrated_jury = None
             self.jury_session_active = False
             self.jury_clarification_pending = False
@@ -419,7 +416,7 @@ class AgenticDatasetGUI:
         
         # Welcome message
         self.add_agent_message(MessageType.SYSTEM, 
-            "Welcome to GitIntel Agentic Dataset Generator! [SUCCESS]\n\n"
+            "Welcome to GitIntel Agentic Dataset Generator!\n\n"
             "I'm your AI assistant for creating datasets. Tell me what you need:\n"
             "• 'Create a Defects4J dataset from my repo'\n"
             "• 'Generate complexity metrics for Python files'\n"
@@ -466,38 +463,10 @@ class AgenticDatasetGUI:
         
         # TAB 1: Dataset Generator (Original functionality)
         self.dataset_tab = ttk.Frame(self.main_notebook)
-        self.main_notebook.add(self.dataset_tab, text="[DATA] Dataset Generator")
-        
-        # TAB 2: Formula Generator (isolated)
-        self.formula_tab = ttk.Frame(self.main_notebook)
-        self.main_notebook.add(self.formula_tab, text="[FORMULA] Formula Generator")
-        
-        # TAB 3: Multi-Agent Orchestrator (NEW - Primary Workflow)
-        self.orchestrator_tab = ttk.Frame(self.main_notebook)
-        self.main_notebook.add(self.orchestrator_tab, text="🤖 Multi-Agent Workflow")
-        
-        # TAB 4: Integrated Jury System
-        self.jury_tab = ttk.Frame(self.main_notebook)
-        self.main_notebook.add(self.jury_tab, text="Integrated Jury System")
-        
-        # TAB 5: Logs
-        self.logs_tab = ttk.Frame(self.main_notebook)
-        self.main_notebook.add(self.logs_tab, text="[LOGS] Activity Logs")
+        self.main_notebook.add(self.dataset_tab, text="Dataset Generator")
                 
-        # Build Tab 1: Dataset Generator (original split panel)
+        # Build Tab 1: Dataset Generator
         self.build_dataset_tab()
-        
-        # Build Tab 2: Formula Generator (isolated)
-        self.build_formula_tab()
-        
-        # Build Tab 3: Multi-Agent Orchestrator (NEW)
-        self.build_orchestrator_tab()
-        
-        # Build Tab 4: Integrated Jury System
-        self.build_integrated_jury_tab()
-        
-        # Build Tab 5: Logs
-        self.build_logs_tab()
     
     def build_dataset_tab(self):
         """TAB 1: Dataset Generator (original functionality in clean layout)"""
@@ -516,329 +485,7 @@ class AgenticDatasetGUI:
         # Build original panels
         self.build_left_panel()
         self.build_agent_panel()
-    
-    def build_formula_tab(self):
-        """TAB 2: Dynamic Formula Generator - ISOLATED from dataset chat"""
-        if not hasattr(self, 'llm_jury_system') or not self.llm_jury_system:
-            ttk.Label(self.formula_tab, text="[ERROR] Multi-LLM Jury System not available",
-                     font=('Arial', 14), foreground='red').pack(pady=50)
-            return
-        
-        # Top warning
-        warning_frame = ttk.Frame(self.formula_tab, padding=10)
-        warning_frame.pack(fill=tk.X)
-        
-        ttk.Label(warning_frame, 
-                 text="[WARNING] FORMULA GENERATOR ONLY - Type natural language formulas here",
-                 font=('Segoe UI', 12, 'bold'), foreground='red').pack(anchor=tk.W)
-        
-        ttk.Label(warning_frame,
-                 text="Example: 'Calculate Bug Density = bugs / (loc / 1000)'\nDO NOT use for general questions - use Dataset Generator tab",
-                 foreground='gray').pack(anchor=tk.W)
-        
-        # Formula input
-        input_frame = ttk.LabelFrame(self.formula_tab, text="[NOTE] Formula Input", padding=10)
-        input_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-        
-        self.formula_text_input = scrolledtext.ScrolledText(input_frame, height=8, wrap=tk.WORD,
-                                                            font=('Consolas', 11))
-        self.formula_text_input.pack(fill=tk.BOTH, expand=True)
-        
-        # Button row
-        btn_frame = ttk.Frame(self.formula_tab, padding=10)
-        btn_frame.pack(fill=tk.X)
-        
-        ttk.Button(btn_frame, text="Generate & Apply Formulas",
-                  command=self.execute_formula_only,
-                  style='Accent.TButton').pack(side=tk.LEFT, padx=5)
-        
-        self.formula_status_display = tk.StringVar(value="Ready | 1 Generator + 3 Verifiers | AWS Fallback Enabled")
-        ttk.Label(btn_frame, textvariable=self.formula_status_display,
-                 foreground='green', font=('Segoe UI', 9)).pack(side=tk.LEFT, padx=10)
-        
-        # Logs
-        logs_frame = ttk.LabelFrame(self.formula_tab, text="Execution Logs", padding=10)
-        logs_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-        
-        self.formula_execution_logs = scrolledtext.ScrolledText(logs_frame, height=15, wrap=tk.WORD,
-                                                                bg='#1e1e1e', fg='#ffffff', state=tk.DISABLED)
-        self.formula_execution_logs.pack(fill=tk.BOTH, expand=True)
-        
-        # Configure tags
-        self.formula_execution_logs.tag_configure('success', foreground='#4caf50')
-        self.formula_execution_logs.tag_configure('error', foreground='#f44336')
-        self.formula_execution_logs.tag_configure('info', foreground='#2196f3')
-        
-        self.log_to_formula("info", "[OK] Ready to generate formulas. Type natural language and click Generate.")
-    
-    def build_integrated_jury_tab(self):
-        """TAB 3: Integrated Jury System - Complete workflow with clarification"""
-        if not hasattr(self, 'integrated_jury') or not self.integrated_jury:
-            ttk.Label(self.jury_tab, text="[ERROR] Integrated Jury System not available",
-                     font=('Arial', 14), foreground='red').pack(pady=50)
-            return
-        
-        # Top info panel
-        info_frame = ttk.Frame(self.jury_tab, padding=10)
-        info_frame.pack(fill=tk.X)
-        
-        ttk.Label(info_frame, 
-                 text="Integrated Multi-LLM Jury System",
-                 font=('Segoe UI', 14, 'bold')).pack(anchor=tk.W)
-        
-        ttk.Label(info_frame,
-                 text="Complete workflow: Question Clarification → Code Generation → 3-LLM Testing → Validation → Iteration (max 5) → Human Help",
-                 font=('Segoe UI', 9), foreground='gray').pack(anchor=tk.W, pady=(5, 0))
-        
-        # Conversation area (shows clarification Q&A and progress)
-        conversation_frame = ttk.LabelFrame(self.jury_tab, text="Conversation & Progress", padding=10)
-        conversation_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-        
-        self.jury_conversation = scrolledtext.ScrolledText(conversation_frame, height=20, wrap=tk.WORD,
-                                                           bg='#1e1e1e', fg='#ffffff', state=tk.DISABLED,
-                                                           font=('Segoe UI', 10))
-        self.jury_conversation.pack(fill=tk.BOTH, expand=True)
-        
-        # Configure tags for conversation
-        self.jury_conversation.tag_configure('question', foreground='#2196f3', font=('Segoe UI', 10, 'bold'))
-        self.jury_conversation.tag_configure('answer', foreground='#ffffff')
-        self.jury_conversation.tag_configure('system', foreground='#4caf50')
-        self.jury_conversation.tag_configure('error', foreground='#f44336')
-        self.jury_conversation.tag_configure('thinking', foreground='#ff9800')
-        
-        # Input area
-        input_frame = ttk.LabelFrame(self.jury_tab, text="Your Input", padding=10)
-        input_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
-        
-        # Status display
-        self.jury_status_var = tk.StringVar(value="Ready to help! Describe what you need...")
-        ttk.Label(input_frame, textvariable=self.jury_status_var,
-                 font=('Segoe UI', 9, 'italic'), foreground='#2196f3').pack(anchor=tk.W, pady=(0, 5))
-        
-        # Text input
-        input_container = ttk.Frame(input_frame)
-        input_container.pack(fill=tk.X)
-        
-        self.jury_input = scrolledtext.ScrolledText(input_container, height=4, wrap=tk.WORD,
-                                                    font=('Segoe UI', 10))
-        self.jury_input.pack(fill=tk.BOTH, expand=True)
-        
-        # Button row
-        button_row = ttk.Frame(self.jury_tab, padding=(10, 0, 10, 10))
-        button_row.pack(fill=tk.X)
-        
-        ttk.Button(button_row, text="Start New Request",
-                  command=self.jury_start_new_request,
-                  style='Accent.TButton').pack(side=tk.LEFT, padx=5)
-        
-        self.jury_answer_btn = ttk.Button(button_row, text="Answer Questions",
-                                          command=self.jury_provide_feedback,
-                                          state=tk.DISABLED)
-        self.jury_answer_btn.pack(side=tk.LEFT, padx=5)
-        
-        ttk.Button(button_row, text="Reset Session",
-                  command=self.jury_reset_session).pack(side=tk.LEFT, padx=5)
-        
-        # Session info
-        self.jury_session_info = tk.StringVar(value="No active session")
-        ttk.Label(button_row, textvariable=self.jury_session_info,
-                 font=('Segoe UI', 9), foreground='gray').pack(side=tk.RIGHT, padx=10)
-    
-    def build_orchestrator_tab(self):
-        """TAB 3: Multi-Agent Orchestrator - PRIMARY Workflow for Dataset Generation"""
-        # ═══════════════════════════════════════════════════════════════════
-        # Multi-Agent Workflow Tab - Complete System
-        # ═══════════════════════════════════════════════════════════════════
-        
-        # Top info panel
-        info_frame = ttk.Frame(self.orchestrator_tab, padding=10)
-        info_frame.pack(fill=tk.X)
-        
-        ttk.Label(info_frame, 
-                 text="🤖 Multi-Agent Dataset Generator Orchestrator",
-                 font=('Segoe UI', 16, 'bold')).pack(anchor=tk.W)
-        
-        ttk.Label(info_frame,
-                 text="Complete automated workflow: Requirement Analysis → Code Generation → 3-Agent Testing Trio → Refinement → Dataset Output",
-                 font=('Segoe UI', 9), foreground='gray').pack(anchor=tk.W, pady=(5, 0))
-        
-        # Split panel: Left (Config) | Right (Progress)
-        split_container = ttk.PanedWindow(self.orchestrator_tab, orient=tk.HORIZONTAL)
-        split_container.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-        
-        # ═══════════════════════════════════════════════════════════════════
-        # LEFT PANEL: Configuration & Metrics Selection
-        # ═══════════════════════════════════════════════════════════════════
-        left_panel = ttk.Frame(split_container, padding=10)
-        split_container.add(left_panel, weight=1)
-        
-        # Repository selection
-        repo_frame = ttk.LabelFrame(left_panel, text="[REPO] Repository Source", padding=10)
-        repo_frame.pack(fill=tk.X, pady=(0, 10))
-        
-        self.orch_repo_var = tk.StringVar()
-        ttk.Entry(repo_frame, textvariable=self.orch_repo_var, font=('Consolas', 10)).pack(fill=tk.X, pady=5)
-        
-        repo_btn_frame = ttk.Frame(repo_frame)
-        repo_btn_frame.pack(fill=tk.X)
-        ttk.Button(repo_btn_frame, text="Browse Folder", command=self.orch_browse_repo).pack(side=tk.LEFT, padx=2)
-        ttk.Button(repo_btn_frame, text="Clone from GitHub", command=self.orch_clone_repo).pack(side=tk.LEFT, padx=2)
-        
-        # User request (natural language)
-        request_frame = ttk.LabelFrame(left_panel, text="[REQUEST] What do you want to generate?", padding=10)
-        request_frame.pack(fill=tk.X, pady=(0, 10))
-        
-        self.orch_request_text = scrolledtext.ScrolledText(request_frame, height=4, wrap=tk.WORD,
-                                                           font=('Segoe UI', 10))
-        self.orch_request_text.pack(fill=tk.BOTH, expand=True)
-        self.orch_request_text.insert('1.0', 
-            "Example: 'Generate bug prediction dataset with complexity and change metrics'\n"
-            "or: 'Create Defects4J-style dataset with CK metrics and defect labels'")
-        
-        # Metrics selection (from catalog)
-        metrics_frame = ttk.LabelFrame(left_panel, text="[METRICS] Pre-defined Metrics (64 available)", padding=10)
-        metrics_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
-        
-        # Category filter
-        cat_frame = ttk.Frame(metrics_frame)
-        cat_frame.pack(fill=tk.X, pady=(0, 5))
-        ttk.Label(cat_frame, text="Category:").pack(side=tk.LEFT, padx=5)
-        
-        self.orch_category_var = tk.StringVar(value="All")
-        categories = ["All", "LOC", "SIZE", "COMPLEXITY", "CK", "CHANGE", "DEFECT", 
-                     "QUALITY", "HALSTEAD", "MAINTAINABILITY", "OOP", "COUPLING", 
-                     "AUTHOR", "PROCESS", "LABEL"]
-        ttk.Combobox(cat_frame, textvariable=self.orch_category_var, values=categories,
-                    state='readonly', width=15).pack(side=tk.LEFT, padx=5)
-        ttk.Button(cat_frame, text="Filter", command=self.orch_filter_metrics).pack(side=tk.LEFT, padx=5)
-        
-        # Metrics listbox with checkboxes
-        metrics_list_frame = ttk.Frame(metrics_frame)
-        metrics_list_frame.pack(fill=tk.BOTH, expand=True)
-        
-        metrics_scroll = ttk.Scrollbar(metrics_list_frame)
-        metrics_scroll.pack(side=tk.RIGHT, fill=tk.Y)
-        
-        self.orch_metrics_listbox = tk.Listbox(metrics_list_frame, selectmode=tk.MULTIPLE,
-                                               yscrollcommand=metrics_scroll.set,
-                                               font=('Segoe UI', 9))
-        self.orch_metrics_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        metrics_scroll.config(command=self.orch_metrics_listbox.yview)
-        
-        # Load all metrics
-        self.orch_load_metrics()
-        
-        # Quick select buttons
-        quick_frame = ttk.Frame(metrics_frame)
-        quick_frame.pack(fill=tk.X, pady=(5, 0))
-        ttk.Button(quick_frame, text="Select All", command=self.orch_select_all).pack(side=tk.LEFT, padx=2)
-        ttk.Button(quick_frame, text="Clear All", command=self.orch_clear_all).pack(side=tk.LEFT, padx=2)
-        ttk.Button(quick_frame, text="Popular Set", command=self.orch_popular_set).pack(side=tk.LEFT, padx=2)
-        
-        # Benchmarks
-        benchmark_frame = ttk.LabelFrame(left_panel, text="[BENCHMARK] Compare with (7 available)", padding=10)
-        benchmark_frame.pack(fill=tk.X, pady=(0, 10))
-        
-        self.orch_benchmark_var = tk.StringVar(value="None")
-        benchmarks = ["None", "Defects4J", "Bugs.jar", "ManySStuBs4J", "CodeXGLUE", 
-                     "CodeSearchNet", "Sourcerer", "PROMISE"]
-        ttk.Combobox(benchmark_frame, textvariable=self.orch_benchmark_var, values=benchmarks,
-                    state='readonly').pack(fill=tk.X)
-        
-        # Control buttons
-        control_frame = ttk.Frame(left_panel)
-        control_frame.pack(fill=tk.X, pady=(10, 0))
-        
-        ttk.Button(control_frame, text="▶ Start Multi-Agent Workflow",
-                  command=self.orch_start_workflow,
-                  style='Accent.TButton').pack(fill=tk.X, pady=2)
-        ttk.Button(control_frame, text="⏸ Pause", command=self.orch_pause).pack(fill=tk.X, pady=2)
-        ttk.Button(control_frame, text="🔄 Reset", command=self.orch_reset).pack(fill=tk.X, pady=2)
-        
-        # ═══════════════════════════════════════════════════════════════════
-        # RIGHT PANEL: Progress & Agent Activities
-        # ═══════════════════════════════════════════════════════════════════
-        right_panel = ttk.Frame(split_container, padding=10)
-        split_container.add(right_panel, weight=2)
-        
-        # Status bar
-        status_frame = ttk.Frame(right_panel)
-        status_frame.pack(fill=tk.X, pady=(0, 10))
-        
-        self.orch_status_var = tk.StringVar(value="⏸ Ready - Configure and start workflow")
-        ttk.Label(status_frame, textvariable=self.orch_status_var,
-                 font=('Segoe UI', 11, 'bold'), foreground='#007acc').pack(anchor=tk.W)
-        
-        self.orch_progress_var = tk.StringVar(value="Cycle: 0/5 | Status: Idle")
-        ttk.Label(status_frame, textvariable=self.orch_progress_var,
-                 font=('Segoe UI', 9), foreground='gray').pack(anchor=tk.W, pady=(5, 0))
-        
-        # Agent activity log
-        log_frame = ttk.LabelFrame(right_panel, text="[ACTIVITY] Multi-Agent Workflow Log", padding=10)
-        log_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
-        
-        self.orch_log = scrolledtext.ScrolledText(log_frame, wrap=tk.WORD,
-                                                  bg='#1e1e1e', fg='#ffffff',
-                                                  font=('Consolas', 9), state=tk.DISABLED)
-        self.orch_log.pack(fill=tk.BOTH, expand=True)
-        
-        # Configure tags for colored output
-        self.orch_log.tag_configure('agent1', foreground='#2196f3')  # Blue - Agent 1
-        self.orch_log.tag_configure('agent2', foreground='#4caf50')  # Green - Agent 2
-        self.orch_log.tag_configure('agent3', foreground='#ff9800')  # Orange - Agent 3-5
-        self.orch_log.tag_configure('success', foreground='#4caf50', font=('Consolas', 9, 'bold'))
-        self.orch_log.tag_configure('error', foreground='#f44336', font=('Consolas', 9, 'bold'))
-        self.orch_log.tag_configure('warning', foreground='#ff9800')
-        self.orch_log.tag_configure('info', foreground='#ffffff')
-        
-        # Results panel
-        results_frame = ttk.LabelFrame(right_panel, text="[RESULTS] Generated Dataset Preview", padding=10)
-        results_frame.pack(fill=tk.BOTH, expand=True)
-        
-        result_scroll = ttk.Scrollbar(results_frame)
-        result_scroll.pack(side=tk.RIGHT, fill=tk.Y)
-        
-        self.orch_results_text = scrolledtext.ScrolledText(results_frame, height=10, wrap=tk.NONE,
-                                                           yscrollcommand=result_scroll.set,
-                                                           font=('Consolas', 9))
-        self.orch_results_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        result_scroll.config(command=self.orch_results_text.yview)
-        
-        # Save/Export buttons
-        export_frame = ttk.Frame(right_panel)
-        export_frame.pack(fill=tk.X, pady=(10, 0))
-        ttk.Button(export_frame, text="💾 Save Dataset", command=self.orch_save_dataset).pack(side=tk.LEFT, padx=5)
-        ttk.Button(export_frame, text="📊 View Full Dataset", command=self.orch_view_dataset).pack(side=tk.LEFT, padx=5)
-        ttk.Button(export_frame, text="📁 Open Output Folder", command=self.orch_open_folder).pack(side=tk.LEFT, padx=5)
-        
-        # Initialize orchestrator state
-        self.orchestrator = None
-        self.orch_result = None
-        self.orch_running = False
-        
-        # Log welcome message
-        self.orch_log_message("Multi-Agent Orchestrator initialized", 'success')
-        self.orch_log_message("64 metrics available across 14 categories", 'info')
-        self.orch_log_message("7 benchmark datasets available for comparison", 'info')
-        self.orch_log_message("Configure your request and start the workflow →", 'info')
-    
-    def build_logs_tab(self):
-        """TAB 5: System Logs"""
-        logs_frame = ttk.Frame(self.logs_tab, padding=10)
-        logs_frame.pack(fill=tk.BOTH, expand=True)
-        
-        ttk.Label(logs_frame, text="System Logs", font=('Segoe UI', 14, 'bold')).pack(anchor=tk.W, pady=5)
-        
-        self.system_logs_text = scrolledtext.ScrolledText(logs_frame, wrap=tk.WORD,
-                                                          bg='#1e1e1e', fg='#ffffff', state=tk.DISABLED)
-        self.system_logs_text.pack(fill=tk.BOTH, expand=True)
-        
-        # Add startup logs
-        self.log_system("[OK] GitIntel Dataset Generator initialized")
-        if hasattr(self, 'llm_jury_system') and self.llm_jury_system:
-            self.log_system("[OK] Multi-LLM Jury System ready (AWS fallback enabled)")
-        self.log_system(f"[OK] Gemini API: {'Configured' if self.api_key else 'Not configured'}")
-    
+
     def build_left_panel(self):
         """Build the left main content panel"""
         # Title bar
@@ -851,7 +498,7 @@ class AgenticDatasetGUI:
         # ═══════════════════════════════════════════════════════════════════
         # REPOSITORY SECTION
         # ═══════════════════════════════════════════════════════════════════
-        repo_frame = ttk.LabelFrame(self.left_frame, text="[FILES] Repository", padding=10)
+        repo_frame = ttk.LabelFrame(self.left_frame, text="Repository", padding=10)
         repo_frame.pack(fill=tk.X, pady=(0, 10))
         
         repo_input_frame = ttk.Frame(repo_frame)
@@ -877,7 +524,7 @@ class AgenticDatasetGUI:
         # ═══════════════════════════════════════════════════════════════════
         # BENCHMARK & METRICS SELECTOR
         # ═══════════════════════════════════════════════════════════════════
-        selector_frame = ttk.LabelFrame(self.left_frame, text="[DATA] Quick Dataset Options", padding=10)
+        selector_frame = ttk.LabelFrame(self.left_frame, text="Quick Dataset Options", padding=10)
         selector_frame.pack(fill=tk.X, pady=(0, 10))
         
         # Row 1: Benchmark dropdown
@@ -906,7 +553,7 @@ class AgenticDatasetGUI:
         ttk.Label(metrics_row, textvariable=self.selected_metrics_count,
                  font=('Segoe UI', 9), foreground='gray').pack(side=tk.LEFT, padx=5)
         
-        ttk.Button(metrics_row, text="[DATA] Select Metrics",
+        ttk.Button(metrics_row, text="Select Metrics",
                   command=self.show_metrics_selector).pack(side=tk.LEFT, padx=5)
         
         # Combine checkbox
@@ -981,13 +628,13 @@ class AgenticDatasetGUI:
             info_frame.pack(fill=tk.X, pady=(0, 10))
             
             ttk.Label(info_frame,
-                     text="💡 Tip: Use 'Dynamic Formulas' tab for formula generation with Multi-LLM Jury",
-                     font=('Segoe UI', 9), foreground='#2196f3', wraplength=500).pack(anchor=tk.W)
+                     text="Tip: Use 'Dynamic Formulas' tab for formula generation with Multi-LLM Jury",
+                     font=('Segoe UI', 9), foreground="#034e8c", wraplength=500).pack(anchor=tk.W)
         
         # ═══════════════════════════════════════════════════════════════════
         # TODO LIST PANEL
         # ═══════════════════════════════════════════════════════════════════
-        self.todo_frame = ttk.LabelFrame(self.left_frame, text="[NOTE] Task Plan", padding=10)
+        self.todo_frame = ttk.LabelFrame(self.left_frame, text="Task Plan", padding=10)
         self.todo_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
         
         # Todo header with control buttons
@@ -1066,7 +713,7 @@ class AgenticDatasetGUI:
                   font=('Segoe UI', 9)).pack(side=tk.LEFT)
         
     def build_agent_panel(self):
-        """Build the right agent panel (Copilot style)"""
+        """Build the right agent panel"""
         # Header
         header_frame = ttk.Frame(self.right_frame)
         header_frame.pack(fill=tk.X, pady=(0, 10))
@@ -1104,7 +751,7 @@ class AgenticDatasetGUI:
         # ═══════════════════════════════════════════════════════════════════
         # APPROVAL SECTION
         # ═══════════════════════════════════════════════════════════════════
-        self.approval_frame = ttk.LabelFrame(self.right_frame, text="❓ Action Required", padding=10)
+        self.approval_frame = ttk.LabelFrame(self.right_frame, text="Action Required ❓", padding=10)
         self.approval_frame.pack(fill=tk.X, pady=(0, 10))
         
         self.approval_text = ttk.Label(self.approval_frame, 
@@ -1115,12 +762,12 @@ class AgenticDatasetGUI:
         approval_btns = ttk.Frame(self.approval_frame)
         approval_btns.pack(fill=tk.X)
         
-        self.approve_btn = ttk.Button(approval_btns, text="[OK] Approve",
+        self.approve_btn = ttk.Button(approval_btns, text="Approve",
                                        command=self.approve_action,
                                        style='Approve.TButton')
         self.approve_btn.pack(side=tk.LEFT, padx=2, expand=True, fill=tk.X)
         
-        self.reject_btn = ttk.Button(approval_btns, text="[ERROR] Reject",
+        self.reject_btn = ttk.Button(approval_btns, text="Reject",
                                       command=self.reject_action,
                                       style='Reject.TButton')
         self.reject_btn.pack(side=tk.LEFT, padx=2, expand=True, fill=tk.X)
@@ -1224,7 +871,7 @@ class AgenticDatasetGUI:
                 TaskStatus.PENDING: '⏳',
                 TaskStatus.WAITING_APPROVAL: '❓',
                 TaskStatus.IN_PROGRESS: '[PROCESSING]',
-                TaskStatus.COMPLETED: '[OK]',
+                TaskStatus.COMPLETED: '✓',
                 TaskStatus.FAILED: '[ERROR]',
                 TaskStatus.SKIPPED: '⏭️'
             }
@@ -1311,7 +958,7 @@ class AgenticDatasetGUI:
             # USE ENHANCED: Real repository analysis with LLM
             if not self.repo_path:
                 self.add_agent_message(MessageType.ERROR, 
-                    "[ERROR] Real repository analysis requires a repository to be set first.")
+                    "ERROR real repository analysis requires a repository to be set first.")
                 messagebox.showwarning("Repository Required", 
                     "For custom metrics analysis, please set a repository first.\n\n"
                     "Or use benchmark datasets (Defects4J, Bugs.jar, etc.) which don't need a repo.")
@@ -1343,14 +990,14 @@ class AgenticDatasetGUI:
         # For NON-benchmark: check if catalog is loaded
         if not self.catalog:
             self.add_agent_message(MessageType.ERROR, 
-                "[ERROR] Metrics catalog not available. Cannot analyze custom metrics.")
+                "ERROR Metrics catalog not available. Cannot analyze custom metrics.")
             return
             
         # Show available metrics FIRST before asking questions
         all_metrics = self.catalog.get_all_metrics()
         categories = self.catalog.get_categories()
         
-        metrics_summary = f"[DATA] **{len(all_metrics)} Metrics Available:**\n\n"
+        metrics_summary = f"  **{len(all_metrics)} Metrics Available:**\n\n"
         for category in categories:
             cat_metrics = self.catalog.get_metrics_by_category(category)
             metrics_summary += f"**{category.upper()}** ({len(cat_metrics)}): "
@@ -1365,13 +1012,13 @@ class AgenticDatasetGUI:
         if not self.enhanced_system.repo_path or str(self.enhanced_system.repo_path) != str(self.repo_path):
             try:
                 self.add_agent_message(MessageType.THINKING, 
-                    "[SEARCH] Setting up repository and discovering metrics...")
+                    "Setting up repository and discovering metrics...")
                 
                 repo_info = self.enhanced_system.set_repository(self.repo_path)
                 
             except Exception as e:
                 self.add_agent_message(MessageType.ERROR, 
-                    f"[ERROR] Repository setup failed: {e}")
+                    f"  Repository setup failed: {e}")
                 return
         
         # Start conversation in background thread
@@ -1423,16 +1070,16 @@ class AgenticDatasetGUI:
                     
                 elif result['status'] == 'awaiting_final_approval':
                     # Show final approval after preview
-                    preview_text = f"[PREVIEW] **Preview Ready!**\n\n"
+                    preview_text = f"**Preview Ready!**\n\n"
                     preview_text += f"**Total Rows:** {result['total_rows']}\n"
                     preview_text += f"**Columns:** {len(result['preview'])}\n\n"
                     
                     for col_preview in result['preview']:
                         preview_text += f"**{col_preview.column_name}** ({col_preview.data_type})\n"
                         preview_text += f"  Formula: {col_preview.formula}\n"
-                        preview_text += f"  [DATA] Sample: {col_preview.sample_values[:3]}\n"
+                        preview_text += f"    Sample: {col_preview.sample_values[:3]}\n"
                         if col_preview.min_value is not None:
-                            preview_text += f"  [CHART] Range: [{col_preview.min_value:.2f} - {col_preview.max_value:.2f}]\n"
+                            preview_text += f"    Range: [{col_preview.min_value:.2f} - {col_preview.max_value:.2f}]\n"
                         preview_text += f"Unique: {col_preview.unique_count}\n\n"
                     
                     self.root.after(0, lambda: self.add_agent_message(MessageType.PREVIEW, preview_text))
@@ -1444,19 +1091,19 @@ class AgenticDatasetGUI:
             
             # If completed, show result
             if result['status'] == 'completed':
-                success_text = f"[OK] **Dataset Generated!**\n\n"
-                success_text += f"[FILES] **Files:**\n"
+                success_text = f"**Dataset Generated!**\n\n"
+                success_text += f"**Files:**\n"
                 success_text += f"  • CSV: {result['csv_file']}\n"
                 success_text += f"  • JSON: {result['json_file']}\n"
                 success_text += f"  • Metadata: {result['metadata_file']}\n\n"
-                success_text += f"[DATA] **Statistics:**\n"
+                success_text += f"**Statistics:**\n"
                 success_text += f"  • Rows: {result['rows']:,}\n"
                 success_text += f"  • Columns: {result['columns']}\n"
                 
                 self.root.after(0, lambda: self.add_agent_message(MessageType.SUCCESS, success_text))
                 
         except Exception as e:
-            error_msg = f"[ERROR] **Error:** {str(e)}"
+            error_msg = f"**Error:** {str(e)}"
             self.root.after(0, lambda: self.add_agent_message(MessageType.ERROR, error_msg))
     
     def _display_enhanced_messages(self):
@@ -1523,11 +1170,11 @@ class AgenticDatasetGUI:
             
         except Exception as e:
             self.root.after(0, lambda: self.add_agent_message(MessageType.ERROR, 
-                f"[ERROR] Error: {str(e)}"))
+                f"Error: {str(e)}"))
     
     def _approve_formula_generation(self, result):
         """Approve formula generation and execute comprehensive test validation"""
-        self.add_agent_message(MessageType.SUCCESS, "[OK] Formula generation approved. Running jury verification...")
+        self.add_agent_message(MessageType.SUCCESS, "Formula generation approved. Running jury verification...")
         
         # Generate formulas with jury verification
         self.enhanced_system._generate_missing_formulas()
@@ -1537,7 +1184,7 @@ class AgenticDatasetGUI:
             self.custom_metrics_to_apply = self.enhanced_system.generated_formulas
             num_formulas = len(self.enhanced_system.generated_formulas)
             self.add_agent_message(MessageType.SUCCESS, 
-                f"[OK] {num_formulas} custom formula(s) approved by jury")
+                f"{num_formulas} custom formula(s) approved by jury")
             
             # Display all messages including jury voting
             self._display_enhanced_messages()
@@ -1547,8 +1194,8 @@ class AgenticDatasetGUI:
             # ═══════════════════════════════════════════════════════════════
             if self.test_executor and hasattr(self, 'repo_path') and self.repo_path:
                 self.add_agent_message(MessageType.THINKING, 
-                    "[PROCESSING] Starting unit test generation and validation...\n"
-                    "   [NOTE] System will: Generate tests → Execute → Retry up to 5 times if needed")
+                    "Starting unit test generation and validation...\n"
+                    "System will: Generate tests → Execute → Retry up to 5 times if needed")
                 
                 # Prepare sample data from repository
                 sample_data = self._prepare_sample_data_for_testing()
@@ -1557,7 +1204,7 @@ class AgenticDatasetGUI:
                 for idx, formula in enumerate(self.enhanced_system.generated_formulas, 1):
                     self.add_agent_message(MessageType.INFO,
                         f"\n{'='*60}\n"
-                        f"[TESTING] Formula {idx}/{num_formulas}: {formula.name}\n"
+                        f"Formula {idx}/{num_formulas}: {formula.name}\n"
                         f"{'='*60}")
                     
                     try:
@@ -1576,46 +1223,46 @@ class AgenticDatasetGUI:
                         
                         if not report['overall_success']:
                             self.add_agent_message(MessageType.ERROR,
-                                f"[ERROR] Test validation FAILED for '{formula.name}' after 5 iterations\n"
-                                f"   [ACTION] Human review required\n"
-                                f"   [FILES] Check: {report['stages'].get('validation', {}).get('run_directory', 'N/A')}")
+                                f"Test validation FAILED for '{formula.name}' after 5 iterations\n"
+                                f" Human review required\n"
+                                f" Check: {report['stages'].get('validation', {}).get('run_directory', 'N/A')}")
                             validation_success = False
                             # Don't break - test all formulas to show complete status
                     
                     except Exception as e:
                         self.add_agent_message(MessageType.ERROR,
-                            f"[ERROR] Test execution failed for '{formula.name}': {str(e)[:200]}")
+                            f"Test execution failed for '{formula.name}': {str(e)[:200]}")
                         validation_success = False
                 
                 if validation_success:
                     self.add_agent_message(MessageType.SUCCESS,
-                        f"\n[OK] All {num_formulas} formula(s) validated successfully!\n"
-                        f"   [PROCESSING] Ready for full dataset generation with validated code")
+                        f"\nAll {num_formulas} formula(s) validated successfully!\n"
+                        f"Ready for full dataset generation with validated code")
                 else:
                     self.add_agent_message(MessageType.WARNING,
-                        f"\n[WARNING] Some formulas failed validation\n"
-                        f"   [ACTION] Review failed tests before dataset generation")
+                        f"\n Some formulas failed validation\n"
+                        f"   Review failed tests before dataset generation")
             else:
                 if not self.test_executor:
                     self.add_agent_message(MessageType.WARNING,
-                        "[WARNING] Test executor not available - skipping test validation")
+                        "Test executor not available - skipping test validation")
                 else:
                     self.add_agent_message(MessageType.WARNING,
-                        "[WARNING] No repository set - skipping test validation")
+                        "No repository set - skipping test validation")
         
         # Display final messages
         self._display_enhanced_messages()
         
         # Prepare for full dataset generation using enhanced_system
         self.add_agent_message(MessageType.THINKING, 
-            "[PROCESSING] Preparing full dataset generation with all 64+ metrics...")
+            "Preparing full dataset generation with all 64+ metrics...")
         
         # Mark that we should use enhanced_system for generation
         self.use_enhanced_generation = True
     
     def _reject_formula_generation(self):
         """Reject formula generation"""
-        self.add_agent_message(MessageType.ERROR, "[ERROR] Formula generation rejected. Operation cancelled.")
+        self.add_agent_message(MessageType.ERROR, "  Formula generation rejected. Operation cancelled.")
     
     def _prepare_sample_data_for_testing(self) -> Dict:
         """Prepare sample data from repository for test execution"""
@@ -1636,7 +1283,7 @@ class AgenticDatasetGUI:
             }
             return sample_data
         except Exception as e:
-            print(f"[WARNING] Could not prepare sample data: {e}")
+            print(f"Could not prepare sample data: {e}")
             return {'lines_of_code': 1000, 'bug_count': 5}
     
     def _display_test_results(self, report: Dict, formula_name: str):
@@ -1651,10 +1298,10 @@ class AgenticDatasetGUI:
             code_info = stages['code_generation']
             if code_info['status'] == 'approved':
                 self.add_agent_message(MessageType.SUCCESS,
-                    f"[OK] Stage 1: Code generation approved by {code_info.get('votes', 3)} judges")
+                    f"Stage 1: Code generation approved by {code_info.get('votes', 3)} judges")
             else:
                 self.add_agent_message(MessageType.ERROR,
-                    f"[ERROR] Stage 1: Code generation failed")
+                    f"Stage 1: Code generation failed")
                 return
         
         # Stage 2: Test Generation Status
@@ -1663,7 +1310,7 @@ class AgenticDatasetGUI:
             test_count = test_info.get('test_count', 0)
             quality_score = test_info.get('quality_score', 0)
             
-            status_icon = "[OK]" if test_info.get('is_approved', False) else "[WARNING]"
+            status_icon = "OK" if test_info.get('is_approved', False) else "[WARNING]"
             self.add_agent_message(MessageType.INFO,
                 f"{status_icon} Stage 2: Generated {test_count} unit tests "
                 f"(Quality: {quality_score:.0f}%)")
@@ -1685,7 +1332,7 @@ class AgenticDatasetGUI:
                 f"   Passed: {passed}/{total} tests ({pass_rate:.1f}%)\n"
                 f"   Failed: {failed} tests\n"
                 f"   Errors: {errors}\n"
-                f"   [NOTE] Required: {required}/{total} ({required/total*100:.0f}%) for approval")
+                f"   Required: {required}/{total} ({required/total*100:.0f}%) for approval")
         
         # Stage 4: Final Validation Status
         if 'validation' in stages:
@@ -1697,10 +1344,10 @@ class AgenticDatasetGUI:
                 passed_final = val_info.get('passed', 0)
                 
                 self.add_agent_message(MessageType.SUCCESS,
-                    f"[OK]  VALIDATION SUCCESSFUL for '{formula_name}'\n"
-                    f"   [DATA] Iterations: {iterations_taken}/5\n"
-                    f"   [DATA] Final: {passed_final}/{total_tests} tests passed\n"
-                    f"   [FILES] Results: {val_info.get('run_directory', 'N/A')}")
+                    f"VALIDATION SUCCESSFUL for '{formula_name}'\n"
+                    f"Iterations: {iterations_taken}/5\n"
+                    f"Final: {passed_final}/{total_tests} tests passed\n"
+                    f"Results: {val_info.get('run_directory', 'N/A')}")
             
             elif val_info['status'] == 'failed_max_retries':
                 iterations = val_info.get('iterations', 5)
@@ -1709,23 +1356,23 @@ class AgenticDatasetGUI:
                 run_dir = val_info.get('run_directory', 'N/A')
                 
                 self.add_agent_message(MessageType.ERROR,
-                    f"[ERROR]  VALIDATION FAILED for '{formula_name}'\n"
-                    f"   [DATA] Max iterations reached: {iterations}/5\n"
-                    f"   [DATA] Last result: {last_passed} passed, {last_failed} failed\n"
-                    f"   [ACTION] Manual review required\n"
-                    f"   [FILES] Check iteration logs: {run_dir}\n"
-                    f"   [NOTE] {val_info.get('note', 'See logs for details')}")
+                    f"VALIDATION FAILED for '{formula_name}'\n"
+                    f" Max iterations reached: {iterations}/5\n"
+                    f" Last result: {last_passed} passed, {last_failed} failed\n"
+                    f" Manual review required\n"
+                    f" Check iteration logs: {run_dir}\n"
+                    f" {val_info.get('note', 'See logs for details')}")
             else:
                 self.add_agent_message(MessageType.ERROR,
-                    f"[ERROR] Validation failed with status: {val_info['status']}")
+                    f"Validation failed with status: {val_info['status']}")
     
     def _reject_formula_generation_old(self):
         """Reject formula generation (renamed old method)"""
-        self.add_agent_message(MessageType.ERROR, "[ERROR] Formula generation rejected. Operation cancelled.")
+        self.add_agent_message(MessageType.ERROR, "  Formula generation rejected. Operation cancelled.")
     
     def _approve_plan(self):
         """Approve the plan and generate preview"""
-        self.add_agent_message(MessageType.SUCCESS, "[OK] Plan approved. Generating preview...")
+        self.add_agent_message(MessageType.SUCCESS, "Plan approved. Generating preview...")
         thread = threading.Thread(target=self._generate_preview_thread)
         thread.daemon = True
         thread.start()
@@ -1740,11 +1387,11 @@ class AgenticDatasetGUI:
             
         except Exception as e:
             self.root.after(0, lambda: self.add_agent_message(MessageType.ERROR, 
-                f"[ERROR] Preview generation failed: {str(e)}"))
+                f"Preview generation failed: {str(e)}"))
     
     def _reject_plan(self):
         """Reject the plan"""
-        self.add_agent_message(MessageType.ERROR, "[ERROR] Plan rejected. Describe what you need differently.")
+        self.add_agent_message(MessageType.ERROR, "  Plan rejected. Describe what you need differently.")
     
     def _modify_plan(self):
         """Modify the plan"""
@@ -1754,7 +1401,7 @@ class AgenticDatasetGUI:
     
     def _confirm_generation(self):
         """Confirm final dataset generation"""
-        self.add_agent_message(MessageType.SUCCESS, "[OK] Confirmed. Generating full dataset...")
+        self.add_agent_message(MessageType.SUCCESS, "Confirmed. Generating full dataset...")
         thread = threading.Thread(target=self._generate_full_dataset_thread)
         thread.daemon = True
         thread.start()
@@ -1767,16 +1414,16 @@ class AgenticDatasetGUI:
             
         except Exception as e:
             self.root.after(0, lambda: self.add_agent_message(MessageType.ERROR, 
-                f"[ERROR] Generation failed: {str(e)}"))
+                f"Generation failed: {str(e)}"))
     
     def _cancel_generation(self):
         """Cancel dataset generation"""
-        self.add_agent_message(MessageType.ERROR, "[ERROR] Generation cancelled.")
+        self.add_agent_message(MessageType.ERROR, "  Generation cancelled.")
     
     def _generate_tasks_from_config(self):
         """Generate task plan from stored dataset config"""
         if not hasattr(self, 'dataset_config') or not self.dataset_config:
-            self.add_agent_message(MessageType.ERROR, "[ERROR] No configuration available")
+            self.add_agent_message(MessageType.ERROR, "  No configuration available")
             return
         
         config = self.dataset_config
@@ -1847,7 +1494,7 @@ Ready to execute. Click **▶ Start Execution** to begin."""
             self._generate_tasks_from_config()
         else:
             self.add_agent_message(MessageType.ERROR, 
-                "[ERROR] Unable to create task plan. Please describe what dataset you need.")
+                "Unable to create task plan. Please describe what dataset you need.")
     
     def _setup_approval_buttons(self, on_approve, on_reject, on_modify=None):
         """Setup approval buttons in agent panel"""
@@ -1855,9 +1502,9 @@ Ready to execute. Click **▶ Start Execution** to begin."""
         btn_frame = ttk.Frame(self.right_frame)
         btn_frame.pack(fill=tk.X, pady=5)
         
-        ttk.Button(btn_frame, text="[OK] Approve", command=on_approve,
+        ttk.Button(btn_frame, text="Approve", command=on_approve,
                    style='Approve.TButton').pack(side=tk.LEFT, padx=5)
-        ttk.Button(btn_frame, text="[ERROR] Reject", command=on_reject,
+        ttk.Button(btn_frame, text="  Reject", command=on_reject,
                    style='Reject.TButton').pack(side=tk.LEFT, padx=5)
         
         if on_modify:
@@ -1868,9 +1515,9 @@ Ready to execute. Click **▶ Start Execution** to begin."""
         btn_frame = ttk.Frame(self.right_frame)
         btn_frame.pack(fill=tk.X, pady=5)
         
-        ttk.Button(btn_frame, text="[OK] Confirm & Generate", command=on_confirm,
+        ttk.Button(btn_frame, text="Confirm & Generate", command=on_confirm,
                    style='Approve.TButton').pack(side=tk.LEFT, padx=5)
-        ttk.Button(btn_frame, text="[ERROR] Cancel", command=on_cancel,
+        ttk.Button(btn_frame, text="Cancel", command=on_cancel,
                    style='Reject.TButton').pack(side=tk.LEFT, padx=5)
     
 
@@ -2058,7 +1705,7 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
                         self.task_manager.set_task_status(task.id, TaskStatus.COMPLETED,
                                                            result=str(result) if result else "Done")
                         self.root.after(0, lambda t=task: self.add_agent_message(MessageType.SUCCESS, 
-                            f"[OK] Completed: {t.title}"))
+                            f"Completed: {t.title}"))
                     else:
                         self.task_manager.set_task_status(task.id, TaskStatus.COMPLETED,
                                                            result="No action required")
@@ -2066,7 +1713,7 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
                     self.task_manager.set_task_status(task.id, TaskStatus.FAILED,
                                                        error=str(e))
                     self.root.after(0, lambda t=task, err=str(e): self.add_agent_message(MessageType.ERROR, 
-                        f"[ERROR] Failed: {t.title}\nError: {err}"))
+                        f"Failed: {t.title}\nError: {err}"))
                         
             # Execution complete
             self.root.after(0, self._execution_complete)
@@ -2094,8 +1741,8 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
         
         self.add_agent_message(MessageType.SYSTEM,
             f"Execution Complete!\n\n"
-            f"[OK] Completed: {completed}\n"
-            f"[ERROR] Failed: {failed}\n"
+            f"Completed: {completed}\n"
+            f"Failed: {failed}\n"
             f"Skipped: {skipped}\n\n"
             f"{success_msg}\n\n"
             f"**Next Steps:**\n"
@@ -2153,13 +1800,13 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
         """Approve the current action"""
         self.set_approval_visible(False)
         self.task_manager.approve_current()
-        self.add_agent_message(MessageType.SUCCESS, "[OK] Action approved!")
+        self.add_agent_message(MessageType.SUCCESS, "Action approved!")
         
     def reject_action(self):
         """Reject the current action"""
         self.set_approval_visible(False)
         self.task_manager.reject_current()
-        self.add_agent_message(MessageType.ERROR, "[ERROR] Action rejected.")
+        self.add_agent_message(MessageType.ERROR, "Action rejected.")
         
     def skip_action(self):
         """Skip the current action"""
@@ -2193,7 +1840,7 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
         if hasattr(self, 'awaiting_extraction_approval') and self.awaiting_extraction_approval:
             if any(word in feedback_lower for word in ['extract', 'yes', 'ok', 'approve', 'proceed']):
                 self.awaiting_extraction_approval = False
-                self.add_agent_message(MessageType.SUCCESS, "[OK] Starting extraction with Jury Process...")
+                self.add_agent_message(MessageType.SUCCESS, "Starting extraction with Jury Process...")
                 
                 # Start jury process for formula extraction
                 threading.Thread(target=self._process_formula_extraction, daemon=True).start()
@@ -2208,11 +1855,11 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
         # Check if user is approving
         if any(word in feedback_lower for word in ['yes', 'ok', 'approve', 'confirm', 'proceed', 'correct']):
             if self.current_plan:
-                self.add_agent_message(MessageType.SUCCESS, "[OK] Approved! Generating dataset...")
+                self.add_agent_message(MessageType.SUCCESS, "Approved! Generating dataset...")
                 threading.Thread(target=self._execute_approved_plan, daemon=True).start()
             else:
                 self.add_agent_message(MessageType.ERROR, 
-                    "[ERROR] No plan to approve. Please describe what dataset you need first.")
+                    "  No plan to approve. Please describe what dataset you need first.")
         
         # Check if user is rejecting/modifying
         elif any(word in feedback_lower for word in ['no', 'wrong', 'change', 'modify', 'different']):
@@ -2263,7 +1910,7 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
         """
         if not self.current_plan:
             self.root.after(0, lambda: self.add_agent_message(MessageType.ERROR,
-                "[ERROR] No plan to execute"))
+                "No plan to execute"))
             return
         
         plan = self.current_plan
@@ -2274,7 +1921,7 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
             
             # Step 1: Verify repository
             self.root.after(0, lambda: self.add_agent_message(MessageType.ACTION,
-                "[FILES] Step 1/5: Verifying repository..."))
+                "Step 1/5: Verifying repository..."))
             
             task1 = self.task_manager.add_task(
                 "Verify Repository",
@@ -2285,7 +1932,7 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
             
             # Step 2: Extract data
             self.root.after(0, lambda: self.add_agent_message(MessageType.ACTION,
-                "[SEARCH] Step 2/5: Extracting real data from repository..."))
+                "Step 2/5: Extracting real data from repository..."))
             
             known_metrics = plan.get('known_metrics', [])
             validated_custom = plan.get('validated_custom_metrics', [])
@@ -2296,7 +1943,7 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
             # Warn user if no limit or very high limit
             if not file_limit or file_limit.lower() == "all":
                 self.root.after(0, lambda: self.add_agent_message(MessageType.QUESTION,
-                    f"[WARNING] **WARNING**: No file limit set!\n\n"
+                    f"**WARNING**: No file limit set!\n\n"
                     f"This will process ALL files in the repository which may take a very long time.\n\n"
                     f"**Recommended**: Set a file limit (e.g., 100) in the File Limit field above.\n\n"
                     f"Current setting: '{file_limit}' - Are you sure you want to continue?"))
@@ -2312,7 +1959,7 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
             
             # Step 3: Generate dataset
             self.root.after(0, lambda: self.add_agent_message(MessageType.ACTION,
-                "[DATA] Step 3/5: Generating dataset file..."))
+                "Step 3/5: Generating dataset file..."))
             
             output_config = {
                 'format': 'csv',
@@ -2331,7 +1978,7 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
             
             # Step 4: Create visualization
             self.root.after(0, lambda: self.add_agent_message(MessageType.ACTION,
-                "[CHART] Step 4/5: Creating visualizations..."))
+                "Step 4/5: Creating visualizations..."))
             
             task4 = self.task_manager.add_task(
                 "Create Visualizations",
@@ -2358,7 +2005,7 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
             import traceback
             error_detail = traceback.format_exc()
             self.root.after(0, lambda e=str(e): self.add_agent_message(
-                MessageType.ERROR, f"[ERROR] Execution failed: {e}"))
+                MessageType.ERROR, f"Execution failed: {e}"))
             print(f"Execution error: {error_detail}")
     
     def _extract_real_data(self, known_metrics: List[str], custom_metrics: List[Dict], max_files: str = "All") -> str:
@@ -2398,21 +2045,21 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
                     break
         
         if not code_files:
-            return f"[WARNING] No code files found in {self.repo_path}"
+            return f"No code files found in {self.repo_path}"
         
         # Show how many files will be processed
         total_to_process = len(code_files)
         self.add_agent_message(MessageType.INFO, 
-            f"[FILES] Found {total_to_process} code files, extracting metrics...")
+            f"  Found {total_to_process} code files, extracting metrics...")
         
         # Extract metrics from files
         results = []
         
-        # [OK] IMPORTANT: If no base metrics specified, use common ones
+        #   IMPORTANT: If no base metrics specified, use common ones
         if not known_metrics:
             known_metrics = ['loc', 'cyclomatic_complexity', 'imports', 'blank_lines', 'comment_lines']
             self.add_agent_message(MessageType.INFO, 
-                f"[DATA] No specific metrics requested, using default: {', '.join(known_metrics)}")
+                f"No specific metrics requested, using default: {', '.join(known_metrics)}")
         
         for idx, file_path in enumerate(code_files, 1):
             try:
@@ -2429,16 +2076,16 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
                 continue
         
         if not results:
-            return f"[ERROR] Failed to extract metrics from any files"
+            return f"Failed to extract metrics from any files"
         
         # Store results (WITHOUT custom metrics yet - they come later)
         self.extracted_data = results
         self.custom_metrics_to_apply = custom_metrics  # Store for later
         
         self.add_agent_message(MessageType.SUCCESS, 
-            f"[OK] Successfully extracted base metrics from {len(results)}/{total_to_process} files")
+            f"Successfully extracted base metrics from {len(results)}/{total_to_process} files")
         
-        return f"[OK] Extracted base metrics from {len(results)} files (User requested: {max_files})"
+        return f"Extracted base metrics from {len(results)} files (User requested: {max_files})"
             
     # ═══════════════════════════════════════════════════════════════════════════
     # TASK IMPLEMENTATIONS
@@ -2457,9 +2104,9 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
                 try:
                     self.metrics_helper = MetricsHelper(str(self.repo_path))
                     self.add_agent_message(MessageType.SUCCESS, 
-                        f"[OK] MetricsHelper initialized - 64 real metrics available")
+                        f"MetricsHelper initialized - 64 real metrics available")
                 except Exception as e:
-                    safe_print(f"[WARNING] MetricsHelper initialization failed: {e}")
+                    safe_print(f"  MetricsHelper initialization failed: {e}")
                     self.metrics_helper = None
             return f"Local repository: {os.path.basename(repo_path)}"
         elif 'github.com' in repo_path or '/' in repo_path:
@@ -2473,9 +2120,9 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
                         try:
                             self.metrics_helper = MetricsHelper(str(self.repo_path))
                             self.add_agent_message(MessageType.SUCCESS, 
-                                f"[OK] MetricsHelper initialized - 64 real metrics available")
+                                f"MetricsHelper initialized - 64 real metrics available")
                         except Exception as e:
-                            safe_print(f"[WARNING] MetricsHelper initialization failed: {e}")
+                            safe_print(f"  MetricsHelper initialization failed: {e}")
                             self.metrics_helper = None
                     return f"GitHub repository set: {repo_path}"
             raise ValueError(f"Could not access repository: {repo_path}")
@@ -2541,7 +2188,7 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
             if benchmark_name in method_map:
                 self.add_agent_message(MessageType.ACTION, f"⚡ Generating {benchmark_name}...")
                 method_map[benchmark_name]()
-                self.add_agent_message(MessageType.SUCCESS, f"[OK] {benchmark_name} generated!")
+                self.add_agent_message(MessageType.SUCCESS, f"  {benchmark_name} generated!")
                 return f"{benchmark_name} dataset generated successfully"
             else:
                 return f"Configured for {benchmark_name} ({info.get('format', 'json')} format)"
@@ -2632,10 +2279,10 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
         # Get code files
         extensions = {'.py', '.java', '.js', '.ts', '.go', '.rb', '.cpp', '.c', '.cs'}
         
-        # [OK] USE ALREADY-EXTRACTED DATA if available (avoid re-scanning!)
+        #   USE ALREADY-EXTRACTED DATA if available (avoid re-scanning!)
         if hasattr(self, 'extracted_data') and self.extracted_data:
             self.add_agent_message(MessageType.INFO, 
-                f"[DATA] Using already-extracted data from {len(self.extracted_data)} files")
+                f"  Using already-extracted data from {len(self.extracted_data)} files")
             rows = self.extracted_data.copy()
             selected_metrics = config.get('selected_metrics', list(rows[0].keys()) if rows else [])
         else:
@@ -2659,7 +2306,7 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
             if not selected_metrics:
                 selected_metrics = ['loc', 'cyclomatic_complexity']
                 self.add_agent_message(MessageType.WARNING, 
-                    f"[WARNING] No metrics selected, using defaults: {selected_metrics}")
+                    f"  No metrics selected, using defaults: {selected_metrics}")
             
             # Get user-specified file limit (no hardcoding!)
             file_limit = config.get('file_limit', 'All')
@@ -2670,11 +2317,11 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
                     limit_num = int(file_limit)
                     files_to_process = code_files[:limit_num]
                     self.add_agent_message(MessageType.INFO, 
-                        f"[DATA] Processing {len(files_to_process)} files (limit: {limit_num}, total found: {len(code_files)})")
+                        f"Processing {len(files_to_process)} files (limit: {limit_num}, total found: {len(code_files)})")
                 except ValueError:
                     files_to_process = code_files  # Invalid input, use all
                     self.add_agent_message(MessageType.INFO, 
-                        f"[DATA] Processing ALL {len(code_files)} files (invalid limit value, using all)")
+                        f"Processing ALL {len(code_files)} files (invalid limit value, using all)")
             
             # Process files
             total_files = len(files_to_process)
@@ -2688,10 +2335,10 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
                         metric_count = len(metrics) - 1  # Subtract 1 for 'file' column
                         if metric_count <= 1:
                             self.add_agent_message(MessageType.ERROR, 
-                                f"[ALERT] First file metrics dict has only {len(metrics)} keys: {list(metrics.keys())}")
+                                f"First file metrics dict has only {len(metrics)} keys: {list(metrics.keys())}")
                         else:
                             self.add_agent_message(MessageType.SUCCESS,
-                                f"[OK] First file metrics dict has {len(metrics)} keys")
+                                f"First file metrics dict has {len(metrics)} keys")
                         first_metrics_debug_logged = True
                     
                     metrics['file'] = os.path.relpath(file_path, self.repo_path) if self.repo_path else file_path
@@ -2700,23 +2347,23 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
                     # Progress update every 10 files
                     if idx % 10 == 0 or idx == total_files:
                         self.add_agent_message(MessageType.INFO, 
-                            f"[DATA] Extracting base metrics: {idx}/{total_files} files processed")
+                            f"Extracting base metrics: {idx}/{total_files} files processed")
                 except Exception as e:
                     print(f"Error processing {file_path}: {e}")
                     import traceback
                     print(traceback.format_exc())
                     pass
         
-        # [OK] APPLY CUSTOM METRICS FROM JURY PROCESS
+        #   APPLY CUSTOM METRICS FROM JURY PROCESS
         if hasattr(self, 'custom_metrics_to_apply') and self.custom_metrics_to_apply and rows:
             try:
                 self.add_agent_message(MessageType.INFO, 
-                    f"[PROCESSING] Applying {len(self.custom_metrics_to_apply)} custom metric(s) with REAL git data extraction...")
+                    f"Applying {len(self.custom_metrics_to_apply)} custom metric(s) with REAL git data extraction...")
                 
                 # Progress callback for GUI updates
                 def progress_update(current, total, message):
                     self.root.after(0, lambda: self.add_agent_message(MessageType.INFO, 
-                        f"[DATA] Progress: {current}/{total} files - {message}"))
+                        f"Progress: {current}/{total} files - {message}"))
                 
                 # Add timeout handling with concurrent execution
                 import concurrent.futures
@@ -2740,36 +2387,36 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
                         elapsed = time.time() - start_time
                         if applied_count > 0:
                             self.add_agent_message(MessageType.SUCCESS, 
-                                f"[OK] Applied {applied_count} custom metric(s) in {elapsed:.1f}s")
+                                f"  Applied {applied_count} custom metric(s) in {elapsed:.1f}s")
                         if errors:
                             self.add_agent_message(MessageType.INFO, 
-                                f"[WARNING] Some custom metrics had issues: {', '.join(errors[:3])}")
+                                f"  Some custom metrics had issues: {', '.join(errors[:3])}")
                     except concurrent.futures.TimeoutError:
                         self.add_agent_message(MessageType.ERROR, 
-                            f"[TIMEOUT] Custom metrics timed out after {timeout_seconds}s - saving base metrics only")
+                            f"Custom metrics timed out after {timeout_seconds}s - saving base metrics only")
                         # Continue with base metrics only
             except Exception as e:
                 import traceback
                 error_trace = traceback.format_exc()
                 self.add_agent_message(MessageType.ERROR, 
-                    f"[ERROR] Failed to apply custom metrics: {str(e)}")
+                    f"Failed to apply custom metrics: {str(e)}")
                 safe_print(f"Custom metrics error:\n{error_trace}")
         
         # If no code files found, show error (NO SAMPLE DATA GENERATION!)
         if not rows:
-            raise Exception(f"[ERROR] No code files found in repository! "
+            raise Exception(f"  No code files found in repository! "
                            f"Could not generate any metrics. "
                            f"Ensure repository contains Java/Python code files.")
         
         # Write output with proper error handling
         self.add_agent_message(MessageType.INFO, 
-            f"[SAVE] Writing {len(rows)} records to {output_format.upper()} file...")
+            f"Writing {len(rows)} records to {output_format.upper()} file...")
         
-        # [OK] VALIDATE: Ensure rows have actual metrics, not just file paths
+        #   VALIDATE: Ensure rows have actual metrics, not just file paths
         if rows:
             first_row_keys = set(rows[0].keys())
             if first_row_keys == {'file'} or len(first_row_keys) <= 1:
-                raise Exception(f"[ERROR] No metrics extracted! Only got file paths. "
+                raise Exception(f"  No metrics extracted! Only got file paths. "
                                f"This usually means metric extraction was interrupted or failed. "
                                f"Try with a smaller file limit (e.g., 100 files)")
         
@@ -2783,7 +2430,7 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
                         writer.writerows(rows)
                         print(f"CSV written: {len(rows)} rows with {len(rows[0].keys())} columns to {output_file}")
                         self.add_agent_message(MessageType.SUCCESS, 
-                            f"[OK] Saved {len(rows)} records with {len(rows[0].keys())} metrics")
+                            f"  Saved {len(rows)} records with {len(rows[0].keys())} metrics")
                     else:
                         writer = csv.writer(f)
                         writer.writerow(['file', 'loc', 'complexity', 'timestamp'])
@@ -2803,8 +2450,8 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
             if os.path.exists(output_file):
                 file_size = os.path.getsize(output_file)
                 self.add_agent_message(MessageType.SUCCESS, 
-                    f"[OK] CSV file created: {file_size} bytes, {len(rows)} records")
-                return f"[OK] Dataset saved successfully!\n\nFile: {os.path.basename(output_file)}\nLocation: {output_dir}\nSize: {file_size} bytes\nRecords: {len(rows)}"
+                    f"  CSV file created: {file_size} bytes, {len(rows)} records")
+                return f"  Dataset saved successfully!\n\nFile: {os.path.basename(output_file)}\nLocation: {output_dir}\nSize: {file_size} bytes\nRecords: {len(rows)}"
             else:
                 raise Exception("File was not created")
                 
@@ -2813,7 +2460,7 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
             error_trace = traceback.format_exc()
             print(f"CSV write error:\n{error_trace}")
             self.add_agent_message(MessageType.ERROR, 
-                f"[ERROR] CSV write failed: {str(e)}")
+                f"  CSV write failed: {str(e)}")
             raise Exception(f"Failed to write output file: {str(e)}")
     
     def _extract_file_metrics(self, file_path: str, selected_metrics: List[str]) -> Dict:
@@ -2827,10 +2474,10 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
         So we must extract the 'metrics' key before filtering/returning.
         """
         # AGGRESSIVE DEBUG
-        safe_print(f"[DEBUG] _extract_file_metrics called with {len(selected_metrics)} metrics")
+        safe_print(f"  _extract_file_metrics called with {len(selected_metrics)} metrics")
         
         if not self.metrics_helper:
-            safe_print(f"[CRITICAL] self.metrics_helper is None!")
+            safe_print(f"self.metrics_helper is None!")
             return {'file': file_path}
         
         try:
@@ -2838,37 +2485,37 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
             result_dict = self.metrics_helper.get_all_metrics(file_path)
             
             # CRITICAL DEBUG
-            safe_print(f"[METRICS EXTRACTION] File: {os.path.basename(file_path)}")
-            safe_print(f"[METRICS EXTRACTION] result_dict type: {type(result_dict)}")
-            safe_print(f"[METRICS EXTRACTION] result_dict keys: {list(result_dict.keys()) if isinstance(result_dict, dict) else 'NOT A DICT'}")
+            safe_print(f"File: {os.path.basename(file_path)}")
+            safe_print(f"result_dict type: {type(result_dict)}")
+            safe_print(f"result_dict keys: {list(result_dict.keys()) if isinstance(result_dict, dict) else 'NOT A DICT'}")
             
             # Extract the actual metrics from the nested structure
             # MetricsHelper returns {'metrics': {actual metrics}, ...other keys...}
             all_metrics = result_dict.get('metrics', {})
             
-            safe_print(f"[METRICS EXTRACTION] all_metrics type: {type(all_metrics)}")
-            safe_print(f"[METRICS EXTRACTION] all_metrics size: {len(all_metrics) if isinstance(all_metrics, dict) else 'NOT A DICT'}")
+            safe_print(f"all_metrics type: {type(all_metrics)}")
+            safe_print(f"all_metrics size: {len(all_metrics) if isinstance(all_metrics, dict) else 'NOT A DICT'}")
             if isinstance(all_metrics, dict) and len(all_metrics) > 0:
-                safe_print(f"[METRICS EXTRACTION] Sample keys: {list(all_metrics.keys())[:5]}")
+                safe_print(f"Sample keys: {list(all_metrics.keys())[:5]}")
             
             # Debug on first file
             if not hasattr(self, '_metrics_debug_logged'):
-                safe_print(f"[FIRST FILE] Path: {file_path}")
-                safe_print(f"[FIRST FILE] Result type: {type(result_dict)}, keys: {list(result_dict.keys())}")
-                safe_print(f"[FIRST FILE] Metrics dict size: {len(all_metrics)}")
+                safe_print(f"Path: {file_path}")
+                safe_print(f"Result type: {type(result_dict)}, keys: {list(result_dict.keys())}")
+                safe_print(f"Metrics dict size: {len(all_metrics)}")
                 
                 self.add_agent_message(MessageType.INFO,
-                    f"[DEBUG] MetricsHelper returned {len(all_metrics)} metrics for {os.path.basename(file_path)}")
+                    f"  MetricsHelper returned {len(all_metrics)} metrics for {os.path.basename(file_path)}")
                 if all_metrics:
                     sample_keys = list(all_metrics.keys())[:10]
                     self.add_agent_message(MessageType.INFO,
-                        f"[DEBUG] Sample metric keys: {sample_keys}...")
+                        f"  Sample metric keys: {sample_keys}...")
                     self.add_agent_message(MessageType.INFO,
-                        f"[DEBUG] Filtering to {len(selected_metrics)} selected metrics")
+                        f"  Filtering to {len(selected_metrics)} selected metrics")
                 else:
                     self.add_agent_message(MessageType.ERROR,
-                        f"[CRITICAL] MetricsHelper returned NO metrics for {os.path.basename(file_path)}")
-                    safe_print(f"[CRITICAL] Result dict: {result_dict}")
+                        f"MetricsHelper returned NO metrics for {os.path.basename(file_path)}")
+                    safe_print(f"Result dict: {result_dict}")
                 self._metrics_debug_logged = True
             
             # Filter to selected metrics only
@@ -2883,16 +2530,16 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
                         result[metric_name] = None
                 if not hasattr(self, '_metrics_filter_logged'):
                     self.add_agent_message(MessageType.INFO,
-                        f"[DEBUG] Filtered {len(all_metrics)} → {found_count} matching metrics")
+                        f"  Filtered {len(all_metrics)} → {found_count} matching metrics")
                     self._metrics_filter_logged = True
             else:
                 result = all_metrics
-                safe_print(f"[WARNING] No selected_metrics provided! Using all {len(result)} metrics")
+                safe_print(f"  No selected_metrics provided! Using all {len(result)} metrics")
             
             result['file'] = file_path
             return result
         except Exception as e:
-            safe_print(f"[ERROR] _extract_file_metrics exception: {str(e)}")
+            safe_print(f"  _extract_file_metrics exception: {str(e)}")
             import traceback
             safe_print(traceback.format_exc())
             return {'file': file_path}
@@ -2908,9 +2555,9 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
             recent_files = sorted(files, key=lambda f: os.path.getmtime(os.path.join(output_dir, f)), reverse=True)[:3]
             file_list = '\n'.join([f"  • {f}" for f in recent_files]) if recent_files else "  (No files yet)"
             
-            return f"[OK] Dataset validation complete!\n\n**Output Location:**\n{output_dir}\n\n**Recent Files:**\n{file_list}"
+            return f"  Dataset validation complete!\n\n**Output Location:**\n{output_dir}\n\n**Recent Files:**\n{file_list}"
         else:
-            return f"[WARNING] Output directory not found yet.\n\nExpected location:\n{output_dir}"
+            return f"  Output directory not found yet.\n\nExpected location:\n{output_dir}"
     
     def _safe_eval_formula(self, formula: str, row: Dict) -> float:
         """Safely evaluate formula with row data"""
@@ -2941,7 +2588,7 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
         - Metric trends
         """
         if not hasattr(self, 'extracted_data') or not self.extracted_data:
-            return "[WARNING] No data to visualize"
+            return "  No data to visualize"
         
         try:
             import pandas as pd
@@ -2964,7 +2611,7 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
             numeric_cols = df.select_dtypes(include=['int64', 'float64']).columns.tolist()
             
             if len(numeric_cols) == 0:
-                return "[WARNING] No numeric metrics to visualize"
+                return "  No numeric metrics to visualize"
             
             # 1. Distribution plots
             fig, axes = plt.subplots(min(3, len(numeric_cols)), 1, figsize=(10, 4*min(3, len(numeric_cols))))
@@ -2993,12 +2640,12 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
                 plt.savefig(corr_file, dpi=100, bbox_inches='tight')
                 plt.close()
             
-            return f"[OK] Visualizations created in {viz_dir}\n  • Distribution plot\n  • Correlation heatmap"
+            return f"  Visualizations created in {viz_dir}\n  • Distribution plot\n  • Correlation heatmap"
             
         except ImportError:
-            return "[WARNING] Visualization libraries not available (matplotlib/seaborn)"
+            return "  Visualization libraries not available (matplotlib/seaborn)"
         except Exception as e:
-            return f"[WARNING] Visualization failed: {str(e)}"
+            return f"  Visualization failed: {str(e)}"
     
     def task_extract_custom_formula(self, config: Dict):
         """Extract base metrics needed for custom formula"""
@@ -3043,7 +2690,7 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
     def task_generate_benchmark_output(self, benchmarks: List[str]):
         """Generate benchmark datasets using ORIGINAL DatasetGenerator formats"""
         if not self.repo_path:
-            return "[ERROR] Error: Repository not set! Please set repository first."
+            return "  Error: Repository not set! Please set repository first."
             
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         output_dir = os.path.join(base_dir, "generated_datasets")
@@ -3051,7 +2698,7 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
         try:
             os.makedirs(output_dir, exist_ok=True)
         except Exception as e:
-            return f"[ERROR] Failed to create output directory: {str(e)}"
+            return f"  Failed to create output directory: {str(e)}"
         
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         
@@ -3064,16 +2711,16 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
             from dataset_generator import ProfessionalDatasetGenerator
             
             self.add_agent_message(MessageType.THINKING, 
-                f"[SEARCH] Using ORIGINAL benchmark generator for: {self.repo_path}")
+                f"Using ORIGINAL benchmark generator for: {self.repo_path}")
             
             # Get commit limit from dataset config (None = ALL commits)
             commit_limit = self.dataset_config.get('class_limit')  # Reuse as commit_limit
             if commit_limit:
                 self.add_agent_message(MessageType.INFO, 
-                    f"[DATA] Limiting to {commit_limit} commits per benchmark")
+                    f"  Limiting to {commit_limit} commits per benchmark")
             else:
                 self.add_agent_message(MessageType.INFO, 
-                    "[DATA] Processing ALL commits from repository")
+                    "  Processing ALL commits from repository")
             
             # Initialize generator with repository path, commit limit, and timestamp
             # Use the ACTUAL repository loaded in GUI (not parent, not hardcoded path)
@@ -3093,57 +2740,57 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
             
             for benchmark in benchmarks:
                 self.add_agent_message(MessageType.ACTION, 
-                    f"[DATA] Generating {benchmark} with ORIGINAL format...")
+                    f"  Generating {benchmark} with ORIGINAL format...")
                 
                 if benchmark == 'Defects4J':
                     generator.generate_defects4j_dataset()
                     generated_files.append(f"defects4j_dataset_{timestamp}/ (folder structure + JSON)")
                     self.add_agent_message(MessageType.SUCCESS, 
-                        "[OK] Defects4J: Folder structure (bug_NNN/buggy.java, fixed.java) + JSON metadata")
+                        "  Defects4J: Folder structure (bug_NNN/buggy.java, fixed.java) + JSON metadata")
                     
                 elif benchmark == 'Bugs.jar':
                     generator.generate_bugs_jar_dataset()
                     generated_files.append(f"bugs_jar_dataset_{timestamp}.json")
                     self.add_agent_message(MessageType.SUCCESS, 
-                        "[OK] Bugs.jar: JSON with metrics (from GIT commits)")
+                        "  Bugs.jar: JSON with metrics (from GIT commits)")
                     
                 elif benchmark == 'PROMISE':
                     generator.generate_promise_dataset()
                     generated_files.append(f"promise_dataset_{timestamp}.csv")
                     self.add_agent_message(MessageType.SUCCESS, 
-                        "[OK] PROMISE: CSV with 42 comprehensive columns (from GIT commits)")
+                        "  PROMISE: CSV with 42 comprehensive columns (from GIT commits)")
                     
                 elif benchmark == 'CodeXGLUE':
                     generator.generate_codexglue_dataset()
                     generated_files.append(f"codexglue_dataset_{timestamp}.json")
                     self.add_agent_message(MessageType.SUCCESS, 
-                        "[OK] CodeXGLUE: JSON with code snippets + complexity (from GIT commits)")
+                        "  CodeXGLUE: JSON with code snippets + complexity (from GIT commits)")
                     
                 elif benchmark == 'CodeSearchNet':
                     generator.generate_codesearchnet_dataset()
                     generated_files.append(f"codesearchnet_dataset_{timestamp}.json")
                     self.add_agent_message(MessageType.SUCCESS, 
-                        "[OK] CodeSearchNet: JSON with code + docstrings + tokens (from GIT commits)")
+                        "  CodeSearchNet: JSON with code + docstrings + tokens (from GIT commits)")
                     
                 elif benchmark in ['ManySStuBs4J', 'Sourcerer']:
                     if benchmark == 'ManySStuBs4J':
                         generator.generate_manystubs4j_dataset()
                         generated_files.append(f"manystubs4j_dataset_{timestamp}.json")
                         self.add_agent_message(MessageType.SUCCESS, 
-                            "[OK] ManySStuBs4J: JSON with issue arrays (from GIT commits)")
+                            "  ManySStuBs4J: JSON with issue arrays (from GIT commits)")
                     else:
                         generator.generate_sourcerer_dataset()
                         generated_files.append(f"sourcerer_dataset_{timestamp}.json")
                         self.add_agent_message(MessageType.SUCCESS, 
-                            "[OK] Sourcerer: JSON with full code (from GIT commits)")
+                            "  Sourcerer: JSON with full code (from GIT commits)")
             
-            commit_info = f"[DATA] Commits: {'ALL' if not commit_limit else commit_limit}"
-            return f"[OK] Generated {len(benchmarks)} benchmark datasets with ORIGINAL formats!\n\n{commit_info}\n[FILES] Files: {', '.join(generated_files)}\n📂 Location: {output_dir}\n\n[OK] Using PROPER benchmark formats with REAL GIT COMMIT data!"
+            commit_info = f"  Commits: {'ALL' if not commit_limit else commit_limit}"
+            return f"  Generated {len(benchmarks)} benchmark datasets with ORIGINAL formats!\n\n{commit_info}\n  Files: {', '.join(generated_files)}\n📂 Location: {output_dir}\n\n  Using PROPER benchmark formats with REAL GIT COMMIT data!"
             
         except Exception as e:
             import traceback
             error_details = traceback.format_exc()
-            return f"[ERROR] Error: {str(e)}\n\nDetails:\n{error_details}"
+            return f"  Error: {str(e)}\n\nDetails:\n{error_details}"
         
     # ═══════════════════════════════════════════════════════════════════════════
     # UI HELPERS
@@ -3258,7 +2905,7 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
             if benchmark in method_map:
                 method_map[benchmark]()
                 self.root.after(0, lambda: self.add_agent_message(MessageType.SUCCESS,
-                    f"[OK] {benchmark} dataset generated successfully!"))
+                    f"  {benchmark} dataset generated successfully!"))
             
         except Exception as e:
             error_msg = str(e)
@@ -3288,15 +2935,15 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
             # Handle result
             if result.status == WorkflowStatus.SUCCESS:
                 self.root.after(0, lambda: self.add_agent_message(MessageType.SUCCESS,
-                    f"[OK] Dataset generated successfully with {len(metrics)} metrics!"))
+                    f"Dataset generated successfully with {len(metrics)} metrics!"))
                 self.root.after(0, lambda: self.add_agent_message(MessageType.SUCCESS,
                     f"Output: {result.output_path}"))
             elif result.status == WorkflowStatus.NEEDS_HUMAN_INTERVENTION:
                 self.root.after(0, lambda: self.add_agent_message(MessageType.WARNING,
-                    f"[WARN] Workflow needs human intervention after {result.cycles_completed} cycles"))
+                    f"Workflow needs human intervention after {result.cycles_completed} cycles"))
             else:
                 self.root.after(0, lambda: self.add_agent_message(MessageType.ERROR,
-                    f"[ERROR] Workflow failed: {result.final_message}"))
+                    f"Workflow failed: {result.final_message}"))
                     
         except Exception as e:
             import traceback
@@ -3315,7 +2962,7 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
             # Then add custom metrics
             # TODO: Merge benchmark output with custom metrics
             self.root.after(0, lambda: self.add_agent_message(MessageType.SUCCESS,
-                f"[OK] Combined dataset ready: {benchmark} base + {len(metrics)} extra metrics"))
+                f"  Combined dataset ready: {benchmark} base + {len(metrics)} extra metrics"))
             
         except Exception as e:
             error_msg = str(e)
@@ -3373,7 +3020,7 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
                 f"Formulas to calculate:\n{formula_list}\n\n"
                 f"Data source: Mock data (50 rows)\n"
                 f"Output folder: generate_dataset/\n\n"
-                f"[WARNING] This will:\n"
+                f"  This will:\n"
                 f"  1. Generate Python code dynamically (Generator LLM)\n"
                 f"  2. Verify with 3 independent LLMs (Jury)\n"
                 f"  3. Execute code temporarily (self-destructs after)\n"
@@ -3403,7 +3050,7 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
         
         formulas = self.pending_formula_execution['formulas']
         
-        self.add_agent_message(MessageType.ACTION, "[OK] Confirmed! Starting execution...")
+        self.add_agent_message(MessageType.ACTION, "  Confirmed! Starting execution...")
         
         # Run in background thread
         threading.Thread(target=self._run_formula_generation, 
@@ -3449,13 +3096,13 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
             # Show verification results (votes are tuples: (name, verdict_dict))
             approval_rate = verification.get('approval_rate', 0)
             votes_text = "\n".join([
-                f"  - {name}: {verdict.get('verdict', 'UNKNOWN')} (confidence: {verdict.get('confidence', 0):.0%})"
+                f"{name}: {verdict.get('verdict', 'UNKNOWN')} (confidence: {verdict.get('confidence', 0):.0%})"
                 for name, verdict in verification.get('votes', [])
             ])
             
             if verification.get('approved'):
                 self.root.after(0, lambda: self.add_agent_message(MessageType.SUCCESS,
-                    f"[OK] APPROVED by jury ({approval_rate:.0%}):\n{votes_text}"))
+                    f"APPROVED by jury ({approval_rate:.0%}):\n{votes_text}"))
                 
                 # Step 4: Execute code
                 self.root.after(0, lambda: self.jury_status_var.set("Executing & self-destructing..."))
@@ -3481,13 +3128,13 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
                 result_df.to_csv(output_path, index=False)
                 
                 self.root.after(0, lambda: self.add_agent_message(MessageType.SUCCESS,
-                    f"[OK] Dataset saved to: {output_path}\n"
-                    f"[DATA] Rows: {len(result_df)}, Columns: {len(result_df.columns)}\n"
+                    f"  Dataset saved to: {output_path}\n"
+                    f"  Rows: {len(result_df)}, Columns: {len(result_df.columns)}\n"
                     f"Estimated cost: ~$0.005"))
                 
             else:
                 self.root.after(0, lambda: self.add_agent_message(MessageType.ERROR,
-                    f"[ERROR] REJECTED by jury ({approval_rate:.0%}):\n{votes_text}\n\n"
+                    f"  REJECTED by jury ({approval_rate:.0%}):\n{votes_text}\n\n"
                     f"The generated code did not pass verification. Please try rewording your formula."))
             
             self.root.after(0, lambda: self.jury_status_var.set("Ready | 1 Generator + 3 Verifiers"))
@@ -3531,7 +3178,7 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
         # Step 1: Check repository is set
         if not self.repo_path:
             self.add_agent_message(MessageType.ERROR, 
-                "[ERROR] **Repository not set!**\n\n"
+                "**Repository not set!**\n\n"
                 "Please set a repository first:\n"
                 "1. Enter path or GitHub URL above\n"
                 "2. Click 'Set Repository'\n"
@@ -3561,13 +3208,13 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
         """
         if not self.api_key:
             self.root.after(0, lambda: self.add_agent_message(MessageType.ERROR,
-                "[ERROR] API key missing. Set GEMINI_API_KEY in .env"))
+                "  API key missing. Set GEMINI_API_KEY in .env"))
             return
         
         try:
             # Step 1: INTERPRET QUERY
             self.root.after(0, lambda: self.add_agent_message(MessageType.THINKING, 
-                "[THINKING] Analyzing your request..."))
+                "Analyzing your request..."))
             
             # Get available metrics
             available_metrics = {}
@@ -3637,7 +3284,7 @@ CRITICAL RULES:
                 # Check if quota exceeded
                 if ('429' in error_msg or 'quota' in error_msg or 'resourceexhausted' in error_msg):
                     self.root.after(0, lambda: self.add_agent_message(MessageType.INFO,
-                        "[WARNING] Gemini quota exceeded. Using AWS Bedrock fallback..."))
+                        "  Gemini quota exceeded. Using AWS Bedrock fallback..."))
                     
                     # Try AWS Bedrock fallback
                     if hasattr(self, 'llm_jury_system') and self.llm_jury_system and self.llm_jury_system.use_aws_fallback:
@@ -3660,7 +3307,7 @@ CRITICAL RULES:
                             
                             text = text.strip()
                             self.root.after(0, lambda: self.add_agent_message(MessageType.SUCCESS,
-                                "[OK] AWS Bedrock responded successfully"))
+                                "  AWS Bedrock responded successfully"))
                         except Exception as aws_error:
                             print(f"AWS error details: {aws_error}")
                             raise Exception(f"Both Gemini and AWS Bedrock failed. Gemini: {gemini_error}. AWS: {aws_error}")
@@ -3687,7 +3334,7 @@ CRITICAL RULES:
                 understanding = json.loads(text)
             except json.JSONDecodeError as json_error:
                 # If JSON parsing fails, show user the error and ask for clarification
-                print(f"[ERROR] JSON parsing failed. AWS response preview: {text[:300]}")
+                print(f"  JSON parsing failed. AWS response preview: {text[:300]}")
                 self.root.after(0, lambda: self.add_agent_message(MessageType.ERROR,
                     f"Failed to parse response (AWS Bedrock returned text but not valid JSON).\n\n"
                     f"Response preview: {text[:200]}\n\n"
@@ -3736,7 +3383,7 @@ CRITICAL RULES:
             
             if unknown_metrics and self.llm_jury_system:
                 self.root.after(0, lambda: self.add_agent_message(MessageType.INFO,
-                    f"[SEARCH] Found {len(unknown_metrics)} unknown metric(s). "
+                    f"Found {len(unknown_metrics)} unknown metric(s). "
                     f"Starting LLM Jury Process to validate..."))
                 
                 # Process each unknown metric through jury
@@ -3747,7 +3394,7 @@ CRITICAL RULES:
                     metric_desc = unk.get('description', metric_name)
                     
                     self.root.after(0, lambda n=metric_name: self.add_agent_message(
-                        MessageType.THINKING, f"[JURY] Jury evaluating: {n}..."))
+                        MessageType.THINKING, f"Jury evaluating: {n}..."))
                     
                     try:
                         # Step 1: Prepare formula structure for LLMCodeJurySystem
@@ -3798,12 +3445,12 @@ CRITICAL RULES:
                         if not generated_code:
                             self.root.after(0, lambda n=metric_name: 
                                 self.add_agent_message(MessageType.ERROR, 
-                                    f"[ERROR] {n}: Code generation failed"))
+                                    f"  {n}: Code generation failed"))
                             continue
                         
                         # Step 3: Verify with jury
                         self.root.after(0, lambda: self.add_agent_message(
-                            MessageType.INFO, "[VERDICT] 3 Judge LLMs verifying..."))
+                            MessageType.INFO, "3 Judge LLMs verifying..."))
                         
                         verification = self.llm_jury_system.verify_code_with_jury(
                             generated_code,
@@ -3817,7 +3464,7 @@ CRITICAL RULES:
                         
                         # Show each judge's vote
                         for judge_name, verdict in votes:
-                            status = "[OK]" if verdict.get('verdict') == 'APPROVE' else "[ERROR]"
+                            status = " " if verdict.get('verdict') == 'APPROVE' else "[ERROR]"
                             self.root.after(0, lambda j=judge_name, s=status, v=verdict: 
                                 self.add_agent_message(MessageType.INFO, 
                                     f"{s} {j}: {v.get('verdict')}"))
@@ -3832,16 +3479,16 @@ CRITICAL RULES:
                             })
                             self.root.after(0, lambda n=metric_name, c=approved_count: 
                                 self.add_agent_message(MessageType.SUCCESS, 
-                                    f"[OK] {n}: Approved by {c}/3 judges"))
+                                    f"  {n}: Approved by {c}/3 judges"))
                         else:
                             self.root.after(0, lambda n=metric_name, c=approved_count: 
                                 self.add_agent_message(MessageType.ERROR, 
-                                    f"[ERROR] {n}: Rejected - only {c}/3 judges approved"))
+                                    f"  {n}: Rejected - only {c}/3 judges approved"))
                     
                     except Exception as e:
                         self.root.after(0, lambda n=metric_name, err=str(e): 
                             self.add_agent_message(MessageType.ERROR, 
-                                f"[ERROR] {n}: Error - {err}"))
+                                f"  {n}: Error - {err}"))
                 
                 # Add validated metrics to known list
                 understanding['validated_custom_metrics'] = validated_metrics
@@ -3863,20 +3510,20 @@ CRITICAL RULES:
             if validated_custom:
                 approval_msg += f"\n**Custom Metrics (Jury Approved):** {len(validated_custom)}\n"
                 for vc in validated_custom:
-                    approval_msg += f"  [OK] {vc['name']}: {vc['jury_summary']}\n"
+                    approval_msg += f"    {vc['name']}: {vc['jury_summary']}\n"
             
             if understanding.get('benchmark'):
                 approval_msg += f"**Benchmark Format:** {understanding['benchmark']}\n"
             
-            approval_msg += "\n**[SEARCH] DATA SOURCE:** Real data from your repository (NO MOCK DATA)\n"
-            approval_msg += "\n[OK] **Type 'yes' or 'approve' to proceed**\n[ERROR] **Type 'no' or describe changes to modify**"
+            approval_msg += "\n**DATA SOURCE:** Real data from your repository (NO MOCK DATA)\n"
+            approval_msg += "\n  **Type 'yes' or 'approve' to proceed**\n  **Type 'no' or describe changes to modify**"
             
             self.root.after(0, lambda m=approval_msg: self.add_agent_message(
                 MessageType.QUESTION, m))
             
-            # [OK] IMPORTANT: Ask user for file limit BEFORE processing
+            #   IMPORTANT: Ask user for file limit BEFORE processing
             self.root.after(100, lambda: self.add_agent_message(MessageType.QUESTION,
-                f"[DATA] **HOW MANY FILES TO PROCESS?**\n\n"
+                f"  **HOW MANY FILES TO PROCESS?**\n\n"
                 f"Default: 100 files\n\n"
                 f"Enter a number or type 'all' for entire repo\n"
                 f"(Larger = slower, but more comprehensive)\n\n"
@@ -3895,7 +3542,7 @@ CRITICAL RULES:
             error_detail = traceback.format_exc()
             self.root.after(0, lambda err=str(e), detail=error_detail: 
                 self.add_agent_message(MessageType.ERROR, 
-                    f"[ERROR] Analysis error: {err}\n\nDetails:\n{detail}"))
+                    f"  Analysis error: {err}\n\nDetails:\n{detail}"))
     
     def _process_formula_extraction(self):
         """
@@ -3910,7 +3557,7 @@ CRITICAL RULES:
         """
         if not self.current_plan:
             self.root.after(0, lambda: self.add_agent_message(MessageType.ERROR,
-                "[ERROR] No plan found"))
+                "  No plan found"))
             return
         
         try:
@@ -3919,7 +3566,7 @@ CRITICAL RULES:
             formula_expr = self.current_plan.get('formula_expression', '')
             
             self.root.after(0, lambda: self.add_agent_message(MessageType.INFO,
-                f"[JURY] Starting Jury Process for: **{formula_name}**"))
+                f"Starting Jury Process for: **{formula_name}**"))
             
             # Combine all unknown metrics into ONE extraction task
             combined_description = f"""Extract base metrics for formula: {formula_expr}
@@ -3955,15 +3602,15 @@ These metrics will be used to calculate: {formula_name}
             
             if not generated_code:
                 self.root.after(0, lambda: self.add_agent_message(MessageType.ERROR,
-                    "[ERROR] Code generation failed"))
+                    "  Code generation failed"))
                 return
             
             self.root.after(0, lambda: self.add_agent_message(MessageType.INFO,
-                f"[OK] Code generated ({len(generated_code)} chars)"))
+                f"  Code generated ({len(generated_code)} chars)"))
             
             # Step 2: Verify with jury
             self.root.after(0, lambda: self.add_agent_message(MessageType.INFO,
-                "[VERDICT] 3 Judge LLMs verifying..."))
+                "3 Judge LLMs verifying..."))
             
             verification = self.llm_jury_system.verify_code_with_jury(
                 generated_code,
@@ -3976,7 +3623,7 @@ These metrics will be used to calculate: {formula_name}
             
             # Show each judge's vote
             for judge_name, verdict in votes:
-                status = "[OK]" if verdict.get('verdict') == 'APPROVE' else "[ERROR]"
+                status = " " if verdict.get('verdict') == 'APPROVE' else "[ERROR]"
                 reason = verdict.get('reason', 'No reason provided')
                 self.root.after(0, lambda j=judge_name, s=status, v=verdict.get('verdict'): 
                     self.add_agent_message(MessageType.INFO, 
@@ -3986,7 +3633,7 @@ These metrics will be used to calculate: {formula_name}
             if approved_count >= 2:
                 self.root.after(0, lambda n=formula_name, c=approved_count: 
                     self.add_agent_message(MessageType.SUCCESS, 
-                        f"[OK] **{n}**: Approved by {c}/3 judges"))
+                        f"  **{n}**: Approved by {c}/3 judges"))
                 
                 # Store validated code
                 if 'validated_custom_metrics' not in self.current_plan:
@@ -4001,7 +3648,7 @@ These metrics will be used to calculate: {formula_name}
                 
                 # Now ask for final approval
                 self.root.after(0, lambda: self.add_agent_message(MessageType.QUESTION,
-                    f"[OK] **Formula validation complete!**\n\n"
+                    f"  **Formula validation complete!**\n\n"
                     f"**Metric:** {formula_name}\n"
                     f"**Formula:** `{formula_expr}`\n"
                     f"**Jury Result:** {approved_count}/3 approved\n\n"
@@ -4011,7 +3658,7 @@ These metrics will be used to calculate: {formula_name}
             else:
                 self.root.after(0, lambda n=formula_name, c=approved_count: 
                     self.add_agent_message(MessageType.ERROR, 
-                        f"[ERROR] **{n}**: Rejected - only {c}/3 judges approved\n\n"
+                        f"**{n}**: Rejected - only {c}/3 judges approved\n\n"
                         f"Please rephrase your formula or try a different approach."))
                 self.current_plan = None
             
@@ -4020,13 +3667,13 @@ These metrics will be used to calculate: {formula_name}
             error_detail = traceback.format_exc()
             self.root.after(0, lambda err=str(e), detail=error_detail: 
                 self.add_agent_message(MessageType.ERROR, 
-                    f"[ERROR] Extraction error: {err}\n\nDetails:\n{detail}"))
+                    f"Extraction error: {err}\n\nDetails:\n{detail}"))
             
         except Exception as e:
             import traceback
             error_detail = traceback.format_exc()
             self.root.after(0, lambda e=str(e): self.add_agent_message(
-                MessageType.ERROR, f"[ERROR] Error: {e}"))
+                MessageType.ERROR, f"Error: {e}"))
             print(f"Chat processor error: {error_detail}")
     
     def _process_agentic_chat(self, query: str):
@@ -4080,7 +3727,7 @@ These metrics will be used to calculate: {formula_name}
             
             if result.get('success') and result.get('approved'):
                 self.root.after(0, lambda: self.add_agent_message(MessageType.SUCCESS,
-                    f"[OK] Custom metric approved!\n\n"
+                    f"  Custom metric approved!\n\n"
                     f"**Name:** {result['proposal'].get('metric_name')}\n"
                     f"**Jury:** {result['jury_result']['summary']}\n\n"
                     f"Generating dataset with this metric..."))
@@ -4091,7 +3738,7 @@ These metrics will be used to calculate: {formula_name}
                 issue_text = "\n".join([f"- Judge {v.get('judge_id')}: {v.get('reasoning', 'No reason')}" 
                                        for v in issues])
                 self.root.after(0, lambda: self.add_agent_message(MessageType.ERROR,
-                    f"[ERROR] Custom metric rejected by jury:\n{issue_text}"))
+                    f"   Custom metric rejected by jury:\n{issue_text}"))
         
         except Exception as e:
             error_msg = str(e)
@@ -4204,7 +3851,7 @@ These metrics will be used to calculate: {formula_name}
                     
                     # Create destination directory
                     os.makedirs(dest_path, exist_ok=True)
-                    log_progress(f"[INFO] Destination: {dest_path}")
+                    log_progress(f" ] Destination: {dest_path}")
                     
                     # Extract repo name from URL
                     repo_name = repo_input.rstrip('/').split('/')[-1].replace('.git', '')
@@ -4212,12 +3859,12 @@ These metrics will be used to calculate: {formula_name}
                     
                     # Check if already exists
                     if os.path.exists(clone_path):
-                        log_progress(f"[WARNING] Directory already exists: {repo_name}")
-                        log_progress(f"[ACTION] Using existing directory...")
+                        log_progress(f"Directory already exists: {repo_name}")
+                        log_progress(f"Using existing directory...")
                         final_path = clone_path
                     else:
-                        log_progress(f"[START] Cloning {repo_name}...")
-                        log_progress(f"[WAIT] This may take a few minutes...")
+                        log_progress(f" Cloning {repo_name}...")
+                        log_progress(f"This may take a few minutes...")
                         
                         # Run git clone
                         process = subprocess.Popen(
@@ -4235,25 +3882,25 @@ These metrics will be used to calculate: {formula_name}
                         process.wait()
                         
                         if process.returncode == 0:
-                            log_progress(f"\n[SUCCESS] Repository cloned successfully!")
+                            log_progress(f"\n Repository cloned successfully!")
                             final_path = clone_path
                         else:
-                            log_progress(f"\n[ERROR] Clone failed with code {process.returncode}")
+                            log_progress(f"\n   Clone failed with code {process.returncode}")
                             return
                     
                     # Set the repository in main window
-                    log_progress(f"[INFO] Setting up repository...")
+                    log_progress(f" ] Setting up repository...")
                     self.root.after(0, lambda: self.repo_var.set(final_path))
                     self.root.after(0, lambda: self.set_repository())
                     
-                    log_progress(f"\n[DONE] 🎉 Ready to analyze!")
+                    log_progress(f"\n🎉 Ready to analyze!")
                     clone_dialog.after(2000, clone_dialog.destroy)
                     
                 except subprocess.CalledProcessError as e:
-                    log_progress(f"\n[ERROR] Git error: {e}")
-                    log_progress(f"[HELP] Make sure Git is installed and URL is correct")
+                    log_progress(f"\n   Git error: {e}")
+                    log_progress(f"  Make sure Git is installed and URL is correct")
                 except Exception as e:
-                    log_progress(f"\n[ERROR] Unexpected error: {e}")
+                    log_progress(f"\n   Unexpected error: {e}")
                 finally:
                     clone_dialog.after(0, lambda: clone_btn.config(state=tk.NORMAL))
             
@@ -4285,11 +3932,11 @@ These metrics will be used to calculate: {formula_name}
             
             # Display success
             repo_name = os.path.basename(self.repo_path)
-            self.repo_status.config(text=f"[OK] {repo_name}", foreground='green')
+            self.repo_status.config(text=f"{repo_name}", foreground='green')
             self.add_agent_message(MessageType.SUCCESS, 
                 f"Repository set: {repo_name}\nMetrics discovered: {len(self.enhanced_system.available_metrics)}")
         except Exception as e:
-            self.repo_status.config(text=f"[ERROR] Failed to set repository", foreground='red')
+            self.repo_status.config(text=f"   Failed to set repository", foreground='red')
             self.add_agent_message(MessageType.ERROR, 
                 f"Repository setup failed: {str(e)[:100]}")
             
@@ -4297,7 +3944,7 @@ These metrics will be used to calculate: {formula_name}
         """Show benchmark dataset options with selection"""
         # Create benchmark window
         benchmark_window = tk.Toplevel(self.root)
-        benchmark_window.title("[CHART] Benchmark Datasets")
+        benchmark_window.title("  Benchmark Datasets")
         benchmark_window.geometry("700x700")
         benchmark_window.grab_set()
         
@@ -4401,9 +4048,9 @@ These metrics will be used to calculate: {formula_name}
         btn_frame = ttk.Frame(quick_frame)
         btn_frame.pack(fill=tk.X)
         
-        ttk.Button(btn_frame, text="[OK] Select All", command=select_all,
+        ttk.Button(btn_frame, text="Select All", command=select_all,
                   style='Accent.TButton').pack(side=tk.LEFT, padx=2)
-        ttk.Button(btn_frame, text="[ERROR] Deselect All", command=deselect_all).pack(side=tk.LEFT, padx=2)
+        ttk.Button(btn_frame, text="Deselect All", command=deselect_all).pack(side=tk.LEFT, padx=2)
         
         # Selected count
         count_var = tk.StringVar(value="Selected: 0")
@@ -4465,7 +4112,7 @@ These metrics will be used to calculate: {formula_name}
             
             threading.Thread(target=generate, daemon=True).start()
         
-        ttk.Button(button_frame, text="[OK] Apply Selection",
+        ttk.Button(button_frame, text="Apply Selection",
                   command=apply_benchmarks, style='Accent.TButton').pack(side=tk.LEFT, padx=2)
         ttk.Button(button_frame, text="Cancel",
                   command=benchmark_window.destroy).pack(side=tk.LEFT, padx=2)
@@ -4474,7 +4121,7 @@ These metrics will be used to calculate: {formula_name}
         """Show metrics selector dialog - ALL 64 metrics from catalog"""
         # Create metrics window
         metrics_window = tk.Toplevel(self.root)
-        metrics_window.title("[DATA] Select Metrics (64 Available)")
+        metrics_window.title("  Select Metrics (64 Available)")
         metrics_window.geometry("900x700")
         metrics_window.grab_set()
         
@@ -4556,7 +4203,7 @@ These metrics will be used to calculate: {formula_name}
             self.selected_metrics = [k for k, v in metric_vars.items() if v.get()]
             self.selected_metrics_count.set(f"{len(self.selected_metrics)}/64 selected")
             self.add_agent_message(MessageType.SUCCESS, 
-                f"[OK] Selected {len(self.selected_metrics)} metrics")
+                f"Selected {len(self.selected_metrics)} metrics")
             metrics_window.destroy()
         
         ttk.Button(btn_frame, text="✓ Save Selection",
@@ -4632,7 +4279,7 @@ Click **▶ Start Execution** to begin.
     def _create_plan_from_metrics(self, selected_metrics: List[str]):
         """Create dataset using enhanced system - no more task overhead!"""
         if not self.repo_path:
-            self.add_agent_message(MessageType.ERROR, "[ERROR] Repository path not set")
+            self.add_agent_message(MessageType.ERROR, "   Repository path not set")
             return
         
         # Update enhanced system with selected metrics
@@ -4654,28 +4301,28 @@ Click **▶ Start Execution** to begin.
         try:
             # CRITICAL: Check if metrics_helper is available
             if not self.metrics_helper:
-                safe_print("[CRITICAL ERROR] self.metrics_helper is None in _generate_metrics_dataset_direct!")
-                safe_print(f"[DEBUG] repo_path: {self.repo_path}")
-                safe_print(f"[DEBUG] METRICS_HELPER_AVAILABLE: {METRICS_HELPER_AVAILABLE}")
+                safe_print("self.metrics_helper is None in _generate_metrics_dataset_direct!")
+                safe_print(f"  repo_path: {self.repo_path}")
+                safe_print(f"  METRICS_HELPER_AVAILABLE: {METRICS_HELPER_AVAILABLE}")
                 
                 # Try to reinitialize
                 if METRICS_HELPER_AVAILABLE and self.repo_path:
                     try:
-                        safe_print("[ATTEMPTING] Re-initializing MetricsHelper...")
+                        safe_print("Re-initializing MetricsHelper...")
                         self.metrics_helper = MetricsHelper(str(self.repo_path))
-                        safe_print("[SUCCESS] MetricsHelper re-initialized!")
+                        safe_print(" MetricsHelper re-initialized!")
                     except Exception as e:
-                        safe_print(f"[FAILED] Could not re-initialize MetricsHelper: {e}")
+                        safe_print(f"  Could not re-initialize MetricsHelper: {e}")
                         self.root.after(0, lambda: self.add_agent_message(MessageType.ERROR,
-                            f"[ERROR] MetricsHelper not available - cannot extract metrics"))
+                            f"   MetricsHelper not available - cannot extract metrics"))
                         return
                 else:
                     self.root.after(0, lambda: self.add_agent_message(MessageType.ERROR,
-                        f"[ERROR] MetricsHelper not available - please restart application"))
+                        f"   MetricsHelper not available - please restart application"))
                     return
             
-            safe_print(f"[METRICS GENERATION] Starting with {len(selected_metrics)} selected metrics")
-            safe_print(f"[METRICS GENERATION] MetricsHelper status: {self.metrics_helper is not None}")
+            safe_print(f"Starting with {len(selected_metrics)} selected metrics")
+            safe_print(f"MetricsHelper status: {self.metrics_helper is not None}")
             
             self.root.after(0, lambda: self.add_agent_message(MessageType.THINKING, 
                 f"[STEP 1] Scanning repository..."))
@@ -4688,7 +4335,7 @@ Click **▶ Start Execution** to begin.
                         java_files.append(os.path.join(root_dir, file))
             
             self.root.after(0, lambda: self.add_agent_message(MessageType.SUCCESS,
-                f"[OK] Found {len(java_files)} Java files"))
+                f"Found {len(java_files)} Java files"))
             
             # Extract metrics from each file
             self.root.after(0, lambda: self.add_agent_message(MessageType.THINKING,
@@ -4709,13 +4356,13 @@ Click **▶ Start Execution** to begin.
                     
                     # DEBUG: Show what we got
                     if idx == 1:
-                        safe_print(f"\n[FIRST FILE RESULT]")
+                        safe_print(f"\nFIRST FILE RESULT")
                         safe_print(f"  Type: {type(file_metrics)}")
                         safe_print(f"  Keys: {list(file_metrics.keys())}")
                         safe_print(f"  Count: {len(file_metrics)}")
                         safe_print(f"  Sample values: {list(file_metrics.items())[:3]}")
-                        print(f"[FIRST METRICS] Keys: {list(file_metrics.keys())}, Count: {len(file_metrics)}")
-                        print(f"[FIRST METRICS] Content preview: {dict(list(file_metrics.items())[:5])}")
+                        print(f" Keys: {list(file_metrics.keys())}, Count: {len(file_metrics)}")
+                        print(f" Content preview: {dict(list(file_metrics.items())[:5])}")
                     
                     file_metrics['file'] = file_path.replace(self.repo_path, '').lstrip(os.sep)
                     all_metrics.append(file_metrics)
@@ -4724,12 +4371,12 @@ Click **▶ Start Execution** to begin.
                     if idx % max(1, len(java_files) // 10) == 0:
                         self.root.after(0, lambda i=idx, t=len(java_files): 
                             self.add_agent_message(MessageType.INFO,
-                            f"[PROGRESS] Processed {i}/{t} files..."))
+                            f"Processed {i}/{t} files..."))
                 except Exception as e:
                     print(f"Error processing {file_path}: {e}")
             
             self.root.after(0, lambda: self.add_agent_message(MessageType.SUCCESS,
-                f"[OK] Extracted metrics from {len(all_metrics)} files"))
+                f"Extracted metrics from {len(all_metrics)} files"))
             
             # Apply custom formulas if any
             if hasattr(self, 'custom_metrics_to_apply') and self.custom_metrics_to_apply:
@@ -4760,23 +4407,23 @@ Click **▶ Start Execution** to begin.
                 first_row = all_metrics[0]
                 num_cols = len(first_row)
                 col_names = list(first_row.keys())
-                print(f"[DATASET CSV] First row has {num_cols} columns: {col_names}")
+                print(f"First row has {num_cols} columns: {col_names}")
                 self.root.after(0, lambda: self.add_agent_message(MessageType.INFO,
-                    f"[DEBUG] First row keys: {col_names}"))
+                    f"  First row keys: {col_names}"))
             
             df = pd.DataFrame(all_metrics)
             df.to_csv(output_file, index=False)
             
             # Success message
             self.root.after(0, lambda: self.add_agent_message(MessageType.SUCCESS,
-                f"[OK] Dataset saved: {output_file.name}"))
+                f"Dataset saved: {output_file.name}"))
             self.root.after(0, lambda: self.add_agent_message(MessageType.SUCCESS,
-                f"[OK] Generated: {len(all_metrics)} rows × {len(df.columns)} metrics"))
+                f"Generated: {len(all_metrics)} rows × {len(df.columns)} metrics"))
             
         except Exception as e:
             import traceback
             self.root.after(0, lambda: self.add_agent_message(MessageType.ERROR,
-                f"[ERROR] {str(e)[:100]}"))
+                f"{str(e)[:100]}"))
             print(f"Error:\n{traceback.format_exc()}")
 
     # ═══════════════════════════════════════════════════════════════════════════════
@@ -4813,8 +4460,8 @@ Click **▶ Start Execution** to begin.
             # Show plan details
             self.add_agent_message(MessageType.INFO, 
                 f"Intent: {plan.get('intent')}\n"
-                f"[DATA] Metrics: {', '.join(plan.get('metrics', []))}\n"
-                f"[CHART] Type: {plan.get('dataset_type')}"
+                f"  Metrics: {', '.join(plan.get('metrics', []))}\n"
+                f"  Type: {plan.get('dataset_type')}"
             )
             
             # Show tasks
@@ -4831,7 +4478,7 @@ Click **▶ Start Execution** to begin.
                 self._execute_agent_autonomous_mode(plan)
                 
         except Exception as e:
-            self.add_agent_message(MessageType.ERROR, f"[ERROR] Error: {str(e)}")
+            self.add_agent_message(MessageType.ERROR, f"   Error: {str(e)}")
     
     def _execute_agent_ask_mode(self, plan: dict):
         """Execute agent in ASK mode"""
@@ -4852,7 +4499,7 @@ Click **▶ Start Execution** to begin.
         # Update UI
         self.root.after(0, lambda: self.start_btn.config(state=tk.NORMAL))
         self.add_agent_message(MessageType.INFO, 
-            "[OK] Plan ready. Click ▶ Start Execution in task panel."
+            "Plan ready. Click ▶ Start Execution in task panel."
         )
     
     def _execute_agent_autonomous_mode(self, plan: dict):
@@ -4871,7 +4518,7 @@ Click **▶ Start Execution** to begin.
         # Show result
         if result['success']:
             self.add_agent_message(MessageType.SUCCESS,
-                f"[OK] Completed {result['tasks_completed']}/{result['tasks_total']} tasks"
+                f"Completed {result['tasks_completed']}/{result['tasks_total']} tasks"
             )
             
             # Show output file if generated
@@ -4879,7 +4526,7 @@ Click **▶ Start Execution** to begin.
                 import os
                 file_size = os.path.getsize(result['output_file']) if os.path.exists(result['output_file']) else 0
                 self.add_agent_message(MessageType.INFO,
-                    f"[FILES] **Output Dataset:**\n"
+                    f"  **Output Dataset:**\n"
                     f"   File: {result['output_file']}\n"
                     f"   Size: {file_size:,} bytes"
                 )
@@ -4891,7 +4538,7 @@ Click **▶ Start Execution** to begin.
             )
         else:
             self.add_agent_message(MessageType.ERROR,
-                f"[ERROR] Execution had failures\n"
+                f"Execution had failures\n"
                 f"Completed: {result['tasks_completed']}/{result['tasks_total']}"
             )
     
@@ -4904,7 +4551,7 @@ Click **▶ Start Execution** to begin.
         formula_text = self.formula_text_input.get('1.0', tk.END).strip()
         
         if not formula_text:
-            self.log_to_formula("error", "[ERROR] Please enter a formula")
+            self.log_to_formula("error", "   Please enter a formula")
             return
         
         self.log_to_formula("info", f"Starting formula generation...\n   Input: {formula_text[:150]}...")
@@ -4925,7 +4572,7 @@ Click **▶ Start Execution** to begin.
             
             if not repo_path or repo_path == "Not set":
                 self.root.after(0, lambda: self.log_to_formula("error", 
-                    "[ERROR] ERROR: No repository set!\n\n"
+                    "   ERROR: No repository set!\n\n"
                     "Please set repository first in Tab 1 (Dataset Generator).\n"
                     "Formula generation requires REAL data from your repository."))
                 self.root.after(0, lambda: self.formula_status_display.set("Error - No repository"))
@@ -4943,15 +4590,15 @@ Click **▶ Start Execution** to begin.
                         latest_csv = max(csv_files, key=lambda p: p.stat().st_mtime)
                         data = pd.read_csv(latest_csv)
                         self.root.after(0, lambda: self.log_to_formula("success", 
-                            f"[OK] Loaded REAL data: {latest_csv.name}\n   Rows: {len(data)}\n   Columns: {list(data.columns)[:10]}..."))
+                            f"Loaded REAL data: {latest_csv.name}\n   Rows: {len(data)}\n   Columns: {list(data.columns)[:10]}..."))
                     except Exception as e:
                         self.root.after(0, lambda err=str(e): self.log_to_formula("error", 
-                            f"[ERROR] Could not load CSV: {err}"))
+                            f"   Could not load CSV: {err}"))
             
             # If still no data, show error - NO MOCK DATA
             if data is None or data.empty:
                 self.root.after(0, lambda: self.log_to_formula("error", 
-                    f"[ERROR] ERROR: No data found in repository!\n\n"
+                    f"ERROR: No data found in repository!\n\n"
                     f"Searched: {output_dir}\n"
                     f"Please analyze repository first:\n"
                     f"  1. Go to Tab 1 (Dataset Generator)\n"
@@ -4967,35 +4614,35 @@ Click **▶ Start Execution** to begin.
             understanding = self.llm_jury_system.understand_user_request(formula_text)
             
             if not understanding or not understanding.get('formulas'):
-                self.root.after(0, lambda: self.log_to_formula("error", "[ERROR] Failed to understand"))
+                self.root.after(0, lambda: self.log_to_formula("error", "Failed to understand"))
                 self.root.after(0, lambda: self.formula_status_display.set("Error"))
                 return
             
             formulas = understanding['formulas']
-            self.root.after(0, lambda: self.log_to_formula("success", f"[OK] Understood {len(formulas)} formula(s)"))
+            self.root.after(0, lambda: self.log_to_formula("success", f"Understood {len(formulas)} formula(s)"))
             
             # Step 2: Generate
             self.root.after(0, lambda: self.log_to_formula("info", "[STEP 2] Generating code..."))
             code = self.llm_jury_system.generate_code(formulas, data)
             
             if not code:
-                self.root.after(0, lambda: self.log_to_formula("error", "[ERROR] Code generation failed"))
+                self.root.after(0, lambda: self.log_to_formula("error", "Code generation failed"))
                 self.root.after(0, lambda: self.formula_status_display.set("Error"))
                 return
             
-            self.root.after(0, lambda: self.log_to_formula("success", f"[OK] Code generated ({len(code)} chars)"))
+            self.root.after(0, lambda: self.log_to_formula("success", f"Code generated ({len(code)} chars)"))
             
             # Step 3: Verify
             self.root.after(0, lambda: self.log_to_formula("info", "[STEP 3] Jury verification..."))
             verification = self.llm_jury_system.verify_code_with_jury(code, formulas)
             
             for name, verdict in verification.get('votes', []):
-                status = "[OK]" if verdict.get('verdict') == 'APPROVE' else "[ERROR]"
+                status = "OK" if verdict.get('verdict') == 'APPROVE' else "[ERROR]"
                 self.root.after(0, lambda n=name, s=status, v=verdict: 
                                self.log_to_formula("info", f"{s} {n}: {v.get('verdict')}"))
             
             if not verification.get('approved'):
-                self.root.after(0, lambda: self.log_to_formula("error", "[ERROR] Jury rejected"))
+                self.root.after(0, lambda: self.log_to_formula("error", "Jury rejected"))
                 self.root.after(0, lambda: self.formula_status_display.set("Rejected"))
                 return
             
@@ -5013,12 +4660,12 @@ Click **▶ Start Execution** to begin.
             result_df.to_csv(output_path, index=False)
             
             # Show preview (first 10 rows)
-            preview_text = f"\n[DATA] PREVIEW (showing 10/{len(result_df)} rows):\n{result_df[new_cols].head(10).to_string()}"
+            preview_text = f"\nPREVIEW (showing 10/{len(result_df)} rows):\n{result_df[new_cols].head(10).to_string()}"
             
             self.root.after(0, lambda: self.log_to_formula("success", 
-                f"[OK] SUCCESS!\n   Rows: {len(result_df)}\n   New Columns: {new_cols}\n   File: {output_path.name}{preview_text}"))
-            self.root.after(0, lambda: self.formula_status_display.set(f"[OK] Success - {len(result_df)} rows, {len(new_cols)} column(s)"))
-            self.root.after(0, lambda: self.log_system(f"[OK] Formula generated: {output_path.name} ({len(result_df)} rows)"))
+                f"SUCCESS!\n   Rows: {len(result_df)}\n   New Columns: {new_cols}\n   File: {output_path.name}{preview_text}"))
+            self.root.after(0, lambda: self.formula_status_display.set(f"Success - {len(result_df)} rows, {len(new_cols)} column(s)"))
+            self.root.after(0, lambda: self.log_system(f"Formula generated: {output_path.name} ({len(result_df)} rows)"))
             
             # Ask for feedback
             self.root.after(0, lambda path=output_path: self._show_formula_feedback(path, result_df, new_cols))
@@ -5026,9 +4673,9 @@ Click **▶ Start Execution** to begin.
         except Exception as e:
             import traceback
             error_detail = traceback.format_exc()
-            self.root.after(0, lambda: self.log_to_formula("error", f"[ERROR] Error: {str(e)[:200]}"))
+            self.root.after(0, lambda: self.log_to_formula("error", f"Error: {str(e)[:200]}"))
             self.root.after(0, lambda: self.formula_status_display.set("Error"))
-            self.root.after(0, lambda: self.log_system(f"[ERROR] Formula error: {str(e)}"))
+            self.root.after(0, lambda: self.log_system(f"Formula error: {str(e)}"))
     
     def log_to_formula(self, log_type: str, text: str):
         """Add log to formula execution logs"""
@@ -5049,15 +4696,15 @@ Click **▶ Start Execution** to begin.
         
         # Create feedback dialog
         feedback_window = tk.Toplevel(self.root)
-        feedback_window.title("Formula Generation Complete [OK]")
+        feedback_window.title("Formula Generation Complete")
         feedback_window.geometry("600x400")
         
         # Success message
-        ttk.Label(feedback_window, text="[OK] Formula Generated Successfully!",
+        ttk.Label(feedback_window, text="Formula Generated Successfully!",
                  font=('Segoe UI', 14, 'bold'), foreground='green').pack(pady=10)
         
         # Stats
-        stats_frame = ttk.LabelFrame(feedback_window, text="[DATA] Results", padding=10)
+        stats_frame = ttk.LabelFrame(feedback_window, text="  Results", padding=10)
         stats_frame.pack(fill=tk.X, padx=10, pady=10)
         
         ttk.Label(stats_frame, text=f"Rows: {len(result_df)}", font=('Segoe UI', 10)).pack(anchor=tk.W)
@@ -5091,7 +4738,7 @@ Click **▶ Start Execution** to begin.
                 messagebox.showerror("Error", f"Could not open folder: {e}")
         
         ttk.Button(actions_frame, text="Open CSV", command=open_csv).pack(side=tk.LEFT, padx=5)
-        ttk.Button(actions_frame, text="[FILES] Open Folder", command=open_folder).pack(side=tk.LEFT, padx=5)
+        ttk.Button(actions_frame, text="  Open Folder", command=open_folder).pack(side=tk.LEFT, padx=5)
         
         # Feedback
         feedback_frame = ttk.LabelFrame(feedback_window, text="Rate This Generation", padding=10)
@@ -5101,19 +4748,19 @@ Click **▶ Start Execution** to begin.
         
         rating_var = tk.StringVar(value="")
         
-        ttk.Radiobutton(feedback_frame, text="[OK] Perfect - exactly what I needed", 
+        ttk.Radiobutton(feedback_frame, text="Perfect - exactly what I needed", 
                        variable=rating_var, value="perfect").pack(anchor=tk.W)
         ttk.Radiobutton(feedback_frame, text="Good - mostly correct", 
                        variable=rating_var, value="good").pack(anchor=tk.W)
-        ttk.Radiobutton(feedback_frame, text="[WARNING] Okay - needs some fixes", 
+        ttk.Radiobutton(feedback_frame, text="Okay - needs some fixes", 
                        variable=rating_var, value="okay").pack(anchor=tk.W)
-        ttk.Radiobutton(feedback_frame, text="[ERROR] Wrong - incorrect results", 
+        ttk.Radiobutton(feedback_frame, text="Wrong - incorrect results", 
                        variable=rating_var, value="wrong").pack(anchor=tk.W)
         
         def submit_feedback():
             rating = rating_var.get()
             if rating:
-                self.log_system(f"[NOTE] User feedback: {rating} for {output_path.name}")
+                self.log_system(f"User feedback: {rating} for {output_path.name}")
                 messagebox.showinfo("Thank You!", "Feedback recorded!")
                 feedback_window.destroy()
             else:
@@ -5214,7 +4861,7 @@ Click **▶ Start Execution** to begin.
             self.jury_clarification_pending = False
             self.jury_answer_btn.configure(state=tk.DISABLED)
             
-            self.jury_log("[SUCCESS] Code generated and validated!", 'system')
+            self.jury_log(" Code generated and validated!", 'system')
             self.jury_log(f"\nIterations: {result['iterations']}", 'system')
             self.jury_log(f"Test Results: {result['test_results']['passing_llms']}/3 LLMs passed", 'system')
             self.jury_log(f"Total Tests: {result['test_results']['total_passed']}/{result['test_results']['total_tests']} passed", 'system')
@@ -5224,7 +4871,7 @@ Click **▶ Start Execution** to begin.
             self.jury_log("="*60, 'system')
             self.jury_log(result['code'], 'answer')
             
-            self.jury_status_var.set("[COMPLETE] Code ready to use")
+            self.jury_status_var.set("Code ready to use")
             self.jury_session_info.set(f"Session: {result['session_id']} | Results: {result['session_dir']}")
             
             # Offer to save code
@@ -5235,7 +4882,7 @@ Click **▶ Start Execution** to begin.
             self.jury_clarification_pending = False
             self.jury_answer_btn.configure(state=tk.DISABLED)
             
-            self.jury_log("[WARNING] HUMAN INTERVENTION NEEDED", 'error')
+            self.jury_log("  HUMAN INTERVENTION NEEDED", 'error')
             self.jury_log(f"\n{result['message']}", 'error')
             self.jury_log(f"\nAttempted {len(result['iterations'])} iterations", 'error')
             
@@ -5247,7 +4894,7 @@ Click **▶ Start Execution** to begin.
                 self.jury_log("\nLast test feedback:", 'error')
                 self.jury_log(result['last_feedback'], 'error')
             
-            self.jury_status_var.set("[WARNING] Failed - Human help needed")
+            self.jury_status_var.set("  Failed - Human help needed")
             self.jury_session_info.set(f"Session: {result['session_id']} | Results: {result['session_dir']}")
             
         else:
@@ -5300,7 +4947,7 @@ Click **▶ Start Execution** to begin.
     def _jury_handle_clarification_result(self, result: Dict):
         """Handle clarification result"""
         if result['status'] == 'clarified':
-            self.jury_log("[SUCCESS] Requirements clarified! Ready to generate code.", 'system')
+            self.jury_log(" Requirements clarified! Ready to generate code.", 'system')
             self.jury_log("Please click 'Start New Request' to begin generation with clarified requirements.", 'question')
             self.jury_status_var.set("Clarified! Ready for code generation")
             self.jury_clarification_pending = False
@@ -5381,7 +5028,7 @@ Click **▶ Start Execution** to begin.
                         f.write(result['code'])
                     
                     messagebox.showinfo("Success", f"Code saved to:\n{file_path}")
-                    self.jury_log(f"\n[SUCCESS] Code saved to: {file_path}", 'system')
+                    self.jury_log(f"\n Code saved to: {file_path}", 'system')
                 except Exception as e:
                     messagebox.showerror("Error", f"Failed to save code:\n{str(e)}")
     
@@ -5526,7 +5173,7 @@ Click **▶ Start Execution** to begin.
         # Update status
         self.orch_running = True
         if hasattr(self, 'orch_status_var'):
-            self.orch_status_var.set("[STARTING] Multi-Agent Workflow...")
+            self.orch_status_var.set("Multi-Agent Workflow...")
         
         self.orch_log_message("="*70, 'info')
         self.orch_log_message("MULTI-AGENT WORKFLOW STARTING", 'success')
@@ -5584,7 +5231,7 @@ Click **▶ Start Execution** to begin.
             error_msg = f"ERROR: {str(e)}"
             self.root.after(0, lambda em=error_msg: self.orch_log_message(em, 'error'))
             if hasattr(self, 'orch_status_var'):
-                self.root.after(0, lambda: self.orch_status_var.set("[ERROR] Workflow Failed"))
+                self.root.after(0, lambda: self.orch_status_var.set(" Workflow Failed"))
             self.orch_running = False
     
     def _orch_handle_result(self, result):
@@ -5601,11 +5248,11 @@ Click **▶ Start Execution** to begin.
         
         if status == WorkflowStatus.SUCCESS:
             if hasattr(self, 'orch_status_var'):
-                self.orch_status_var.set(f"[SUCCESS] Dataset Generated ({result.iterations} iterations)")
+                self.orch_status_var.set(f" Dataset Generated ({result.iterations} iterations)")
             if hasattr(self, 'orch_progress_var'):
                 self.orch_progress_var.set(f"Cycle: {result.iterations}/5 | Completed in {result.execution_time:.2f}s")
             
-            self.orch_log_message("[SUCCESS] WORKFLOW COMPLETED SUCCESSFULLY", 'success')
+            self.orch_log_message("WORKFLOW COMPLETED SUCCESSFULLY", 'success')
             self.orch_log_message(f"Iterations: {result.iterations}", 'success')
             self.orch_log_message(f"Execution Time: {result.execution_time:.2f}s", 'success')
             
@@ -5619,18 +5266,18 @@ Click **▶ Start Execution** to begin.
         
         elif status == WorkflowStatus.NEEDS_HUMAN_INTERVENTION:
             if hasattr(self, 'orch_status_var'):
-                self.orch_status_var.set("[WARNING] HUMAN INTERVENTION REQUIRED")
+                self.orch_status_var.set("  HUMAN INTERVENTION REQUIRED")
             if hasattr(self, 'orch_progress_var'):
                 self.orch_progress_var.set(f"Cycle: {result.iterations}/5 | Max cycles exceeded")
             
-            self.orch_log_message("[WARNING] HUMAN INTERVENTION REQUIRED", 'warning')
+            self.orch_log_message("HUMAN INTERVENTION REQUIRED", 'warning')
             self.orch_log_message(f"Error: {result.error_message}", 'warning')
             self.orch_log_message(f"Attempted {result.iterations} iterations", 'warning')
         
         else:
             if hasattr(self, 'orch_status_var'):
-                self.orch_status_var.set("[ERROR] WORKFLOW FAILED")
-            self.orch_log_message("[ERROR] WORKFLOW FAILED", 'error')
+                self.orch_status_var.set(" WORKFLOW FAILED")
+            self.orch_log_message("WORKFLOW FAILED", 'error')
             self.orch_log_message(f"Error: {result.error_message}", 'error')
         
         self.orch_log_message("="*70, 'info')
