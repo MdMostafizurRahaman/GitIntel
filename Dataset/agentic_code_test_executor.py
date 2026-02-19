@@ -20,7 +20,7 @@ from datetime import datetime
 sys.path.insert(0, str(Path(__file__).parent))
 
 from llm_jury_system import LLMJurySystem, ValidationResult
-from llm_test_generator import LLMTestGenerator, TestSuite, TestResult
+from llm_test_generator import LLMTestGenerator, TestSuite, SingleTestResult
 
 
 class AgenticCodeTestExecutor:

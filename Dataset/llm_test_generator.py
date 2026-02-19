@@ -32,8 +32,8 @@ class TestSuite:
 
 
 @dataclass
-class TestResult:
-    """Result of running a test"""
+class SingleTestResult:
+    """Result of running a single test (renamed to avoid conflict with integrated_jury_system.TestResult)"""
     test_name: str
     status: str  # "passed", "failed", "error"
     output: str
@@ -504,7 +504,7 @@ Provide your evaluation:"""
         self,
         test_suite: TestSuite,
         sample_data: Dict
-    ) -> List[TestResult]:
+    ) -> List[SingleTestResult]:
         """
         Execute tests in isolated sandbox environment
         Returns list of test results
@@ -584,21 +584,21 @@ if __name__ == '__main__':
                 print(f"[DEBUG] Test results: {passed} passed, {failures} failed, {errors} errors")
                 
                 for i in range(passed):
-                    results.append(TestResult(
+                    results.append(SingleTestResult(
                         test_name=f'test_{i+1}',
                         status='passed',
                         output=result.stdout,
                         error_message=None
                     ))
                 for i in range(failures):
-                    results.append(TestResult(
+                    results.append(SingleTestResult(
                         test_name=f'failed_test_{i+1}',
                         status='failed',
                         output=result.stdout,
                         error_message=result.stderr if result.stderr else None
                     ))
                 for i in range(errors):
-                    results.append(TestResult(
+                    results.append(SingleTestResult(
                         test_name=f'error_test_{i+1}',
                         status='error',
                         output=result.stdout,
@@ -611,7 +611,7 @@ if __name__ == '__main__':
                     if ' ... ' in line:
                         if ' ... ok' in line:
                             test_name = line.split(' ... ')[0].split(' ')[0]
-                            results.append(TestResult(
+                            results.append(SingleTestResult(
                                 test_name=test_name,
                                 status='passed',
                                 output=result.stdout,
@@ -619,7 +619,7 @@ if __name__ == '__main__':
                             ))
                         elif ' ... FAIL' in line:
                             test_name = line.split(' ... ')[0].split(' ')[0]
-                            results.append(TestResult(
+                            results.append(SingleTestResult(
                                 test_name=test_name,
                                 status='failed',
                                 output=result.stdout,
@@ -627,7 +627,7 @@ if __name__ == '__main__':
                             ))
                         elif ' ... ERROR' in line:
                             test_name = line.split(' ... ')[0].split(' ')[0]
-                            results.append(TestResult(
+                            results.append(SingleTestResult(
                                 test_name=test_name,
                                 status='error',
                                 output=result.stdout,
@@ -637,7 +637,7 @@ if __name__ == '__main__':
                 # If still no results, create summary result
                 if not results:
                     overall_status = 'passed' if result.returncode == 0 else 'failed'
-                    results.append(TestResult(
+                    results.append(SingleTestResult(
                         test_name='all_tests',
                         status=overall_status,
                         output=result.stdout,
@@ -645,14 +645,14 @@ if __name__ == '__main__':
                     ))
             
         except subprocess.TimeoutExpired:
-            results.append(TestResult(
+            results.append(SingleTestResult(
                 test_name='execution',
                 status='error',
                 output='',
                 error_message='Test execution timeout (>30s)'
             ))
         except Exception as e:
-            results.append(TestResult(
+            results.append(SingleTestResult(
                 test_name='execution',
                 status='error',
                 output='',
@@ -674,7 +674,7 @@ if __name__ == '__main__':
         metric_description: str,
         base_metrics: Dict,
         sample_data: Dict
-    ) -> Tuple[bool, TestSuite, List[TestResult], Dict]:
+    ) -> Tuple[bool, TestSuite, List[SingleTestResult], Dict]:
         """
         Complete testing process:
         1. Generate tests

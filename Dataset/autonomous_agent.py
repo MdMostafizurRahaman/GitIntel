@@ -72,13 +72,20 @@ except ImportError:
     METRICS_AVAILABLE = False
     METRICS_DATABASE = {}
 
+# Import AgentMode from enhanced_agentic_system to avoid duplication
+try:
+    from enhanced_agentic_system import AgentMode
+    AGENT_MODE_AVAILABLE = True
+except ImportError:
+    # Fallback definition if enhanced_agentic_system not available
+    from enum import Enum
+    class AgentMode(Enum):
+        """Agent execution modes"""
+        ASK = "ask"  # Always asks for permission
+        AGENT = "agent"  # Autonomous execution
+    AGENT_MODE_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
-
-
-class AgentMode(Enum):
-    """Agent execution modes"""
-    ASK = "ask"  # Always asks for permission
-    AGENT = "agent"  # Autonomous execution
 
 class AutonomousDatasetAgent:
     """
