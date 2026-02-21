@@ -29,8 +29,6 @@ try:
         print(f"Loaded .env from {parent_dir}")
         if os.environ.get('AWS_ACCESS_KEY_ID'):
             print(f"AWS_ACCESS_KEY_ID loaded successfully")
-        if os.environ.get('GEMINI_API_KEY'):
-            print(f"GEMINI_API_KEY loaded successfully")
     else:
         # Try current directory
         print(f"  .env not found at {env_path}, trying current directory...")
@@ -61,25 +59,31 @@ try:
     from enhanced_agentic_system import EnhancedAgenticSystem, AgentMode as EnhancedMode
     from llm_code_jury_system import LLMCodeJurySystem
     from agentic_code_test_executor import AgenticCodeTestExecutor
-    from integrated_jury_system import IntegratedJurySystem
     from multi_agent_orchestrator import MultiAgentOrchestrator, create_orchestrator, WorkflowStatus
     AGENT_AVAILABLE = True
 except ImportError as e:
-    print(f"Warning: Some imports failed: {e}")
+    print(f"Warning: Some agent imports failed: {e}")
     AGENT_AVAILABLE = False
 
-# Try to import LLM Jury System
+# IntegratedJurySystem is imported independently so it works even if other agents fail
 try:
-    import warnings
-    with warnings.catch_warnings():
-        warnings.filterwarnings("ignore", category=FutureWarning)
-        import google.generativeai as genai
-    import time
-    from functools import wraps
-    LLM_AVAILABLE = True
+    from integrated_jury_system import IntegratedJurySystem
+    JURY_AVAILABLE = True
+except ImportError as e:
+    print(f"Warning: IntegratedJurySystem not available: {e}")
+    JURY_AVAILABLE = False
+
+# MetricsCatalog always needed
+try:
+    from metrics_catalog import MetricsCatalog
 except ImportError:
-    print("Warning: google.generativeai not available. LLM Jury features disabled.")
-    LLM_AVAILABLE = False
+    MetricsCatalog = None
+
+# LLM_AVAILABLE: Legacy Gemini flag — not used (AWS Bedrock via IntegratedJurySystem)
+import time
+from functools import wraps
+LLM_AVAILABLE = False
+genai = None   # keeps legacy api_key-guarded references from raising NameError
     
 # Rate Limiting Decorator
 def rate_limited(max_per_minute=10):
@@ -237,14 +241,14 @@ def get_git_root(file_path: str) -> Optional[str]:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 class MessageType(Enum):
-    SYSTEM = " "
-    USER = " "
-    THINKING = " "
-    ACTION = " "
-    SUCCESS = " "
-    ERROR = "[ERROR]"
-    QUESTION = " "
-    INFO = "[INFO]"
+    SYSTEM   = "SYSTEM"
+    USER     = "YOU"
+    THINKING = "AGENT"
+    ACTION   = "AGENT"
+    SUCCESS  = "AGENT"
+    ERROR    = "AGENT"
+    QUESTION = "AGENT"
+    INFO     = "AGENT"
 
 
 @dataclass
@@ -379,6 +383,10 @@ class AgenticDatasetGUI:
         self.conversation_history = []
         self.pending_clarification = False
         self.understood_request = None
+
+        # IntegratedJurySystem chat state (main chat panel)
+        self._chat_jury_in_session = False
+        self._chat_jury_requirements = None
         
         # Initialize test executor for custom metrics validation
         try:
@@ -417,385 +425,837 @@ class AgenticDatasetGUI:
         self.process_message_queue()
         
         # Welcome message
-        self.add_agent_message(MessageType.SYSTEM, 
+        self.add_agent_message(MessageType.SYSTEM,
             "Welcome to GitIntel Agentic Dataset Generator!\n\n"
-            "I'm your AI assistant for creating datasets. Tell me what you need:\n"
-            "• 'Create a Defects4J dataset from my repo'\n"
-            "• 'Generate complexity metrics for Python files'\n"
-            "• 'Build a custom dataset with CK metrics'\n\n"
-            "I'll show you a plan and ask for approval at each step."
+            "Powered by IntegratedJurySystem (Jury 1 → Jury 2 → Jury 1/2/3):\n"
+            "  1. Jury 1 understands your requirement (asks if unclear)\n"
+            "  2. Jury 2 checks the 64-metric catalog + 7 benchmarks;\n"
+            "     calls existing functions or synthesises new code\n"
+            "  3. All 3 Jury LLMs write unit tests independently;\n"
+            "     ≥2/3 must pass — up to 5 retries before human review\n\n"
+            "Tell me what you need:\n"
+            "  • 'Create a PROMISE dataset from my repo'\n"
+            "  • 'Calculate cyclomatic + cognitive complexity for Java files'\n"
+            "  • 'Build a custom metric: bugs per changed line'\n\n"
+            "Set a repository first, then type your request."
         )
         
     def configure_styles(self):
-        """Configure custom styles"""
+        """Configure clean light theme (white background, black text)"""
         style = ttk.Style()
         style.theme_use('clam')
-        
-        # Colors
+
+        # ── Color palette (clean light) ──────────────────────────────────
         self.colors = {
-            'bg': '#1e1e1e',
-            'fg': '#ffffff',
-            'accent': '#007acc',
-            'success': '#4caf50',
-            'warning': '#ff9800',
-            'error': '#f44336',
-            'panel_bg': '#252526',
-            'input_bg': '#3c3c3c',
-            'border': '#454545'
+            'bg':          '#ffffff',   # root background (white)
+            'panel':       '#f5f7fa',   # panel / card background (very light gray)
+            'sidebar':     '#eef1f6',   # sidebar background
+            'input_bg':    '#ffffff',   # entry/text widget background
+            'border':      '#d0d7de',   # borders
+            'accent':      '#0969da',   # primary blue (GitHub blue)
+            'accent_hover':'#0550ae',   # hover state
+            'success':     '#1a7f37',   # green
+            'warning':     '#9a6700',   # amber
+            'error':       '#cf222e',   # red
+            'fg':          '#1f2328',   # primary text (near-black)
+            'fg_muted':    '#656d76',   # secondary text (medium gray)
+            'topbar':      '#24292f',   # header bar (dark)
+            'topbar_fg':   '#ffffff',   # header text (white)
+            # Chat message colours (agent log panel has dark bg for readability)
+            'log_bg':      '#1e1e2e',   # log panel background (dark)
+            'user_msg':    '#56d2ba',   # teal — user messages
+            'agent_msg':   '#e8eaf0',   # light — agent replies
+            'thinking':    '#888ea8',   # gray italic — thinking
+            'success_msg': '#4ade80',   # bright green
+            'error_msg':   '#f87171',   # bright red
+            'question':    '#fb923c',   # orange
+            'info':        '#60a5fa',   # light blue
+            'action':      '#c084fc',   # purple
         }
-        
-        # Button styles
-        style.configure('Accent.TButton', font=('Segoe UI', 10, 'bold'))
-        style.configure('Approve.TButton', font=('Segoe UI', 10))
-        style.configure('Reject.TButton', font=('Segoe UI', 10))
-        
-        # Label styles
-        style.configure('Title.TLabel', font=('Segoe UI', 18, 'bold'))
-        style.configure('Header.TLabel', font=('Segoe UI', 12, 'bold'))
-        style.configure('Task.TLabel', font=('Segoe UI', 10))
-        style.configure('TaskPending.TLabel', font=('Segoe UI', 10), foreground='gray')
-        style.configure('TaskActive.TLabel', font=('Segoe UI', 10, 'bold'), foreground='#007acc')
-        style.configure('TaskDone.TLabel', font=('Segoe UI', 10), foreground='#4caf50')
+        C = self.colors
+
+        # ── Root background ──────────────────────────────────────────────
+        self.root.configure(bg=C['bg'])
+
+        # ── ttk global ──────────────────────────────────────────────────
+        style.configure('.',
+            background=C['panel'],
+            foreground=C['fg'],
+            fieldbackground=C['input_bg'],
+            troughcolor=C['border'],
+            selectbackground=C['accent'],
+            selectforeground='#ffffff',
+            font=('Segoe UI', 10),
+        )
+        style.configure('TFrame',      background=C['panel'])
+        style.configure('TLabelframe', background=C['panel'], foreground=C['fg'],
+                        bordercolor=C['border'])
+        style.configure('TLabelframe.Label',
+                        background=C['panel'], foreground=C['accent'],
+                        font=('Segoe UI', 9, 'bold'))
+        style.configure('TLabel',      background=C['panel'], foreground=C['fg'])
+        style.configure('TEntry',      fieldbackground=C['input_bg'],
+                        foreground=C['fg'], insertcolor=C['fg'],
+                        bordercolor=C['border'])
+        style.configure('TCombobox',   fieldbackground=C['input_bg'],
+                        foreground=C['fg'], selectbackground=C['accent'],
+                        background=C['input_bg'])
+        style.configure('TScrollbar',  background=C['border'], troughcolor=C['panel'],
+                        arrowcolor=C['fg_muted'])
+        style.configure('TNotebook',   background=C['bg'], bordercolor=C['border'])
+        style.configure('TNotebook.Tab',
+                        background=C['panel'], foreground=C['fg_muted'],
+                        padding=(12, 6), font=('Segoe UI', 10))
+        style.map('TNotebook.Tab',
+                  background=[('selected', C['bg'])],
+                  foreground=[('selected', C['fg'])])
+        style.configure('Horizontal.TProgressbar',
+                        troughcolor=C['border'], background=C['accent'])
+        style.configure('TPanedwindow', background=C['border'])
+        style.configure('Sash', sashrelief='flat', sashpad=3, background=C['border'])
+
+        # ── Buttons ──────────────────────────────────────────────────────
+        _btn = dict(font=('Segoe UI', 10), padding=(10, 6), borderwidth=1, relief='solid')
+        style.configure('TButton',
+                        background=C['panel'], foreground=C['fg'],
+                        bordercolor=C['border'], **_btn)
+        style.map('TButton',
+                  background=[('active', C['border']), ('pressed', '#c8d0da')])
+
+        style.configure('Accent.TButton',
+                        background=C['accent'], foreground='#ffffff',
+                        bordercolor=C['accent'], **_btn)
+        style.map('Accent.TButton',
+                  background=[('active', C['accent_hover']), ('pressed', '#044289')])
+
+        style.configure('Approve.TButton',
+                        background=C['success'], foreground='#ffffff',
+                        bordercolor=C['success'], **_btn)
+        style.map('Approve.TButton',
+                  background=[('active', '#15652c'), ('pressed', '#104d22')])
+
+        style.configure('Reject.TButton',
+                        background=C['error'], foreground='#ffffff',
+                        bordercolor=C['error'], **_btn)
+        style.map('Reject.TButton',
+                  background=[('active', '#a8001a'), ('pressed', '#82001a')])
+
+        style.configure('Warn.TButton',
+                        background='#9a6700', foreground='#ffffff',
+                        bordercolor='#9a6700', **_btn)
+
+        # ── Checkbutton ──────────────────────────────────────────────────
+        style.configure('TCheckbutton',
+                        background=C['panel'], foreground=C['fg'],
+                        focuscolor=C['panel'])
+        style.map('TCheckbutton',
+                  background=[('active', C['panel'])],
+                  foreground=[('active', C['fg'])])
+
+        # ── Labels ───────────────────────────────────────────────────────
+        style.configure('Title.TLabel',
+                        font=('Segoe UI', 16, 'bold'),
+                        foreground=C['fg'], background=C['panel'])
+        style.configure('Header.TLabel',
+                        font=('Segoe UI', 11, 'bold'),
+                        foreground=C['fg'], background=C['panel'])
+        style.configure('Sidebar.TLabel',
+                        font=('Segoe UI', 9, 'bold'),
+                        foreground=C['fg_muted'], background=C['sidebar'])
+        style.configure('Muted.TLabel',
+                        font=('Segoe UI', 8),
+                        foreground=C['fg_muted'], background=C['panel'])
+        style.configure('Task.TLabel',
+                        font=('Segoe UI', 10), background=C['panel'], foreground=C['fg'])
+        style.configure('TaskPending.TLabel',
+                        font=('Segoe UI', 10), background=C['panel'], foreground=C['fg_muted'])
+        style.configure('TaskActive.TLabel',
+                        font=('Segoe UI', 10, 'bold'), background=C['panel'],
+                        foreground=C['accent'])
+        style.configure('TaskDone.TLabel',
+                        font=('Segoe UI', 10), background=C['panel'],
+                        foreground=C['success'])
+        style.configure('Status.TLabel',
+                        font=('Segoe UI', 9), background=C['panel'],
+                        foreground=C['fg_muted'])
+        style.configure('TopBar.TLabel',
+                        font=('Segoe UI', 12, 'bold'),
+                        foreground=C['topbar_fg'], background=C['topbar'])
+        style.configure('TopBarRepo.TLabel',
+                        font=('Segoe UI', 10),
+                        foreground='#adbac7', background=C['topbar'])
+        style.configure('SectionHead.TLabel',
+                        font=('Segoe UI', 8, 'bold'),
+                        foreground=C['fg_muted'], background=C['sidebar'])
         
     def build_ui(self):
-        """Build the main UI with tab-based organization"""
-        # Main Notebook (Tab Container)
-        self.main_notebook = ttk.Notebook(self.root)
-        self.main_notebook.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
-        
-        # TAB 1: Dataset Generator (Original functionality)
-        self.dataset_tab = ttk.Frame(self.main_notebook)
-        self.main_notebook.add(self.dataset_tab, text="Dataset Generator")
-                
-        # Build Tab 1: Dataset Generator
-        self.build_dataset_tab()
-    
-    def build_dataset_tab(self):
-        """TAB 1: Dataset Generator (original functionality in clean layout)"""
-        # Split panel like before
-        split_container = ttk.PanedWindow(self.dataset_tab, orient=tk.HORIZONTAL)
-        split_container.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
-        
-        # Left panel (config)
-        self.left_frame = ttk.Frame(split_container)
-        split_container.add(self.left_frame, weight=3)
-        
-        # Right panel (agent)
-        self.right_frame = ttk.Frame(split_container)
-        split_container.add(self.right_frame, weight=2)
-        
-        # Build original panels
-        self.build_left_panel()
+        """Build main UI: dark top bar + 3-panel split (sidebar | center | agent log)"""
+        C = self.colors
+
+        # ── Top bar ────────────────────────────────────────────────────────
+        topbar = tk.Frame(self.root, bg=C['topbar'], height=40)
+        topbar.pack(fill=tk.X, side=tk.TOP)
+        topbar.pack_propagate(False)
+
+        tk.Label(topbar, text="GitIntel", font=('Segoe UI', 13, 'bold'),
+                 fg=C['topbar_fg'], bg=C['topbar']).pack(side=tk.LEFT, padx=12, pady=8)
+
+        tk.Label(topbar, text="|", fg='#555d66', bg=C['topbar']).pack(side=tk.LEFT)
+
+        tk.Label(topbar, text="Agentic Dataset Generator",
+                 font=('Segoe UI', 10), fg='#adbac7',
+                 bg=C['topbar']).pack(side=tk.LEFT, padx=8)
+
+        tk.Label(topbar, text="|", fg='#555d66', bg=C['topbar']).pack(side=tk.LEFT)
+
+        self.topbar_repo_var = tk.StringVar(value="No repository set")
+        tk.Label(topbar, textvariable=self.topbar_repo_var,
+                 font=('Segoe UI', 10, 'bold'), fg='#79c0ff',
+                 bg=C['topbar']).pack(side=tk.LEFT, padx=8)
+
+        # Status indicator on right
+        self.topbar_status_var = tk.StringVar(value="Ready")
+        tk.Label(topbar, textvariable=self.topbar_status_var,
+                 font=('Segoe UI', 9), fg='#57ab5a',
+                 bg=C['topbar']).pack(side=tk.RIGHT, padx=12)
+
+        # ── Resizable 3-panel body (PanedWindow) ──────────────────────────
+        body_pane = tk.PanedWindow(self.root, orient=tk.HORIZONTAL,
+                                   sashwidth=5, sashrelief='flat',
+                                   bg=C['border'])
+        body_pane.pack(fill=tk.BOTH, expand=True)
+
+        # Sidebar (left, resizable min 160px)
+        self.sidebar_frame = tk.Frame(body_pane, bg=C['sidebar'])
+        body_pane.add(self.sidebar_frame, minsize=160, width=240)
+
+        # Center panel (fills remaining space)
+        self.center_frame = tk.Frame(body_pane, bg=C['bg'])
+        body_pane.add(self.center_frame, minsize=280)
+
+        # Right agent log (resizable min 260px)
+        self.right_frame = tk.Frame(body_pane, bg=C['panel'])
+        body_pane.add(self.right_frame, minsize=260, width=400)
+
+        # Also alias left_frame to center for legacy code compatibility
+        self.left_frame = self.center_frame
+
+        self.build_sidebar()
+        self.build_center_panel()
         self.build_agent_panel()
 
-    def build_left_panel(self):
-        """Build the left main content panel"""
-        # Title bar
-        title_frame = ttk.Frame(self.left_frame)
-        title_frame.pack(fill=tk.X, pady=(0, 10))
-        
-        ttk.Label(title_frame, text="Dataset Generator", 
-                  style='Title.TLabel').pack(side=tk.LEFT)
-        
-        # ═══════════════════════════════════════════════════════════════════
-        # REPOSITORY SECTION
-        # ═══════════════════════════════════════════════════════════════════
-        repo_frame = ttk.LabelFrame(self.left_frame, text="Repository", padding=10)
-        repo_frame.pack(fill=tk.X, pady=(0, 10))
-        
-        repo_input_frame = ttk.Frame(repo_frame)
-        repo_input_frame.pack(fill=tk.X)
-        
-        self.repo_var = tk.StringVar()
-        self.repo_entry = ttk.Entry(repo_input_frame, textvariable=self.repo_var, 
-                                     font=('Consolas', 10))
-        self.repo_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
-        self.repo_entry.insert(0, "Path or URL: apache/kafka or https://github.com/...")
-        self.repo_entry.bind('<FocusIn>', self.on_repo_focus)
-        
-        ttk.Button(repo_input_frame, text="Browse", width=10,
-                   command=self.browse_folder).pack(side=tk.LEFT, padx=2)
-        ttk.Button(repo_input_frame, text="Clone", width=10,
-                   command=self.clone_repository).pack(side=tk.LEFT, padx=2)
-        ttk.Button(repo_input_frame, text="  Set", 
-                   command=self.set_repository).pack(side=tk.LEFT, padx=2)
-        
-        self.repo_status = ttk.Label(repo_frame, text="", font=('Segoe UI', 9))
-        self.repo_status.pack(anchor=tk.W, pady=(5, 0))
-        
-        # ═══════════════════════════════════════════════════════════════════
-        # BENCHMARK & METRICS SELECTOR
-        # ═══════════════════════════════════════════════════════════════════
-        selector_frame = ttk.LabelFrame(self.left_frame, text="Quick Dataset Options", padding=10)
-        selector_frame.pack(fill=tk.X, pady=(0, 10))
-        
-        # Row 1: Benchmark dropdown
-        bench_row = ttk.Frame(selector_frame)
-        bench_row.pack(fill=tk.X, pady=(0, 5))
-        
-        ttk.Label(bench_row, text="Benchmark:", font=('Segoe UI', 10)).pack(side=tk.LEFT, padx=(0, 5))
-        
-        self.benchmark_var = tk.StringVar(value="None")
-        benchmark_options = ["None", "Defects4J", "Bugs.jar", "PROMISE", "CodeXGLUE", 
-                           "CodeSearchNet", "ManySStuBs4J", "Sourcerer"]
-        self.benchmark_dropdown = ttk.Combobox(bench_row, textvariable=self.benchmark_var,
-                                               values=benchmark_options, state="readonly", width=18)
-        self.benchmark_dropdown.pack(side=tk.LEFT, padx=5)
-        
-        ttk.Button(bench_row, text="Info", width=6,
-                  command=self.show_benchmark_info).pack(side=tk.LEFT, padx=2)
-        
-        # Row 2: Metrics selector button & combine option
-        metrics_row = ttk.Frame(selector_frame)
-        metrics_row.pack(fill=tk.X, pady=(5, 5))
-        
-        ttk.Label(metrics_row, text="Metrics:", font=('Segoe UI', 10)).pack(side=tk.LEFT, padx=(0, 5))
-        
-        self.selected_metrics_count = tk.StringVar(value="0/64 selected")
-        ttk.Label(metrics_row, textvariable=self.selected_metrics_count,
-                 font=('Segoe UI', 9), foreground='gray').pack(side=tk.LEFT, padx=5)
-        
-        ttk.Button(metrics_row, text="Select Metrics",
-                  command=self.show_metrics_selector).pack(side=tk.LEFT, padx=5)
-        
-        # Combine checkbox
-        self.combine_var = tk.BooleanVar(value=False)
-        ttk.Checkbutton(metrics_row, text="Combine with Benchmark",
-                       variable=self.combine_var).pack(side=tk.LEFT, padx=10)
-        
-        # Row 3: File limit option
-        limit_row = ttk.Frame(selector_frame)
-        limit_row.pack(fill=tk.X, pady=(5, 5))
-        
-        ttk.Label(limit_row, text="File Limit:", font=('Segoe UI', 10)).pack(side=tk.LEFT, padx=(0, 5))
-        
-        self.file_limit_var = tk.StringVar(value="100")
-        file_limit_entry = ttk.Entry(limit_row, textvariable=self.file_limit_var, width=10)
-        file_limit_entry.pack(side=tk.LEFT, padx=5)
-        
-        ttk.Label(limit_row, text="(Default: 100 files. Use 'All' for entire repo)",
-                 font=('Segoe UI', 8), foreground='gray').pack(side=tk.LEFT, padx=5)
-        
-        # Row 4: Quick action buttons
-        action_row = ttk.Frame(selector_frame)
-        action_row.pack(fill=tk.X, pady=(5, 0))
-        
-        ttk.Button(action_row, text="Generate Dataset",
-                  command=self.generate_from_selection,
-                  style='Accent.TButton').pack(side=tk.LEFT, padx=2)
-        
-        ttk.Button(action_row, text="Clear Selection",
-                  command=self.clear_selection).pack(side=tk.LEFT, padx=2)
-        
-        # ═══════════════════════════════════════════════════════════════════
-        # CHAT INPUT (Ask me anything)
-        # ═══════════════════════════════════════════════════════════════════
-        input_frame = ttk.LabelFrame(self.left_frame, text="Chat - Ask me anything", padding=10)
-        input_frame.pack(fill=tk.X, pady=(0, 10))
-        
-        # Mode dropdown
-        mode_frame = ttk.Frame(input_frame)
-        mode_frame.pack(fill=tk.X, pady=(0, 5))
-        
-        ttk.Label(mode_frame, text="Mode:", font=('Segoe UI', 10, 'bold')).pack(side=tk.LEFT, padx=5)
-        
-        self.agent_mode_var = tk.StringVar(value="agent")
-        mode_dropdown = ttk.Combobox(mode_frame, textvariable=self.agent_mode_var, 
-                                     values=["agent", "ask"], state="readonly", width=10)
-        mode_dropdown.pack(side=tk.LEFT, padx=5)
-        
-        ttk.Label(mode_frame, text="(agent = auto, ask = confirm each step)", 
-                 font=('Segoe UI', 8), foreground='gray').pack(side=tk.LEFT, padx=5)
-        
-        # Chat input
-        self.unified_input_var = tk.StringVar()
-        self.unified_input = ttk.Entry(input_frame, textvariable=self.unified_input_var,
-                                       font=('Segoe UI', 11))
-        self.unified_input.pack(fill=tk.X, pady=(5, 5))
-        self.unified_input.insert(0, "Type: 'health dataset', 'complexity analysis', 'custom metric for...'")
-        self.unified_input.bind('<FocusIn>', lambda e: self.unified_input.delete(0, tk.END) 
-                               if 'Type:' in self.unified_input.get() else None)
-        self.unified_input.bind('<Return>', lambda e: self.process_chat_input())
-        
-        # Send button
-        ttk.Button(input_frame, text="Send", 
-                   command=self.process_chat_input,
-                   style='Accent.TButton').pack(fill=tk.X, pady=(5, 0))
-        
-        # ═══════════════════════════════════════════════════════════════════
-        # INFO: Formula Generator moved to separate tab
-        # ═══════════════════════════════════════════════════════════════════
-        if hasattr(self, 'llm_jury_system') and self.llm_jury_system:
-            info_frame = ttk.Frame(self.left_frame)
-            info_frame.pack(fill=tk.X, pady=(0, 10))
-            
-            ttk.Label(info_frame,
-                     text="Tip: Use 'Dynamic Formulas' tab for formula generation with Multi-LLM Jury",
-                     font=('Segoe UI', 9), foreground="#034e8c", wraplength=500).pack(anchor=tk.W)
-        
-        # ═══════════════════════════════════════════════════════════════════
-        # TODO LIST PANEL
-        # ═══════════════════════════════════════════════════════════════════
-        self.todo_frame = ttk.LabelFrame(self.left_frame, text="Task Plan", padding=10)
-        self.todo_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
-        
-        # Todo header with control buttons
-        todo_header = ttk.Frame(self.todo_frame)
-        todo_header.pack(fill=tk.X, pady=(0, 10))
-        
-        # Left side: Task count
-        left_header = ttk.Frame(todo_header)
-        left_header.pack(side=tk.LEFT, fill=tk.X, expand=True)
-        
-        self.task_progress_var = tk.StringVar(value="0/0 tasks")
-        ttk.Label(left_header, textvariable=self.task_progress_var,
-                  style='Task.TLabel', font=('Segoe UI', 10, 'bold')).pack(side=tk.LEFT)
-        
-        # Right side: Control buttons
-        control_frame = ttk.Frame(todo_header)
-        control_frame.pack(side=tk.RIGHT)
-        
-        self.start_btn = ttk.Button(control_frame, text="Start",
-                                     command=self.start_execution,
-                                     style='Accent.TButton')
-        self.start_btn.pack(side=tk.LEFT, padx=2)
-        self.start_btn.config(state=tk.DISABLED)
-        
-        self.pause_btn = ttk.Button(control_frame, text="⏸ Pause",
-                                     command=self.pause_execution)
-        self.pause_btn.pack(side=tk.LEFT, padx=2)
-        self.pause_btn.config(state=tk.DISABLED)
-        
-        ttk.Button(control_frame, text="Clear",
-                   command=self.clear_plan).pack(side=tk.LEFT, padx=2)
-        
-        # Progress bar below header
-        progress_frame = ttk.Frame(self.todo_frame)
-        progress_frame.pack(fill=tk.X, pady=(0, 10))
-        
-        self.progress_var = tk.DoubleVar(value=0)
-        self.progress_bar = ttk.Progressbar(progress_frame, variable=self.progress_var,
-                                            mode='determinate')
-        self.progress_bar.pack(fill=tk.X)
-        
-        # Info text
-        ttk.Label(self.todo_frame, text="Tasks will appear below when you describe what you need",
-                  style='TaskPending.TLabel', font=('Segoe UI', 9)).pack(anchor=tk.W, pady=(0, 5))
-        
-        # Scrollable task list
-        self.task_canvas = tk.Canvas(self.todo_frame, bg='white', highlightthickness=0)
-        task_scrollbar = ttk.Scrollbar(self.todo_frame, orient=tk.VERTICAL, 
-                                        command=self.task_canvas.yview)
-        
-        self.task_list_frame = ttk.Frame(self.task_canvas)
-        
-        self.task_canvas.configure(yscrollcommand=task_scrollbar.set)
-        task_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        self.task_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        
-        self.task_canvas_window = self.task_canvas.create_window((0, 0), 
-                                                                   window=self.task_list_frame, 
-                                                                   anchor=tk.NW)
-        
-        self.task_list_frame.bind('<Configure>', 
-                                   lambda e: self.task_canvas.configure(
-                                       scrollregion=self.task_canvas.bbox("all")))
-        self.task_canvas.bind('<Configure>', 
-                              lambda e: self.task_canvas.itemconfig(
-                                  self.task_canvas_window, width=e.width))
-        
-        # ═══════════════════════════════════════════════════════════════════
-        # STATUS BAR
-        # ═══════════════════════════════════════════════════════════════════
-        status_frame = ttk.Frame(self.left_frame)
-        status_frame.pack(fill=tk.X)
-        
+        # ── Bottom status bar ─────────────────────────────────────────────
+        statusbar = tk.Frame(self.root, bg=C['border'], height=24)
+        statusbar.pack(fill=tk.X, side=tk.BOTTOM)
+        statusbar.pack_propagate(False)
+
         self.status_var = tk.StringVar(value="Ready")
-        ttk.Label(status_frame, textvariable=self.status_var,
-                  font=('Segoe UI', 9)).pack(side=tk.LEFT)
-        
+        tk.Label(statusbar, textvariable=self.status_var,
+                 font=('Segoe UI', 8), fg=C['fg_muted'],
+                 bg=C['border']).pack(side=tk.LEFT, padx=8, pady=3)
+
+        self.output_path_var = tk.StringVar(value="")
+        tk.Label(statusbar, textvariable=self.output_path_var,
+                 font=('Segoe UI', 8, 'italic'), fg='#0969da',
+                 bg=C['border']).pack(side=tk.RIGHT, padx=8, pady=3)
+
+    # ── backward-compat shim: notebooks / tabs not used now ───────────
+    def build_dataset_tab(self):
+        pass
+
+    def _section_header(self, parent, text):
+        """Thin uppercase section label for sidebar"""
+        tk.Label(parent, text=text.upper(),
+                 font=('Segoe UI', 7, 'bold'),
+                 fg=self.colors['fg_muted'], bg=self.colors['sidebar']).pack(
+            anchor=tk.W, padx=10, pady=(10, 2))
+
+    def build_sidebar(self):
+        """Left sidebar: repo, benchmarks (checkboxes), metrics, limit, generate"""
+        C = self.colors
+        sb = self.sidebar_frame
+
+        # ── REPOSITORY ────────────────────────────────────────────────────
+        self._section_header(sb, "Repository")
+        repo_card = tk.Frame(sb, bg=C['panel'], relief='flat', bd=1)
+        repo_card.pack(fill=tk.X, padx=8, pady=(0, 4))
+
+        self.repo_var = tk.StringVar()
+        self.repo_entry = tk.Entry(repo_card, textvariable=self.repo_var,
+                                   font=('Segoe UI', 9),
+                                   bg=C['input_bg'], fg=C['fg'],
+                                   relief='solid', bd=1,
+                                   insertbackground=C['fg'])
+        self.repo_entry.pack(fill=tk.X, padx=6, pady=(6, 0))
+        self.repo_entry.insert(0, "Path or GitHub URL...")
+        self.repo_entry.bind('<FocusIn>', self.on_repo_focus)
+
+        btn_row = tk.Frame(repo_card, bg=C['panel'])
+        btn_row.pack(fill=tk.X, padx=6, pady=4)
+
+        for txt, cmd in [("Browse", self.browse_folder),
+                         ("Clone", self.clone_repository),
+                         ("Set", self.set_repository)]:
+            tk.Button(btn_row, text=txt,
+                      font=('Segoe UI', 8), bg=C['input_bg'], fg=C['fg'],
+                      relief='solid', bd=1, cursor='hand2',
+                      activebackground=C['border'],
+                      command=cmd).pack(side=tk.LEFT, padx=2, pady=1, fill=tk.X, expand=True)
+
+        self.repo_status = tk.Label(repo_card, text="",
+                                    font=('Segoe UI', 8), bg=C['panel'], fg=C['fg_muted'],
+                                    wraplength=200, justify=tk.LEFT)
+        self.repo_status.pack(anchor=tk.W, padx=6, pady=(0, 4))
+
+        # ── BENCHMARKS ───────────────────────────────────────────────────
+        self._section_header(sb, "Benchmarks")
+        bench_card = tk.Frame(sb, bg=C['panel'], relief='flat', bd=1)
+        bench_card.pack(fill=tk.X, padx=8, pady=(0, 4))
+
+        bench_btn_row = tk.Frame(bench_card, bg=C['panel'])
+        bench_btn_row.pack(fill=tk.X, padx=4, pady=(4, 2))
+
+        tk.Button(bench_btn_row, text="All", font=('Segoe UI', 7),
+                  bg=C['accent'], fg='white', relief='flat', cursor='hand2',
+                  activebackground=C['accent_hover'],
+                  command=lambda: self._set_all_benchmarks(True)).pack(
+            side=tk.LEFT, padx=2)
+        tk.Button(bench_btn_row, text="None", font=('Segoe UI', 7),
+                  bg=C['input_bg'], fg=C['fg'], relief='solid', bd=1, cursor='hand2',
+                  activebackground=C['border'],
+                  command=lambda: self._set_all_benchmarks(False)).pack(
+            side=tk.LEFT, padx=2)
+
+        self.benchmark_vars: dict[str, tk.BooleanVar] = {}
+        BENCHMARKS = ["Defects4J", "Bugs.jar", "PROMISE",
+                      "CodeXGLUE", "CodeSearchNet", "ManySStuBs4J", "Sourcerer"]
+        for bname in BENCHMARKS:
+            var = tk.BooleanVar(value=False)
+            self.benchmark_vars[bname] = var
+            cb = tk.Checkbutton(bench_card, text=bname,
+                                font=('Segoe UI', 9), variable=var,
+                                bg=C['panel'], fg=C['fg'],
+                                activebackground=C['panel'],
+                                selectcolor=C['input_bg'],
+                                cursor='hand2',
+                                command=self._update_bench_count)
+            cb.pack(anchor=tk.W, padx=8, pady=1)
+
+        self.bench_count_var = tk.StringVar(value="0 selected")
+        tk.Label(bench_card, textvariable=self.bench_count_var,
+                 font=('Segoe UI', 8), bg=C['panel'],
+                 fg=C['fg_muted']).pack(anchor=tk.W, padx=8, pady=(0, 4))
+
+        # Keep backward-compat: benchmark_var (old single-select) defaults to None
+        self.benchmark_var = tk.StringVar(value="None")
+
+        # ── METRICS ───────────────────────────────────────────────────────
+        self._section_header(sb, "Metrics")
+        met_card = tk.Frame(sb, bg=C['panel'], relief='flat', bd=1)
+        met_card.pack(fill=tk.X, padx=8, pady=(0, 4))
+
+        met_row = tk.Frame(met_card, bg=C['panel'])
+        met_row.pack(fill=tk.X, padx=6, pady=6)
+
+        tk.Button(met_row, text="Select Metrics",
+                  font=('Segoe UI', 9), bg=C['accent'], fg='white',
+                  relief='flat', cursor='hand2', activebackground=C['accent_hover'],
+                  command=self.show_metrics_selector).pack(side=tk.LEFT, padx=(0, 6))
+
+        self.selected_metrics_count = tk.StringVar(value="0/64")
+        tk.Label(met_row, textvariable=self.selected_metrics_count,
+                 font=('Segoe UI', 9), bg=C['panel'], fg=C['fg_muted']).pack(side=tk.LEFT)
+
+        self.combine_var = tk.BooleanVar(value=False)
+        tk.Checkbutton(met_card, text="Combine with Benchmark",
+                       font=('Segoe UI', 8), variable=self.combine_var,
+                       bg=C['panel'], fg=C['fg'], activebackground=C['panel'],
+                       selectcolor=C['input_bg']).pack(anchor=tk.W, padx=8, pady=(0, 4))
+
+        # ── DATA LIMIT ────────────────────────────────────────────────────
+        self._section_header(sb, "Data Limit")
+        lim_card = tk.Frame(sb, bg=C['panel'], relief='flat', bd=1)
+        lim_card.pack(fill=tk.X, padx=8, pady=(0, 4))
+
+        lim_row = tk.Frame(lim_card, bg=C['panel'])
+        lim_row.pack(fill=tk.X, padx=6, pady=6)
+
+        self.file_limit_var = tk.StringVar(value="500")
+        tk.Entry(lim_row, textvariable=self.file_limit_var, width=8,
+                 font=('Segoe UI', 10), bg=C['input_bg'], fg=C['fg'],
+                 relief='solid', bd=1,
+                 insertbackground=C['fg']).pack(side=tk.LEFT, padx=(0, 6))
+        tk.Label(lim_row, text="commits  (or 'all')",
+                 font=('Segoe UI', 8), bg=C['panel'],
+                 fg=C['fg_muted']).pack(side=tk.LEFT)
+
+        # ── GENERATE DATASET ──────────────────────────────────────────────
+        self._section_header(sb, "")
+        tk.Button(sb, text="Generate Dataset",
+                  font=('Segoe UI', 10, 'bold'),
+                  bg=C['accent'], fg='white',
+                  relief='flat', bd=0,
+                  cursor='hand2',
+                  activebackground=C['accent_hover'],
+                  command=self.generate_from_selection).pack(
+            fill=tk.X, padx=8, pady=(2, 4), ipady=6)
+
+        tk.Button(sb, text="Clear Selection",
+                  font=('Segoe UI', 9),
+                  bg=C['input_bg'], fg=C['fg'],
+                  relief='solid', bd=1, cursor='hand2',
+                  activebackground=C['border'],
+                  command=self.clear_selection).pack(
+            fill=tk.X, padx=8, pady=(0, 4))
+
+    def _update_bench_count(self):
+        n = sum(1 for v in self.benchmark_vars.values() if v.get())
+        self.bench_count_var.set(f"{n} selected")
+
+    def _set_all_benchmarks(self, state: bool):
+        for v in self.benchmark_vars.values():
+            v.set(state)
+        self._update_bench_count()
+
+    def get_selected_benchmarks(self) -> list:
+        """Return list of checked benchmark names"""
+        return [k for k, v in self.benchmark_vars.items() if v.get()]
+
+    def build_center_panel(self):
+        """Center panel: task plan + chat input"""
+        C = self.colors
+        cp = self.center_frame
+
+        # ── TASK PLAN ─────────────────────────────────────────────────────
+        plan_outer = tk.Frame(cp, bg=C['bg'])
+        plan_outer.pack(fill=tk.BOTH, expand=True, padx=10, pady=(10, 0))
+
+        plan_header = tk.Frame(plan_outer, bg=C['bg'])
+        plan_header.pack(fill=tk.X, pady=(0, 6))
+
+        tk.Label(plan_header, text="Task Plan",
+                 font=('Segoe UI', 11, 'bold'),
+                 fg=C['fg'], bg=C['bg']).pack(side=tk.LEFT)
+
+        self.task_progress_var = tk.StringVar(value="0/0 tasks")
+        tk.Label(plan_header, textvariable=self.task_progress_var,
+                 font=('Segoe UI', 9), fg=C['fg_muted'],
+                 bg=C['bg']).pack(side=tk.LEFT, padx=10)
+
+        ctrl_row = tk.Frame(plan_header, bg=C['bg'])
+        ctrl_row.pack(side=tk.RIGHT)
+
+        self.start_btn = tk.Button(ctrl_row, text="Start",
+                                   font=('Segoe UI', 9, 'bold'),
+                                   bg=C['success'], fg='white',
+                                   relief='flat', cursor='hand2',
+                                   state=tk.DISABLED,
+                                   activebackground='#15652c',
+                                   command=self.start_execution)
+        self.start_btn.pack(side=tk.LEFT, padx=2)
+
+        self.pause_btn = tk.Button(ctrl_row, text="Pause",
+                                   font=('Segoe UI', 9),
+                                   bg=C['input_bg'], fg=C['fg'],
+                                   relief='solid', bd=1, cursor='hand2',
+                                   state=tk.DISABLED,
+                                   command=self.pause_execution)
+        self.pause_btn.pack(side=tk.LEFT, padx=2)
+
+        tk.Button(ctrl_row, text="Clear",
+                  font=('Segoe UI', 9),
+                  bg=C['input_bg'], fg=C['fg'],
+                  relief='solid', bd=1, cursor='hand2',
+                  command=self.clear_plan).pack(side=tk.LEFT, padx=2)
+
+        # Progress bar
+        self.progress_var = tk.DoubleVar(value=0)
+        self.progress_bar = ttk.Progressbar(plan_outer,
+                                            variable=self.progress_var,
+                                            mode='determinate')
+        self.progress_bar.pack(fill=tk.X, pady=(0, 6))
+
+        # Scrollable task list
+        task_scroll_frame = tk.Frame(plan_outer, bg=C['bg'])
+        task_scroll_frame.pack(fill=tk.BOTH, expand=True)
+
+        self.task_canvas = tk.Canvas(task_scroll_frame,
+                                     bg=C['bg'], highlightthickness=0)
+        task_sb = ttk.Scrollbar(task_scroll_frame, orient=tk.VERTICAL,
+                                command=self.task_canvas.yview)
+        self.task_list_frame = tk.Frame(self.task_canvas, bg=C['bg'])
+
+        self.task_canvas.configure(yscrollcommand=task_sb.set)
+        task_sb.pack(side=tk.RIGHT, fill=tk.Y)
+        self.task_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        self.task_canvas_window = self.task_canvas.create_window(
+            (0, 0), window=self.task_list_frame, anchor=tk.NW)
+
+        self.task_list_frame.bind('<Configure>',
+            lambda e: self.task_canvas.configure(
+                scrollregion=self.task_canvas.bbox("all")))
+        self.task_canvas.bind('<Configure>',
+            lambda e: self.task_canvas.itemconfig(
+                self.task_canvas_window, width=e.width))
+
+        tk.Label(task_scroll_frame, bg=C['bg'])  # spacer
+
+        # ── CHAT INPUT ────────────────────────────────────────────────────
+        chat_outer = tk.Frame(cp, bg=C['border'], height=1)
+        chat_outer.pack(fill=tk.X)
+        chat_area = tk.Frame(cp, bg=C['panel'])
+        chat_area.pack(fill=tk.X, padx=0, pady=0)
+
+        chat_top = tk.Frame(chat_area, bg=C['panel'])
+        chat_top.pack(fill=tk.X, padx=10, pady=(8, 4))
+
+        tk.Label(chat_top, text="Tell me what dataset you need:",
+                 font=('Segoe UI', 9, 'bold'),
+                 fg=C['fg'], bg=C['panel']).pack(side=tk.LEFT)
+
+        self.agent_mode_var = tk.StringVar(value="agent")
+        tk.Label(chat_top, text="Mode:",
+                 font=('Segoe UI', 8), fg=C['fg_muted'],
+                 bg=C['panel']).pack(side=tk.RIGHT, padx=(0, 4))
+        ttk.Combobox(chat_top, textvariable=self.agent_mode_var,
+                     values=["agent", "ask"], state="readonly",
+                     width=8, font=('Segoe UI', 8)).pack(side=tk.RIGHT)
+
+        input_row = tk.Frame(chat_area, bg=C['panel'])
+        input_row.pack(fill=tk.X, padx=10, pady=(0, 8))
+
+        self.unified_input_var = tk.StringVar()
+        self.unified_input = tk.Entry(input_row, textvariable=self.unified_input_var,
+                                      font=('Segoe UI', 11),
+                                      bg=C['input_bg'], fg=C['fg'],
+                                      relief='solid', bd=1,
+                                      insertbackground=C['fg'])
+        self.unified_input.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 8))
+        self.unified_input.insert(0, "e.g. 'PROMISE dataset with cyclomatic complexity'")
+        self.unified_input.bind('<FocusIn>',
+            lambda e: self.unified_input.delete(0, tk.END)
+            if "e.g." in self.unified_input.get() else None)
+        self.unified_input.bind('<Return>', lambda e: self.process_chat_input())
+
+        self.send_btn = tk.Button(input_row, text="Send",
+                                  font=('Segoe UI', 10, 'bold'),
+                                  bg=C['accent'], fg='white',
+                                  relief='flat', cursor='hand2',
+                                  activebackground=C['accent_hover'],
+                                  command=self.process_chat_input)
+        self.send_btn.pack(side=tk.LEFT, ipady=4, ipadx=8)
+
     def build_agent_panel(self):
-        """Build the right agent panel"""
-        # Header
-        header_frame = ttk.Frame(self.right_frame)
-        header_frame.pack(fill=tk.X, pady=(0, 10))
-        
-        ttk.Label(header_frame, text="Agent Assistant",
-                  style='Header.TLabel').pack(side=tk.LEFT)
-        
-        # Message area (optimized height for visibility)
-        self.message_frame = ttk.Frame(self.right_frame)
-        self.message_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
-        
+        """Right panel: agent log (dark) + confirmation area + feedback input"""
+        C = self.colors
+        rp = self.right_frame
+
+        # ── Header ────────────────────────────────────────────────────────
+        hdr = tk.Frame(rp, bg=C['topbar'])
+        hdr.pack(fill=tk.X)
+        tk.Label(hdr, text="Agent Log",
+                 font=('Segoe UI', 11, 'bold'),
+                 fg=C['topbar_fg'], bg=C['topbar']).pack(
+            side=tk.LEFT, padx=10, pady=8)
+
+        clr_btn = tk.Button(hdr, text="Clear",
+                            font=('Segoe UI', 8),
+                            bg='#373e47', fg='#adbac7',
+                            relief='flat', cursor='hand2',
+                            activebackground='#444c56',
+                            command=lambda: (
+                                self.message_text.config(state=tk.NORMAL),
+                                self.message_text.delete('1.0', tk.END),
+                                self.message_text.config(state=tk.DISABLED)
+                            ))
+        clr_btn.pack(side=tk.RIGHT, padx=6, pady=6)
+
+        # ── Log text area (dark) ──────────────────────────────────────────
+        self.message_frame = tk.Frame(rp, bg=C['log_bg'])
+        self.message_frame.pack(fill=tk.BOTH, expand=True)
+
         self.message_text = scrolledtext.ScrolledText(
             self.message_frame,
             wrap=tk.WORD,
-            font=('Segoe UI', 10),
-            bg='#1e1e1e',
-            fg='#ffffff',
+            font=('Consolas', 9),
+            bg=C['log_bg'],
+            fg=C['agent_msg'],
             insertbackground='white',
             state=tk.DISABLED,
-            height=20  # Set fixed height to ensure bottom controls are visible
+            borderwidth=0,
+            highlightthickness=0,
+            padx=8, pady=6,
         )
         self.message_text.pack(fill=tk.BOTH, expand=True)
-        
-        # Configure tags for different message types
-        self.message_text.tag_configure('system', foreground='#569cd6')
-        self.message_text.tag_configure('user', foreground='#4ec9b0')
-        self.message_text.tag_configure('thinking', foreground='#808080', font=('Segoe UI', 10, 'italic'))
-        self.message_text.tag_configure('action', foreground='#dcdcaa')
-        self.message_text.tag_configure('success', foreground='#4caf50')
-        self.message_text.tag_configure('error', foreground='#f44336')
-        self.message_text.tag_configure('question', foreground='#ce9178')
-        self.message_text.tag_configure('info', foreground='#9cdcfe')
-        self.message_text.tag_configure('bold', font=('Segoe UI', 10, 'bold'))
-        
-        # ═══════════════════════════════════════════════════════════════════
-        # APPROVAL SECTION
-        # ═══════════════════════════════════════════════════════════════════
-        self.approval_frame = ttk.LabelFrame(self.right_frame, text="Action Required  ", padding=10)
-        self.approval_frame.pack(fill=tk.X, pady=(0, 10))
-        
-        self.approval_text = ttk.Label(self.approval_frame, 
-                                        text="No pending approvals",
-                                        wraplength=300)
-        self.approval_text.pack(fill=tk.X, pady=(0, 10))
-        
-        approval_btns = ttk.Frame(self.approval_frame)
-        approval_btns.pack(fill=tk.X)
-        
-        self.approve_btn = ttk.Button(approval_btns, text="Approve",
-                                       command=self.approve_action,
-                                       style='Approve.TButton')
-        self.approve_btn.pack(side=tk.LEFT, padx=2, expand=True, fill=tk.X)
-        
-        self.reject_btn = ttk.Button(approval_btns, text="Reject",
-                                      command=self.reject_action,
-                                      style='Reject.TButton')
-        self.reject_btn.pack(side=tk.LEFT, padx=2, expand=True, fill=tk.X)
-        
-        self.skip_btn = ttk.Button(approval_btns, text="Skip",
-                                    command=self.skip_action)
-        self.skip_btn.pack(side=tk.LEFT, padx=2, expand=True, fill=tk.X)
-        
-        # Hide initially
+
+        # Tag colours (log area is dark)
+        self.message_text.tag_configure('system',   foreground=C['info'],
+                                        font=('Consolas', 9, 'bold'))
+        self.message_text.tag_configure('user',     foreground=C['user_msg'],
+                                        font=('Consolas', 9))
+        self.message_text.tag_configure('thinking', foreground=C['thinking'],
+                                        font=('Consolas', 9, 'italic'))
+        self.message_text.tag_configure('action',   foreground=C['action'])
+        self.message_text.tag_configure('success',  foreground=C['success_msg'])
+        self.message_text.tag_configure('error',    foreground=C['error_msg'])
+        self.message_text.tag_configure('question', foreground=C['question'])
+        self.message_text.tag_configure('info',     foreground=C['info'])
+        self.message_text.tag_configure('bold',     font=('Consolas', 9, 'bold'))
+        # Per-type header tags (header line above each message)
+        self.message_text.tag_configure('hdr_user',
+                                        foreground=C['user_msg'],
+                                        font=('Consolas', 9, 'bold'))
+        self.message_text.tag_configure('hdr_agent',
+                                        foreground=C['agent_msg'],
+                                        font=('Consolas', 9, 'bold'))
+        self.message_text.tag_configure('hdr_success',
+                                        foreground=C['success_msg'],
+                                        font=('Consolas', 9, 'bold'))
+        self.message_text.tag_configure('hdr_error',
+                                        foreground=C['error_msg'],
+                                        font=('Consolas', 9, 'bold'))
+        self.message_text.tag_configure('hdr_question',
+                                        foreground=C['question'],
+                                        font=('Consolas', 9, 'bold'))
+        self.message_text.tag_configure('hdr_system',
+                                        foreground=C['info'],
+                                        font=('Consolas', 9, 'bold'))
+
+        # ── Confirmation area (jury checkpoints) ──────────────────────────
+        self.confirm_frame = tk.Frame(rp, bg=C['panel'])
+        self.confirm_frame.pack(fill=tk.X)
+
+        self.confirm_label = tk.Label(
+            self.confirm_frame,
+            text="",
+            font=('Segoe UI', 9),
+            bg=C['panel'], fg=C['fg'],
+            wraplength=340, justify=tk.LEFT,
+            anchor=tk.W,
+        )
+        self.confirm_label.pack(fill=tk.X, padx=10, pady=(8, 4))
+
+        confirm_btns = tk.Frame(self.confirm_frame, bg=C['panel'])
+        confirm_btns.pack(fill=tk.X, padx=10, pady=(0, 8))
+
+        self.confirm_yes_btn = tk.Button(
+            confirm_btns, text="Confirm",
+            font=('Segoe UI', 9, 'bold'),
+            bg=C['success'], fg='white',
+            relief='flat', cursor='hand2', activebackground="#91b79c",
+            command=self._on_confirm_yes)
+        self.confirm_yes_btn.pack(side=tk.LEFT, padx=(0, 4), ipady=4, ipadx=10)
+
+        self.confirm_no_btn = tk.Button(
+            confirm_btns, text="Cancel",
+            font=('Segoe UI', 9),
+            bg=C['error'], fg='white',
+            relief='flat', cursor='hand2', activebackground='#a8001a',
+            command=self._on_confirm_no)
+        self.confirm_no_btn.pack(side=tk.LEFT, padx=(0, 4), ipady=4, ipadx=10)
+
+        self.confirm_clarify_btn = tk.Button(
+            confirm_btns, text="Clarify",
+            font=('Segoe UI', 9),
+            bg=C['input_bg'], fg=C['fg'],
+            relief='solid', bd=1, cursor='hand2',
+            activebackground=C['border'],
+            command=self._on_confirm_clarify)
+        self.confirm_clarify_btn.pack(side=tk.LEFT, ipady=4, ipadx=10)
+
+        # Approval buttons (legacy task-manager compatibility)
+        self.approval_frame = self.confirm_frame
+        self.approval_text = self.confirm_label
+        self.approve_btn = self.confirm_yes_btn
+        self.reject_btn  = self.confirm_no_btn
+        self.skip_btn    = self.confirm_clarify_btn
+
+        # Hide confirmation area until needed
         self.set_approval_visible(False)
-        
-        # ═══════════════════════════════════════════════════════════════════
-        # FEEDBACK INPUT
-        # ═══════════════════════════════════════════════════════════════════
-        feedback_frame = ttk.LabelFrame(self.right_frame, text="Your Feedback", padding=10)
-        feedback_frame.pack(fill=tk.X)
-        
+
+        # ── Feedback / clarification input ────────────────────────────────
+        fb_outer = tk.Frame(rp, bg=C['border'], height=1)
+        fb_outer.pack(fill=tk.X)
+
+        fb_area = tk.Frame(rp, bg=C['panel'])
+        fb_area.pack(fill=tk.X)
+
+        tk.Label(fb_area, text="Feedback / Clarification:",
+                 font=('Segoe UI', 8, 'bold'),
+                 fg=C['fg_muted'], bg=C['panel']).pack(
+            anchor=tk.W, padx=10, pady=(6, 2))
+
+        fb_row = tk.Frame(fb_area, bg=C['panel'])
+        fb_row.pack(fill=tk.X, padx=10, pady=(0, 8))
+
         self.feedback_var = tk.StringVar()
-        self.feedback_entry = ttk.Entry(feedback_frame, textvariable=self.feedback_var,
-                                         font=('Segoe UI', 10))
-        self.feedback_entry.pack(fill=tk.X, pady=(0, 5))
+        self.feedback_entry = tk.Entry(fb_row, textvariable=self.feedback_var,
+                                       font=('Segoe UI', 10),
+                                       bg=C['input_bg'], fg=C['fg'],
+                                       relief='solid', bd=1,
+                                       insertbackground=C['fg'])
+        self.feedback_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 6))
         self.feedback_entry.bind('<Return>', lambda e: self.send_feedback())
-        
-        ttk.Button(feedback_frame, text="Send",
-                   command=self.send_feedback).pack(side=tk.RIGHT)
-        
+
+        tk.Button(fb_row, text="Send",
+                  font=('Segoe UI', 9, 'bold'),
+                  bg=C['accent'], fg='white',
+                  relief='flat', cursor='hand2',
+                  activebackground=C['accent_hover'],
+                  command=self.send_feedback).pack(side=tk.LEFT, ipady=3, ipadx=8)
+
+    # ── Confirmation gate helpers ──────────────────────────────────────────
+    def _on_confirm_yes(self):
+        self.set_approval_visible(False)
+        if hasattr(self, '_jury_confirm_event'):
+            self._jury_confirm_result = True
+            self._jury_confirm_event.set()
+        self.task_manager.approve_current()
+
+    def _on_confirm_no(self):
+        self.set_approval_visible(False)
+        if hasattr(self, '_jury_confirm_event'):
+            self._jury_confirm_result = False
+            self._jury_confirm_event.set()
+        self.task_manager.reject_current()
+
+    def _on_confirm_clarify(self):
+        self.set_approval_visible(False)
+        if hasattr(self, '_jury_confirm_event'):
+            self._jury_confirm_result = 'clarify'
+            self._jury_confirm_event.set()
+        self.task_manager.skip_current()
+
+    def _request_confirmation(self, message: str) -> bool:
+        """
+        Block the calling thread until the user clicks Confirm or Cancel.
+        Returns True if confirmed, False if cancelled, 'clarify' if Clarify.
+        Must be called from a background thread (not the GUI thread).
+        """
+        import threading as _threading
+        self._jury_confirm_event = _threading.Event()
+        self._jury_confirm_result = False
+
+        def _show():
+            self.confirm_label.config(text=message)
+            self.set_approval_visible(True)
+
+        self.root.after(0, _show)
+        self._jury_confirm_event.wait()   # blocks until button clicked
+        return self._jury_confirm_result
+
+    # ── Task Plan helpers ──────────────────────────────────────────────────────
+    def _populate_jury_task_plan(self):
+        """Populate the center task list with the 4-step jury plan."""
+        for w in self.task_list_frame.winfo_children():
+            w.destroy()
+        tasks = [
+            ("1", "Requirement Understanding  (Jury 1)"),
+            ("2", "Code Generation  (Jury 2)"),
+            ("3", "Unit Test Validation  (3\u00d7 Claude)"),
+            ("4", "Dataset Application"),
+        ]
+        self._plan_labels = {}
+        for num, desc in tasks:
+            row = tk.Frame(self.task_list_frame, bg=self.colors['bg'])
+            row.pack(fill=tk.X, pady=3)
+            icon = tk.Label(row, text="\u25cb", font=('Segoe UI', 11),
+                            fg=self.colors['fg_muted'], bg=self.colors['bg'], width=3)
+            icon.pack(side=tk.LEFT, padx=(4, 0))
+            lbl = tk.Label(row, text=f"{num}. {desc}", font=('Segoe UI', 10),
+                           fg=self.colors['fg'], bg=self.colors['bg'], anchor=tk.W)
+            lbl.pack(side=tk.LEFT, fill=tk.X)
+            self._plan_labels[num] = (icon, lbl)
+        self.task_progress_var.set("0/4 tasks")
+        self.progress_var.set(0)
+
+    def _update_plan_step(self, step_num: str, state: str):
+        """Update a task plan step icon/colour.  state: pending|active|done|failed."""
+        if not hasattr(self, '_plan_labels') or step_num not in self._plan_labels:
+            return
+        icon, lbl = self._plan_labels[step_num]
+        icons_map  = {'pending': '\u25cb', 'active': '\u23f3', 'done': '\u2713', 'failed': '\u2717'}
+        colors_map = {
+            'pending': (self.colors['fg_muted'], self.colors['fg_muted']),
+            'active':  (self.colors['accent'],   self.colors['fg']),
+            'done':    (self.colors['success'],   self.colors['fg']),
+            'failed':  (self.colors['error'],     self.colors['error']),
+        }
+        ic, tc = colors_map.get(state, colors_map['pending'])
+        icon.config(text=icons_map.get(state, '\u25cb'), fg=ic)
+        lbl.config(fg=tc)
+        done_count = sum(
+            1 for _, (i, _) in self._plan_labels.items()
+            if i.cget('text') == '\u2713'
+        )
+        self.task_progress_var.set(f"{done_count}/4 tasks")
+        self.progress_var.set(done_count * 25)
+
+    def _start_jury_from_plan(self, query: str):
+        """Called when user clicks [Start] after task plan is shown."""
+        self.start_btn.config(state=tk.DISABLED)
+        self.pause_btn.config(state=tk.NORMAL)
+        self._update_plan_step("1", "active")
+        self.add_agent_message(
+            MessageType.THINKING,
+            "Starting Integrated Jury workflow\u2026\n"
+            "  Jury 1: understanding your requirement\n"
+            "  Jury 2: checking catalog + generating code\n"
+            "  Jury 1/2/3: validating with unit tests",
+        )
+        threading.Thread(
+            target=self._jury_chat_start_thread,
+            args=(query,),
+            daemon=True,
+        ).start()
+
+    def _confirm_cp1_yes(self):
+        """Checkpoint 1 confirmed \u2014 proceed with code generation."""
+        self.set_approval_visible(False)
+        self.confirm_yes_btn.config(command=self._on_confirm_yes)
+        self.confirm_no_btn.config(command=self._on_confirm_no)
+        if hasattr(self, '_jury_pending_requirements'):
+            reqs, conf = self._jury_pending_requirements
+            self.add_agent_message(
+                MessageType.THINKING, "Running code generation + unit tests\u2026"
+            )
+            threading.Thread(
+                target=self._jury_chat_resume_thread,
+                args=(reqs, conf),
+                daemon=True,
+            ).start()
+
+    def _confirm_cp1_no(self):
+        """Checkpoint 1 cancelled \u2014 abort code generation."""
+        self.set_approval_visible(False)
+        self.confirm_yes_btn.config(command=self._on_confirm_yes)
+        self.confirm_no_btn.config(command=self._on_confirm_no)
+        self._update_plan_step("2", "failed")
+        self._update_plan_step("3", "failed")
+        self._update_plan_step("4", "failed")
+        self.add_agent_message(MessageType.INFO, "Code generation cancelled by user.")
+
+    def _confirm_cp2_yes(self):
+        """Checkpoint 2 confirmed \u2014 apply code to repo and generate CSV."""
+        self.set_approval_visible(False)
+        self.confirm_yes_btn.config(command=self._on_confirm_yes)
+        self.confirm_no_btn.config(command=self._on_confirm_no)
+        if hasattr(self, '_jury_pending_code'):
+            code, reqs = self._jury_pending_code
+            threading.Thread(
+                target=self._apply_jury_code_thread,
+                args=(code, reqs),
+                daemon=True,
+            ).start()
+
+    def _confirm_cp2_no(self):
+        """Checkpoint 2 cancelled \u2014 do not apply code to repo."""
+        self.set_approval_visible(False)
+        self.confirm_yes_btn.config(command=self._on_confirm_yes)
+        self.confirm_no_btn.config(command=self._on_confirm_no)
+        self._update_plan_step("4", "failed")
+        self.add_agent_message(MessageType.INFO, "Dataset application cancelled by user.")
+
     # ═══════════════════════════════════════════════════════════════════════════
     # MESSAGE HANDLING
     # ═══════════════════════════════════════════════════════════════════════════
@@ -818,28 +1278,46 @@ class AgenticDatasetGUI:
     def _display_message(self, msg_type: MessageType, content: str, actions: List[Dict]):
         """Display a message in the agent panel"""
         self.message_text.config(state=tk.NORMAL)
-        
-        # Add timestamp
+
         timestamp = datetime.now().strftime("%H:%M")
-        
-        # Get tag based on message type
-        tag_map = {
-            MessageType.SYSTEM: 'system',
-            MessageType.USER: 'user',
+
+        # Body tag per message type
+        body_tag_map = {
+            MessageType.SYSTEM:   'system',
+            MessageType.USER:     'user',
             MessageType.THINKING: 'thinking',
-            MessageType.ACTION: 'action',
-            MessageType.SUCCESS: 'success',
-            MessageType.ERROR: 'error',
+            MessageType.ACTION:   'action',
+            MessageType.SUCCESS:  'success',
+            MessageType.ERROR:    'error',
             MessageType.QUESTION: 'question',
-            MessageType.INFO: 'info'
+            MessageType.INFO:     'info',
         }
-        tag = tag_map.get(msg_type, 'system')
-        
-        # Insert message
-        self.message_text.insert(tk.END, f"\n{msg_type.value} [{timestamp}]\n", 'bold')
-        self.message_text.insert(tk.END, f"{content}\n", tag)
-        
-        # Scroll to end
+        body_tag = body_tag_map.get(msg_type, 'system')
+
+        # Header tag + prefix icon per message type
+        if msg_type == MessageType.USER:
+            hdr_tag    = 'hdr_user'
+            hdr_prefix = "YOU"
+        elif msg_type == MessageType.SUCCESS:
+            hdr_tag    = 'hdr_success'
+            hdr_prefix = "AGENT ✓"
+        elif msg_type == MessageType.ERROR:
+            hdr_tag    = 'hdr_error'
+            hdr_prefix = "AGENT ✗"
+        elif msg_type == MessageType.QUESTION:
+            hdr_tag    = 'hdr_question'
+            hdr_prefix = "AGENT ?"
+        elif msg_type == MessageType.SYSTEM:
+            hdr_tag    = 'hdr_system'
+            hdr_prefix = "SYSTEM"
+        else:
+            # THINKING, ACTION, INFO — all "agent" neutral
+            hdr_tag    = 'hdr_agent'
+            hdr_prefix = "AGENT"
+
+        self.message_text.insert(tk.END, f"\n{hdr_prefix} [{timestamp}]\n", hdr_tag)
+        self.message_text.insert(tk.END, f"{content}\n", body_tag)
+
         self.message_text.see(tk.END)
         self.message_text.config(state=tk.DISABLED)
         
@@ -1883,6 +2361,17 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
         self.conversation_history.append({"role": "user", "content": feedback})
         
         feedback_lower = feedback.lower()
+
+        # ── Highest priority: active jury clarification from main chat ───────
+        if self._chat_jury_in_session and self.integrated_jury:
+            self._chat_jury_in_session = False
+            self.add_agent_message(MessageType.THINKING, "Processing your clarification…")
+            threading.Thread(
+                target=self._jury_chat_clarification_thread,
+                args=(feedback,),
+                daemon=True,
+            ).start()
+            return
         
         # Check if waiting for analysis confirmation (after metrics are shown)
         if hasattr(self, 'awaiting_analysis_confirmation') and self.awaiting_analysis_confirmation:
@@ -2866,45 +3355,53 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
         messagebox.showinfo(f"{benchmark} Info", info.get(benchmark, "No info available"))
     
     def generate_from_selection(self):
-        """Generate dataset from dropdown/metrics selection"""
-        benchmark = self.benchmark_var.get()
+        """Generate dataset from checkbox/metrics selection"""
+        benchmarks = self.get_selected_benchmarks()
         metrics = self.selected_metrics
         combine = self.combine_var.get()
-        
-        if benchmark == "None" and not metrics:
-            messagebox.showwarning("Selection Required", 
+
+        # Read commit/file limit from sidebar
+        raw = self.file_limit_var.get().strip().lower()
+        try:
+            commit_limit = None if raw in ('all', '', '0') else int(raw)
+        except ValueError:
+            commit_limit = 500
+
+        if not benchmarks and not metrics:
+            messagebox.showwarning("Selection Required",
                 "Please select a benchmark OR some metrics, or use Chat to describe what you need.")
             return
-        
+
         if not self.repo_path:
             messagebox.showwarning("Repository Required", "Please set a repository first.")
             return
-        
+
         # Show what we're generating
         desc = []
-        if benchmark != "None":
-            desc.append(f"Benchmark: {benchmark}")
+        if benchmarks:
+            desc.append(f"Benchmarks: {', '.join(benchmarks)}")
         if metrics:
             desc.append(f"Metrics: {len(metrics)} selected")
         if combine:
             desc.append("(Combined)")
-        
+
         self.add_agent_message(MessageType.USER, f"Generate dataset: {', '.join(desc)}")
         self.add_agent_message(MessageType.THINKING, "Creating generation plan...")
-        
-        # Start generation
-        if benchmark != "None" and not metrics:
-            # Pure benchmark
-            threading.Thread(target=self._generate_benchmark_dataset, 
-                           args=(benchmark,), daemon=True).start()
-        elif metrics and benchmark == "None":
-            # Pure metrics
+
+        # Start generation based on selection
+        if benchmarks and not metrics:
+            for bname in benchmarks:
+                threading.Thread(target=self._generate_benchmark_dataset,
+                                 args=(bname, commit_limit), daemon=True).start()
+        elif metrics and not benchmarks:
             threading.Thread(target=self._generate_metrics_dataset,
-                           args=(metrics,), daemon=True).start()
+                             args=(metrics,), daemon=True).start()
         else:
-            # Combined
-            threading.Thread(target=self._generate_combined_dataset,
-                           args=(benchmark, metrics), daemon=True).start()
+            for bname in benchmarks:
+                threading.Thread(target=self._generate_benchmark_dataset,
+                                 args=(bname, commit_limit), daemon=True).start()
+            threading.Thread(target=self._generate_metrics_dataset,
+                             args=(metrics,), daemon=True).start()
     
     def clear_selection(self):
         """Clear all selections"""
@@ -2914,17 +3411,17 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
         self.combine_var.set(False)
         self.add_agent_message(MessageType.INFO, "Selection cleared")
     
-    def _generate_benchmark_dataset(self, benchmark: str):
+    def _generate_benchmark_dataset(self, benchmark: str, commit_limit: int = None):
         """Generate pure benchmark dataset"""
         try:
             from dataset_generator import ProfessionalDatasetGenerator
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            
+
             self.add_agent_message(MessageType.ACTION, f"Generating {benchmark}...")
-            
+
             generator = ProfessionalDatasetGenerator(
                 workspace_path=str(self.repo_path),
-                commit_limit=None,
+                commit_limit=commit_limit,
                 timestamp=timestamp
             )
             
@@ -3223,16 +3720,327 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
         
         # Add to conversation history
         self.conversation_history.append({"role": "user", "content": query})
-        
-        # Route to intelligent agent (Bedrock)
-        if self.enhanced_system:
-            threading.Thread(target=self._process_with_enhanced_system, 
-                            args=(query,), daemon=True).start()
+
+        # ── Primary path: IntegratedJurySystem (Jurry_1/2/3 keys) ──────────
+        if self.integrated_jury:
+            self._chat_jury_in_session = False   # fresh session
+            self.add_agent_message(
+                MessageType.INFO,
+                "Task plan ready \u2014 click  [Start]  to begin the Jury workflow.",
+            )
+            self._populate_jury_task_plan()
+            self.start_btn.config(
+                state=tk.NORMAL,
+                command=lambda q=query: self._start_jury_from_plan(q),
+            )
+
+        # ── Fallback: EnhancedAgenticSystem (Bedrock) ───────────────────────
+        elif self.enhanced_system:
+            threading.Thread(
+                target=self._process_with_enhanced_system,
+                args=(query,),
+                daemon=True,
+            ).start()
+
         else:
-            self.add_agent_message(MessageType.ERROR, 
-                "  Agent not initialized. Check configuration.")
-    
-    
+            self.add_agent_message(
+                MessageType.ERROR,
+                "No AI system initialised.\n"
+                "Check that Jurry_1, Jurry_2, Jurry_3 keys are set in .env",
+            )
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # INTEGRATED JURY SYSTEM — MAIN CHAT THREADS
+    # These back the primary agentic workflow triggered from process_chat_input.
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    def _jury_chat_start_thread(self, query: str):
+        """
+        Background thread: start a fresh IntegratedJurySystem workflow.
+        Jury 1 understands the requirement; if clear → Jury 2 + All-3 run.
+        If Jury 1 needs clarification → result is surfaced to the user.
+        """
+        def progress(msg):
+            self.root.after(0, lambda m=msg: self.add_agent_message(MessageType.THINKING, m))
+
+        try:
+            result = self.integrated_jury.run_full_workflow(
+                user_question=query,
+                repo_path=self.repo_path,
+                progress_callback=progress,
+            )
+            self.root.after(0, lambda r=result: self._handle_jury_chat_result(r))
+        except Exception as exc:
+            err = str(exc)
+            self.root.after(0, lambda e=err: self.add_agent_message(
+                MessageType.ERROR, f"Jury workflow error: {e}"
+            ))
+
+    def _jury_chat_clarification_thread(self, user_feedback: str):
+        """
+        Background thread: relay user's clarification answer to Jury 1.
+        Continues full workflow when requirements are clear.
+        """
+        def progress(msg):
+            self.root.after(0, lambda m=msg: self.add_agent_message(MessageType.THINKING, m))
+
+        try:
+            result = self.integrated_jury.provide_clarification(user_feedback)
+
+            if result["status"] == "clarified":
+                # Requirements now clear → route through _handle_jury_chat_result
+                # (which will show confirmation before starting code generation)
+                self.root.after(0, lambda r=result: self._handle_jury_chat_result(r))
+            else:
+                self.root.after(0, lambda r=result: self._handle_jury_chat_result(r))
+
+        except Exception as exc:
+            err = str(exc)
+            self.root.after(0, lambda e=err: self.add_agent_message(
+                MessageType.ERROR, f"Jury clarification error: {e}"
+            ))
+
+    def _jury_chat_resume_thread(self, requirements: Dict, confidence: float):
+        """
+        Background thread: run phases 2+3 after requirement is confirmed.
+        """
+        def progress(msg):
+            self.root.after(0, lambda m=msg: self.add_agent_message(MessageType.THINKING, m))
+
+        try:
+            result = self.integrated_jury.resume_after_clarification(
+                requirements=requirements,
+                confidence=confidence,
+                progress_callback=progress,
+            )
+            self.root.after(0, lambda r=result: self._handle_jury_chat_result(r))
+        except Exception as exc:
+            err = str(exc)
+            self.root.after(0, lambda e=err: self.add_agent_message(
+                MessageType.ERROR, f"Jury generation error: {e}"
+            ))
+
+    def _handle_jury_chat_result(self, result: Dict):
+        """
+        Handle the dict returned by IntegratedJurySystem from the main chat panel.
+        Dispatches to clarification / success / human-intervention display.
+        """
+        status = result.get("status")
+
+        if status == "needs_clarification":
+            # Jury 1 is asking a clarifying question
+            questions = result.get("questions", ["Could you give more details?"])
+            understanding = result.get("current_understanding", "")
+            confidence = result.get("confidence", 0)
+
+            question_block = "\n".join(f"  • {q}" for q in questions)
+            self.add_agent_message(
+                MessageType.QUESTION,
+                f"I need a bit more information (confidence: {confidence}%):\n\n"
+                f"{question_block}\n\n"
+                f"Current understanding: {understanding}\n\n"
+                "Please type your answer in the Feedback box below and click Send.",
+            )
+            # Mark that the next feedback should go to jury clarification
+            self._chat_jury_in_session = True
+
+        elif status == "clarified":
+            # Jury 1 now understands — show breakdown + ask confirmation before code gen
+            reqs = result["requirements"]
+            conf = result.get("confidence", 100)
+            goal = reqs.get('goal', '')
+            metrics_needed = reqs.get('metrics_needed', [])
+            fmt = reqs.get('output_format', 'csv')
+
+            # Classify metrics as catalog-known vs unknown (will be custom-synthesized)
+            known_metrics   = []
+            unknown_metrics = []
+            if MetricsCatalog and metrics_needed:
+                try:
+                    catalog_keys = set(MetricsCatalog.get_all_metrics().keys())
+                    for m in metrics_needed:
+                        (known_metrics if m in catalog_keys else unknown_metrics).append(m)
+                except Exception:
+                    known_metrics = list(metrics_needed)
+            else:
+                known_metrics = list(metrics_needed)
+
+            metrics_line = ', '.join(metrics_needed) if metrics_needed else 'none'
+            catalog_line = (
+                f"  Catalog : {len(known_metrics)} known"
+                + (f", {len(unknown_metrics)} custom (will be synthesized)"
+                   if unknown_metrics else "")
+            )
+            unknown_line = (
+                f"\n  Custom  : {', '.join(unknown_metrics)}" if unknown_metrics else ""
+            )
+
+            self.add_agent_message(
+                MessageType.INFO,
+                f"Requirement understood ({conf}% confidence).\n\n"
+                f"  Goal    : {goal}\n"
+                f"  Metrics : {metrics_line}\n"
+                f"{catalog_line}{unknown_line}\n"
+                f"  Format  : {fmt}\n\n"
+                "Click  [Confirm]  to start code generation, or  [Cancel]  to stop.",
+            )
+            self._jury_chat_requirements = reqs
+            self._jury_pending_requirements = (reqs, conf)
+            self._update_plan_step("1", "done")
+            self._update_plan_step("2", "active")
+            self.confirm_label.config(text="Proceed with code generation (Jury 2)?")
+            self.confirm_yes_btn.config(command=self._confirm_cp1_yes)
+            self.confirm_no_btn.config(command=self._confirm_cp1_no)
+            self.set_approval_visible(True)
+
+        elif status == "success":
+            code = result.get("code", "")
+            iters = result.get("iterations", 1)
+            tr = result.get("test_results", {})
+            session_dir = result.get("session_dir", "N/A")
+
+            self.add_agent_message(
+                MessageType.SUCCESS,
+                f"Code generated and validated!\n\n"
+                f"  Iterations   : {iters}/{self.integrated_jury.MAX_RETRIES}\n"
+                f"  LLMs passed  : {tr.get('passing_llms', 0)}/3\n"
+                f"  Tests passed : {tr.get('total_passed', 0)}/{tr.get('total_tests', 0)}\n\n"
+                f"  Session saved to:\n  {session_dir}",
+            )
+            self._update_plan_step("2", "done")
+            self._update_plan_step("3", "done")
+
+            # Update status bar / output path
+            self.output_path_var.set(f"Output: {session_dir}")
+            self.status_var.set(f"Validated \u2014 {iters} iteration(s)")
+
+            # Apply the validated code to generate the actual dataset
+            if code and self.repo_path:
+                self._jury_pending_code = (code, result.get("requirements", {}))
+                self._update_plan_step("4", "active")
+                self.confirm_label.config(
+                    text=f"Code validated! ({tr.get('passing_llms', 0)}/3 juries, "
+                         f"{tr.get('total_passed', 0)}/{tr.get('total_tests', 0)} tests)\n"
+                         f"Click Confirm to generate the actual dataset CSV."
+                )
+                self.confirm_yes_btn.config(command=self._confirm_cp2_yes)
+                self.confirm_no_btn.config(command=self._confirm_cp2_no)
+                self.set_approval_visible(True)
+            elif code:
+                # No repo — show the code for manual use
+                preview = code[:600] + ("\n\u2026(truncated)" if len(code) > 600 else "")
+                self.add_agent_message(
+                    MessageType.INFO,
+                    f"Generated code preview:\n\n{preview}\n\n"
+                    f"Full code saved to: {session_dir}/generated_code.py",
+                )
+                self._update_plan_step("4", "done")
+
+        elif status == "human_intervention_required":
+            last_code_preview = (result.get("last_code") or "")[:400]
+            self.add_agent_message(
+                MessageType.ERROR,
+                f"Could not validate after {self.integrated_jury.MAX_RETRIES} attempts.\n\n"
+                f"{result.get('message', '')}\n\n"
+                f"Session saved to: {result.get('session_dir', 'N/A')}\n"
+                f"Please review generated_code.py in that folder.\n\n"
+                f"Last generated code (preview):\n{last_code_preview}",
+            )
+        else:
+            self.add_agent_message(
+                MessageType.ERROR, f"Unexpected jury status: {status}"
+            )
+
+    def _apply_jury_code_thread(self, code: str, requirements: Dict):
+        """
+        Execute the jury-validated code against the repository and display results.
+        Collects up to 5 files as a preview.
+        """
+        self.root.after(0, lambda: self.add_agent_message(
+            MessageType.THINKING, "Applying generated code to repository…"
+        ))
+        import tempfile, importlib.util
+
+        tmp_path = None
+        try:
+            # Write code to temp file
+            with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".py", delete=False, encoding="utf-8"
+            ) as f:
+                f.write(code)
+                tmp_path = f.name
+
+            # Dynamically load the generated module
+            spec = importlib.util.spec_from_file_location("_jury_generated", tmp_path)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+
+            if not hasattr(module, "calculate"):
+                raise AttributeError("Generated module must define  calculate(file_path, repo_path)")
+
+            # Find code files in repo (first 5)
+            source_files = []
+            if self.repo_path:
+                for root_dir, dirs, files in os.walk(self.repo_path):
+                    dirs[:] = [
+                        d for d in dirs
+                        if d not in {"target", "build", ".git", "__pycache__", "node_modules"}
+                    ]
+                    for fname in files:
+                        if fname.endswith((".java", ".py")):
+                            source_files.append(os.path.join(root_dir, fname))
+                        if len(source_files) >= 5:
+                            break
+                    if len(source_files) >= 5:
+                        break
+
+            if not source_files:
+                source_files = [__file__]   # fallback: this file
+
+            results = []
+            for fp in source_files:
+                try:
+                    res = module.calculate(fp, self.repo_path)
+                    res["_file"] = fp
+                    results.append(res)
+                except Exception as e:
+                    results.append({"_file": fp, "error": str(e)})
+
+            # Build a human-readable preview
+            lines = [f"Dataset preview ({len(results)} file(s)):"]
+            for r in results:
+                fname = os.path.basename(r.get("_file", "?"))
+                metrics = {k: v for k, v in r.items() if not k.startswith("_")}
+                if metrics.get("error"):
+                    lines.append(f"  {fname}: ERROR — {metrics['error']}")
+                else:
+                    m = metrics.get("metrics", metrics)
+                    non_zero = sum(1 for v in m.values() if v and v != 0)
+                    lines.append(
+                        f"  {fname}: {len(m)} metrics, {non_zero} non-zero"
+                    )
+
+            output_msg = "\n".join(lines)
+            self.root.after(0, lambda m=output_msg: (
+                self.add_agent_message(MessageType.SUCCESS, m),
+                self._update_plan_step("4", "done"),
+                self.status_var.set("Dataset generation complete"),
+            ))
+
+        except Exception as exc:
+            msg = str(exc)
+            self.root.after(0, lambda e=msg: self.add_agent_message(
+                MessageType.ERROR,
+                f"Code execution note: {e}\n"
+                "(The code was still saved to the session directory)",
+            ))
+        finally:
+            if tmp_path:
+                try:
+                    os.unlink(tmp_path)
+                except Exception:
+                    pass
+
     def _intelligent_chat_processor(self, query: str):
         """
         INTELLIGENT PROCESSOR - Handles all requirements
@@ -3954,32 +4762,63 @@ These metrics will be used to calculate: {formula_name}
         cancel_btn.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=2)
             
     def set_repository(self):
-        """Set the repository - supports local paths and GitHub URLs"""
+        """Set the repository — supports local paths and GitHub URLs"""
         repo_input = self.repo_var.get().strip()
         if not repo_input or 'Enter' in repo_input:
             messagebox.showwarning("Warning", "Please enter a repository path or GitHub URL")
             return
-        
-        # Use enhanced system's repository handler for both GitHub URLs and local paths
+
         try:
             self.repo_status.config(text="[...] Processing...", foreground='blue')
             self.root.update()
-            
-            # The enhanced system handles both GitHub URLs and local paths
-            repo_info = self.enhanced_system.set_repository(repo_input)
-            
-            # Get the actual path from enhanced system
-            self.repo_path = str(self.enhanced_system.repo_path)
-            
-            # Display success
-            repo_name = os.path.basename(self.repo_path)
-            self.repo_status.config(text=f"{repo_name}", foreground='green')
-            self.add_agent_message(MessageType.SUCCESS, 
-                f"Repository set: {repo_name}\nMetrics discovered: {len(self.enhanced_system.available_metrics)}")
+
+            # If enhanced_system is available, delegate to it
+            if self.enhanced_system is not None:
+                repo_info = self.enhanced_system.set_repository(repo_input)
+                self.repo_path = str(self.enhanced_system.repo_path)
+                repo_name = os.path.basename(self.repo_path)
+                self.repo_status.config(text=repo_name, foreground='green')
+                # Update topbar label from main thread
+                self.root.after(0, lambda: self.topbar_repo_var.set(f"Repo: {repo_name}"))
+                self.add_agent_message(MessageType.SUCCESS,
+                    f"Repository set: {repo_name}\n"
+                    f"Metrics discovered: {len(self.enhanced_system.available_metrics)}")
+                return
+
+            # Direct path handling (enhanced_system not available)
+            from pathlib import Path as _Path
+            path = _Path(repo_input)
+
+            if path.is_dir():
+                self.repo_path = str(path.resolve())
+                repo_name = path.name
+                self.repo_status.config(text=repo_name, foreground='green')
+                java_count = sum(1 for _ in path.rglob('*.java') if _.is_file())
+                py_count   = sum(1 for _ in path.rglob('*.py')   if _.is_file())
+                # Update topbar label from main thread
+                self.root.after(0, lambda n=repo_name: self.topbar_repo_var.set(f"Repo: {n}"))
+                self.add_agent_message(
+                    MessageType.SUCCESS,
+                    f"Repository set: {repo_name}\n"
+                    f"  Java files  : {java_count}\n"
+                    f"  Python files: {py_count}\n\n"
+                    f"Ready — type your dataset request below.",
+                )
+            else:
+                self.repo_status.config(text="Invalid path", foreground='red')
+                self.add_agent_message(
+                    MessageType.ERROR,
+                    f"Path not found: {repo_input}\n"
+                    "Please enter a valid local directory path.\n"
+                    "Use the 'Browse' button to select a folder.",
+                )
+
         except Exception as e:
-            self.repo_status.config(text=f"   Failed to set repository", foreground='red')
-            self.add_agent_message(MessageType.ERROR, 
-                f"Repository setup failed: {str(e)[:100]}")
+            self.repo_status.config(text="Failed to set repository", foreground='red')
+            self.add_agent_message(
+                MessageType.ERROR,
+                f"Repository setup failed: {str(e)[:150]}",
+            )
             
     def show_benchmark_options(self):
         """Show benchmark dataset options with selection"""
