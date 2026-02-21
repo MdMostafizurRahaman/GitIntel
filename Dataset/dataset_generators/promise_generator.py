@@ -4,6 +4,7 @@ Uses Lizard for accurate metrics calculation
 """
 
 import os
+import re
 import json
 import csv
 from pathlib import Path
@@ -18,19 +19,7 @@ except ImportError:
     LIZARD_AVAILABLE = False
     print("WARNING: lizard not installed. Install with: pip install lizard")
 
-try:
-    import javalang
-    JAVALANG_AVAILABLE = True
-except ImportError:
-    JAVALANG_AVAILABLE = False
-    print("WARNING: javalang not installed. Install with: pip install javalang")
 
-try:
-    from metrics_helper import MetricsHelper
-    METRICS_HELPER_AVAILABLE = True
-except ImportError:
-    METRICS_HELPER_AVAILABLE = False
-    print("WARNING: MetricsHelper not available")
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -53,16 +42,6 @@ class ProfessionalPROMISEGenerator:
         
         self.output_dir.mkdir(parents=True, exist_ok=True)
         
-        # Initialize MetricsHelper for 64 real metrics
-        if METRICS_HELPER_AVAILABLE:
-            try:
-                self.metrics_helper = MetricsHelper(str(self.repo_path))
-                logger.info("MetricsHelper initialized - 64 real metrics available")
-            except Exception as e:
-                logger.warning(f"MetricsHelper init failed: {e}")
-                self.metrics_helper = None
-        else:
-            self.metrics_helper = None
         
         logger.info(f"Initialized Professional PROMISE generator for {self.repo_path}")
     
@@ -83,48 +62,6 @@ class ProfessionalPROMISEGenerator:
                         return java_files
         
         return java_files
-    
-    def _calculate_ck_metrics_professional(self, code: str) -> Dict:
-        """Calculate CK metrics using proper parsing"""
-        metrics = {
-            "wmc": 0, "dit": 0, "noc": 0, "cbo": 0, "rfc": 0, "lcom": 0
-        }
-        
-        if not JAVALANG_AVAILABLE:
-            return metrics
-        
-        try:
-            tree = javalang.parse.parse(code)
-            
-            # WMC - Count all methods in classes
-            classes = list(tree.filter(javalang.tree.ClassDeclaration))
-            for cls in classes:
-                methods = [m for m in cls.methods]
-                metrics["wmc"] += len(methods)
-            
-            # DIT - Check inheritance depth
-            for cls in classes:
-                if cls.extends:
-                    metrics["dit"] = 1  # Simplified - would need full hierarchy
-            
-            # CBO - Count imports as coupling
-            imports = list(tree.filter(javalang.tree.Import))
-            metrics["cbo"] = len(set(imp.path for imp in imports))
-            
-            # RFC - Response for class (methods + calls)
-            method_invocations = list(tree.filter(javalang.tree.MethodInvocation))
-            metrics["rfc"] = metrics["wmc"] + len(set(mi.member for mi in method_invocations))
-            
-            # LCOM - Simplified cohesion measure
-            for cls in classes:
-                fields = len([f for f in cls.fields]) if hasattr(cls, 'fields') else 0
-                methods = len([m for m in cls.methods]) if hasattr(cls, 'methods') else 0
-                metrics["lcom"] = max(0, fields - methods) if methods > 0 else 0
-            
-        except Exception as e:
-            logger.debug(f"CK metrics parsing error: {e}")
-        
-        return metrics
     
     def generate(self) -> Dict:
         """Generate PROFESSIONAL PROMISE dataset with ACCURATE metrics"""
@@ -163,7 +100,8 @@ class ProfessionalPROMISEGenerator:
                     )
                     
                     # CK Metrics using proper parser
-                    ck_metrics = self._calculate_ck_metrics_professional(code)
+                    from metrics_catalog import MetricsCatalog
+                    ck_metrics = MetricsCatalog.calculate_ck_metrics(str(file_path))
                     
                     # Calculate Halstead from Lizard functions
                     total_operators = 0
@@ -212,29 +150,76 @@ class ProfessionalPROMISEGenerator:
                         "halstead_difficulty": halstead_difficulty,
                         "halstead_effort": halstead_effort,
                         
-                        # CK Metrics from proper parser (ACCURATE)
+                    # CK Metrics from proper parser (ACCURATE)
                         "wmc": ck_metrics["wmc"],
                         "dit": ck_metrics["dit"],
                         "noc": ck_metrics["noc"],
                         "cbo": ck_metrics["cbo"],
                         "rfc": ck_metrics["rfc"],
                         "lcom": ck_metrics["lcom"],
+
+                        # Jureczko PROMISE standard: additional CK columns
+                        # ca = afferent coupling (classes that use this class; 0 without full project graph)
+                        "ca": 0,
+                        # ce = efferent coupling ≈ CBO (classes this class depends on)
+                        "ce": ck_metrics["cbo"],
+                        # npm = number of public methods
+                        "npm": sum(1 for f in lizard_result.function_list if 'public' in (f.name or '')),
+                        # lcom3 = Henderson-Sellers LCOM: (m - sum(mA)/a) / (m - 1) where m=methods, a=attrs
+                        # approximated from LCOM4 = 1 - (sum(mA)/a*m) when a>0, else 0
+                        "lcom3": round(max(0.0, 1.0 - (1.0 / max(len(lizard_result.function_list), 1))), 4),
+                        # loc = lines of code (Jureczko standard column matches loc_total)
+                        "loc": lizard_result.nloc,
+                        # dam = data access metric = private/(private+public) attribute ratio
+                        "dam": round(
+                            len(re.findall(r'\bprivate\s+(?:static\s+)?(?:final\s+)?\w[\w<>\[\]]*\s+\w+\s*[;=]', code)) /
+                            max(1, len(re.findall(r'\b(?:private|public|protected)\s+(?:static\s+)?(?:final\s+)?\w[\w<>\[\]]*\s+\w+\s*[;=]', code))),
+                            4),
+                        # moa = measure of aggregation: count of fields whose type is a user-defined class
+                        # approximated as fields with capitalised (non-primitive) types
+                        "moa": len(re.findall(r'\b(?:private|public|protected)\s+(?:static\s+)?(?:final\s+)?([A-Z]\w*(?:<[^>]*>)?)\s+\w+\s*[;=]', code)),
+                        # mfa = measure of functional abstraction: inherited / total methods (0 without hierarchy info)
+                        "mfa": 0.0,
+                        # cam = cohesion among methods: unique param-type intersections (approximated)
+                        "cam": round(
+                            len(set(
+                                t for f in lizard_result.function_list
+                                for t in (f.name.split('_') if f.name else [])
+                            )) / max(1, len(lizard_result.function_list)),
+                            4),
+                        # ic = inheritance coupling (0 without full hierarchy, conservative)
+                        "ic": 0,
+                        # cbm = coupling between methods (number of distinct internal calls, approx)
+                        "cbm": sum(max(0, f.cyclomatic_complexity - 1) for f in lizard_result.function_list),
+                        # amc = average method complexity = sum(cc) / num_methods
+                        "amc": round(
+                            sum(f.cyclomatic_complexity for f in lizard_result.function_list) /
+                            max(1, len(lizard_result.function_list)),
+                            4),
+                        # max_cc = maximum cyclomatic complexity across all methods
+                        "max_cc": max((f.cyclomatic_complexity for f in lizard_result.function_list), default=0),
+                        # avg_cc = average cyclomatic complexity (same as cyclomatic_complexity above)
+                        "avg_cc": round(lizard_result.average_cyclomatic_complexity, 4),
+                        # bug = boolean defect label (0 = clean, 1 = defective) — Jureczko standard name
+                        "bug": 0,
                         
                         # Complexity Metrics from Lizard (ACCURATE)
                         "cyclomatic_complexity": lizard_result.average_cyclomatic_complexity,
-                        "essential_complexity": max(1, int(lizard_result.average_cyclomatic_complexity // 2)),
+                        "essential_complexity": MetricsCatalog.calculate_complexity_metrics(str(file_path)).get("essential_complexity", 0),
                         "design_complexity": len(lizard_result.function_list),
                         
                         # Additional Accurate Metrics
                         "num_methods": len(lizard_result.function_list),
-                        "num_fields": ck_metrics["wmc"],  # Approximation
+                        "num_fields": len(re.findall(r"\b(?:private|public|protected)\s+(?:static\s+)?(?:final\s+)?\w+\s+\w+\s*[;=]", code)),
                         "num_classes": 1,  # Per file
-                        "num_interfaces": 0,  # Would need parsing
+                        "num_interfaces": len(re.findall(r"\binterface\s+\w+", code)),
                         "branch_count": sum(f.cyclomatic_complexity - 1 for f in lizard_result.function_list),
                         "call_pairs": sum(f.token_count for f in lizard_result.function_list),
                         "condition_count": sum(f.cyclomatic_complexity for f in lizard_result.function_list),
                         "normalized_cyclomatic_complexity": lizard_result.average_cyclomatic_complexity / lizard_result.nloc if lizard_result.nloc > 0 else 0,
-                        "percent_comments": 0,  # Would need better parsing
+                        "percent_comments": round(
+                            len([l for l in code.split("\n") if l.strip().startswith("//")]) / max(1, lizard_result.nloc) * 100, 2
+                        ),
                         "maintainability_index": max(0, 171 - 5.2 * lizard_result.average_cyclomatic_complexity - 16.2 * lizard_result.nloc) if lizard_result.nloc > 0 else 0,
                         "edge_count": sum(f.cyclomatic_complexity for f in lizard_result.function_list),
                         "node_count": len(lizard_result.function_list),

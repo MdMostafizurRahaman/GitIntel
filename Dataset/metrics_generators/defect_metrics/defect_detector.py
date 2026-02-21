@@ -1,94 +1,59 @@
 #!/usr/bin/env python3
-"""
-Defect Metrics Calculator
-Detects bugs and defects in code using pattern analysis
-"""
-
+"""Defect Metrics Calculator - bug and vulnerability detection via pattern analysis"""
 import re
-from pathlib import Path
-from typing import Dict, List, Tuple
-import subprocess
+from typing import Dict
+from metrics_generators.shared_utils import FileReader
 
 
 class DefectDetector:
-    """Detect defects and calculate defect metrics"""
-    
-    # Common bug patterns
     BUG_PATTERNS = {
-        'null_pointer': r'\..*?\(.*?\);?',  # Potential null deref
-        'uninitialized': r'if\s*\(\w+\)\s*{',  # Unchecked variable usage
-        'array_bounds': r'\[\s*\w+\s*\]',  # Array access without bounds check
-        'resource_leak': r'new\s+(FileInputStream|InputStream|Scanner)',  # Resource not closed
-        'sql_injection': r'\".*?\+\s*\w+',  # String concatenation in SQL
+        "null_pointer":   r"\..*?\(.*?\);?",
+        "uninitialized":  r"if\s*\(\w+\)\s*{",
+        "array_bounds":   r"\[\s*\w+\s*\]",
+        "resource_leak":  r"new\s+(FileInputStream|InputStream|Scanner)",
+        "sql_injection":  r"\".*?\+\s*\w+",
     }
-    
+
     @staticmethod
-    def analyze_file(file_path: str) -> Dict[str, any]:
-        """
-        Analyze file for defects
-        
-        Args:
-            file_path: Path to source file
-            
-        Returns:
-            Dictionary with defect metrics
-        """
+    def analyze_file(file_path: str) -> Dict:
         try:
-            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                content = f.read()
-            
+            content = FileReader.read(file_path)
             defects = []
             vulnerabilities = []
-            
-            # Pattern-based defect detection
-            for pattern_name, pattern in DefectDetector.BUG_PATTERNS.items():
-                matches = list(re.finditer(pattern, content))
-                if matches:
-                    for match in matches:
-                        defects.append({
-                            'type': pattern_name,
-                            'line': content[:match.start()].count('\n') + 1,
-                            'severity': 'medium'
-                        })
-            
-            # Common vulnerability patterns
-            vuln_patterns = {
-                'hardcoded_password': r'password\s*=\s*["\']',
-                'hardcoded_api_key': r'api[_-]?key\s*=\s*["\']',
-                'sql_injection': r'execute\s*\(\s*["\'].*?\+',
-            }
-            
-            for vuln_name, pattern in vuln_patterns.items():
-                matches = list(re.finditer(pattern, content, re.IGNORECASE))
-                vulnerabilities.extend([vuln_name] * len(matches))
-            
-            # Calculate metrics
-            from ..loc_metrics import LOCCalculator
-            loc_details = LOCCalculator.calculate_detailed(file_path)
-            loc_total = loc_details.get('loc', 1)
-            
-            bug_density = (len(defects) / loc_total * 1000) if loc_total > 0 else 0
-            
+
+            for name, pat in DefectDetector.BUG_PATTERNS.items():
+                for m in re.finditer(pat, content):
+                    defects.append({
+                        "type": name,
+                        "line": content[: m.start()].count("\n") + 1,
+                        "severity": "medium",
+                    })
+
+            for vname, pat in {
+                "hardcoded_password": r"password\s*=\s*[\"\']",
+                "hardcoded_api_key":  r"api[_-]?key\s*=\s*[\"\']",
+                "sql_injection":      r"execute\s*\(\s*[\"\'].*?\+",
+            }.items():
+                vulnerabilities.extend([vname] * len(re.findall(pat, content, re.IGNORECASE)))
+
+            from metrics_generators.loc_metrics.loc_calculator import LOCCalculator
+            loc_total = LOCCalculator.calculate_detailed(file_path).get("loc", 1)
+            bug_density = len(defects) / loc_total * 1000 if loc_total else 0
+
             return {
-                'num_bugs': len(defects),
-                'bug_density': round(bug_density, 2),
-                'vulnerabilities': len(vulnerabilities),
-                'has_defect': len(defects) > 0,
-                'defect_types': list(set([d['type'] for d in defects])),
-                'vulnerability_types': list(set(vulnerabilities))
+                "num_bugs": len(defects),
+                "bug_density": round(bug_density, 2),
+                "vulnerabilities": len(vulnerabilities),
+                "has_defect": len(defects) > 0,
+                "defect_types": list({d["type"] for d in defects}),
+                "vulnerability_types": list(set(vulnerabilities)),
             }
-            
         except Exception:
-            return DefectDetector._empty_defects()
-    
+            return DefectDetector._empty()
+
     @staticmethod
-    def _empty_defects() -> Dict:
-        """Return empty defect metrics"""
+    def _empty() -> Dict:
         return {
-            'num_bugs': 0,
-            'bug_density': 0.0,
-            'vulnerabilities': 0,
-            'has_defect': False,
-            'defect_types': [],
-            'vulnerability_types': []
+            "num_bugs": 0, "bug_density": 0.0, "vulnerabilities": 0,
+            "has_defect": False, "defect_types": [], "vulnerability_types": [],
         }

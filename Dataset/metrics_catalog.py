@@ -618,5 +618,157 @@ class MetricsCatalog:
         print("="*80)
 
 
+    # =========================================================================
+    #  CALLING METHODS – single entry point for every metric category
+    # =========================================================================
+
+    @classmethod
+    def calculate_loc_metrics(cls, file_path: str) -> dict:
+        """Return LOC / CLOC / BLOC / SOC counts for a file."""
+        try:
+            from metrics_generators.loc_metrics.loc_calculator import LOCCalculator
+            from metrics_generators.loc_metrics.cloc_calculator import CLOCCalculator
+            from metrics_generators.loc_metrics.bloc_calculator import BLOCCalculator
+            from metrics_generators.loc_metrics.soc_calculator import SOCCalculator
+            detailed = LOCCalculator.calculate_detailed(file_path)
+            return {
+                "loc":  detailed.get("loc", 0),
+                "cloc": CLOCCalculator.calculate_from_file(file_path),
+                "bloc": BLOCCalculator.calculate_from_file(file_path),
+                "soc":  SOCCalculator.calculate_from_file(file_path),
+                "total_lines": detailed.get("total_lines", 0),
+            }
+        except Exception as e:
+            logger.warning(f"LOC metrics error for {file_path}: {e}")
+            return {}
+
+    @classmethod
+    def calculate_ck_metrics(cls, file_path: str) -> dict:
+        """Return WMC / DIT / NOC / CBO / RFC / LCOM for a Java file."""
+        try:
+            from metrics_generators.ck_metrics.wmc_calculator import WMCCalculator
+            from metrics_generators.ck_metrics.dit_calculator import DITCalculator
+            from metrics_generators.ck_metrics.noc_calculator import NOCCalculator
+            from metrics_generators.ck_metrics.cbo_calculator import CBOCalculator
+            from metrics_generators.ck_metrics.rfc_calculator import RFCCalculator
+            from metrics_generators.ck_metrics.lcom_calculator import LCOMCalculator
+            wmc_map = WMCCalculator.calculate_from_file(file_path)
+            wmc = max(wmc_map.values()) if wmc_map else 0
+            return {
+                "wmc":  wmc,
+                "dit":  DITCalculator.calculate_from_file(file_path),
+                "noc":  NOCCalculator.calculate_from_file(file_path),
+                "cbo":  CBOCalculator.calculate_from_file(file_path),
+                "rfc":  RFCCalculator.calculate_from_file(file_path),
+                "lcom": LCOMCalculator.calculate_from_file(file_path),
+            }
+        except Exception as e:
+            logger.warning(f"CK metrics error for {file_path}: {e}")
+            return {"wmc": 0, "dit": 0, "noc": 0, "cbo": 0, "rfc": 0, "lcom": 0}
+
+    @classmethod
+    def calculate_complexity_metrics(cls, file_path: str) -> dict:
+        """Return cyclomatic / cognitive / essential / nesting for a file."""
+        try:
+            from metrics_generators.complexity_metrics.cyclomatic_calculator import CyclomaticComplexityCalculator
+            from metrics_generators.complexity_metrics.cognitive_calculator import CognitiveComplexityCalculator
+            from metrics_generators.complexity_metrics.essential_calculator import EssentialComplexityCalculator
+            from metrics_generators.complexity_metrics.nesting_calculator import NestingDepthCalculator
+            is_java = file_path.endswith(".java")
+            if is_java:
+                cc = CyclomaticComplexityCalculator.calculate_from_java_file(file_path)
+                cog = CognitiveComplexityCalculator.calculate_from_java_file(file_path)
+                ess = EssentialComplexityCalculator.calculate_from_java_file(file_path)
+                nest = {}
+            else:
+                cc = CyclomaticComplexityCalculator.calculate_from_python_file(file_path)
+                cog = CognitiveComplexityCalculator.calculate_from_python_file(file_path)
+                ess = EssentialComplexityCalculator.calculate_from_python_file(file_path)
+                nest = NestingDepthCalculator.calculate_from_python_file(file_path)
+            return {
+                "cyclomatic_complexity": max(cc.values()) if cc else 0,
+                "cognitive_complexity":  max(cog.values()) if cog else 0,
+                "essential_complexity":  max(ess.values()) if ess else 0,
+                "max_nesting_depth":     max(nest.values()) if nest else 0,
+                "cyclomatic_per_method": cc,
+            }
+        except Exception as e:
+            logger.warning(f"Complexity metrics error for {file_path}: {e}")
+            return {}
+
+    @classmethod
+    def calculate_all_metrics(cls, file_path: str, repo_path: str = None) -> dict:
+        """
+        Single entry point – returns every available metric for a file.
+        Delegates to MasterMetricsGenerator when possible; falls back to
+        individual calculators for CK / complexity metrics.
+        """
+        try:
+            from pathlib import Path
+            from metrics_generators import MasterMetricsGenerator
+            generator_path = repo_path or str(Path(file_path).parent)
+            generator = MasterMetricsGenerator(generator_path)
+            result = generator.generate_all_metrics(file_path)
+            return result.get("metrics", {})
+        except Exception:
+            # Fallback: assemble from individual calculators
+            metrics = {}
+            metrics.update(cls.calculate_loc_metrics(file_path))
+            metrics.update(cls.calculate_ck_metrics(file_path))
+            metrics.update(cls.calculate_complexity_metrics(file_path))
+            return metrics
+
+    @classmethod
+    def generate_benchmark(cls, benchmark_name: str, repo_path: str,
+                           output_dir: str = None, file_limit: int = None) -> dict:
+        """
+        Central entry point for benchmark dataset generation.
+
+        Args:
+            benchmark_name: One of 'promise', 'defects4j', 'bugsjar',
+                            'codesearchnet', 'codexglue', 'manystubs4j', 'sourcerer'
+            repo_path: Path to the source repository
+            output_dir: Where to save the dataset (optional)
+            file_limit: Maximum files to process (optional)
+
+        Returns:
+            Dict with 'status', 'output_dir', 'total_files', etc.
+        """
+        name = benchmark_name.lower().replace("-", "").replace("_", "")
+        # Generators use different parameter names:
+        #   file_limit  → promise, codesearchnet, sourcerer
+        #   commit_limit → defects4j, bugsjar, manystubs4j, codexglue
+        base = dict(repo_path=repo_path, output_dir=output_dir)
+        fl = dict(file_limit=file_limit)
+        cl = dict(commit_limit=file_limit)
+        try:
+            if name == "promise":
+                from dataset_generators.promise_generator import ProfessionalPROMISEGenerator
+                return ProfessionalPROMISEGenerator(**base, **fl).generate()
+            elif name == "defects4j":
+                from dataset_generators.defects4j_generator import Defects4JGenerator
+                return Defects4JGenerator(**base, **cl).generate()
+            elif name == "bugsjar":
+                from dataset_generators.bugsjar_generator import BugsJarGenerator
+                return BugsJarGenerator(**base, **cl).generate()
+            elif name == "codesearchnet":
+                from dataset_generators.codesearchnet_generator import CodeSearchNetGenerator
+                return CodeSearchNetGenerator(**base, **fl).generate()
+            elif name == "codexglue":
+                from dataset_generators.codexglue_generator import CodeXGLUEGenerator
+                return CodeXGLUEGenerator(**base, **cl).generate()
+            elif name == "manystubs4j":
+                from dataset_generators.manystubs4j_generator import ManySStuBs4JGenerator
+                return ManySStuBs4JGenerator(**base, **cl).generate()
+            elif name == "sourcerer":
+                from dataset_generators.sourcerer_generator import SourcererGenerator
+                return SourcererGenerator(**base, **fl).generate()
+            else:
+                return {"error": f"Unknown benchmark: {benchmark_name}. "
+                                 f"Available: {list(cls.BENCHMARKS.keys())}"}
+        except Exception as e:
+            logger.error(f"Benchmark generation error ({benchmark_name}): {e}")
+            return {"error": str(e)}
+
 if __name__ == '__main__':
     MetricsCatalog.print_catalog()

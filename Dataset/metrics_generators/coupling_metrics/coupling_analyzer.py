@@ -1,134 +1,72 @@
 #!/usr/bin/env python3
-"""
-Coupling Metrics Calculator - Real implementation using AST parsing
-Measures coupling between classes and packages
-"""
-
+"""Coupling Metrics Calculator - afferent/efferent coupling, instability, abstractness"""
 import javalang
-from typing import Dict, Set
-from collections import defaultdict
-from pathlib import Path
+import re
+from typing import Dict
+from metrics_generators.shared_utils import FileReader, JavaAST, DirTraversal
 
 
 class CouplingAnalyzer:
-    """Analyze coupling metrics between classes"""
-    
     @staticmethod
     def analyze_file(file_path: str) -> Dict[str, int]:
-        """
-        Analyze coupling metrics for a single file
-        
-        Returns:
-            Dictionary with afferent_coupling, efferent_coupling
-        """
+        """Analyze coupling metrics for a single file."""
         try:
-            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                content = f.read()
-            
-            import re
-            # Efferent coupling = imports/dependencies
-            imports = set(re.findall(r'import\s+([\w\.]+);', content))
-            
-            # Afferent coupling requires multi-file analysis (set to 0 for single file)
-            return {
-                'afferent_coupling': 0,
-                'efferent_coupling': len(imports)
-            }
-        except:
-            return {'afferent_coupling': 0, 'efferent_coupling': 0}
-    
+            content = FileReader.read(file_path)
+            imports = set(re.findall(r"import\s+([\w\.]+);", content))
+            return {"afferent_coupling": 0, "efferent_coupling": len(imports)}
+        except Exception:
+            return {"afferent_coupling": 0, "efferent_coupling": 0}
+
     @staticmethod
     def analyze_directory(dir_path: str) -> Dict[str, Dict[str, int]]:
-        """
-        Analyze coupling metrics for all Java files in directory
-        
-        Args:
-            dir_path: Path to directory containing Java files
-            
-        Returns:
-            Dictionary with coupling metrics
-        """
+        """Analyze coupling for all Java files in directory."""
         metrics = {}
-        
-        java_files = Path(dir_path).rglob('*.java')
-        
-        for java_file in java_files:
+        for java_file in DirTraversal.get_files(dir_path, [".java"]):
             try:
-                with open(java_file, 'r', encoding='utf-8', errors='ignore') as f:
-                    content = f.read()
-                
-                tree = javalang.parse.parse(content)
-                package_name = tree.package.name if tree.package else ""
-                
-                for path, class_node in tree.filter(javalang.tree.ClassDeclaration):
-                    class_name = f"{package_name}.{class_node.name}" if package_name else class_node.name
-                    
-                    # Afferent coupling - classes that depend on this
-                    afferent = CouplingAnalyzer._calculate_afferent(class_name, dir_path)
-                    
-                    # Efferent coupling - classes this depends on
-                    efferent = CouplingAnalyzer._calculate_efferent(class_node, package_name)
-                    
-                    # Instability
+                tree, _ = JavaAST.parse_file(str(java_file))
+                if tree is None:
+                    continue
+                pkg = JavaAST.get_package(tree)
+                for _, class_node in tree.filter(javalang.tree.ClassDeclaration):
+                    cname = JavaAST.class_full_name(pkg, class_node)
+                    afferent = CouplingAnalyzer._calculate_afferent(cname, dir_path)
+                    efferent = CouplingAnalyzer._calculate_efferent(class_node, pkg)
                     total = afferent + efferent
-                    instability = (efferent / total) if total > 0 else 0
-                    
-                    # Abstractness (for package)
-                    is_abstract = 'abstract' in class_node.modifiers
-                    
-                    metrics[class_name] = {
-                        'afferent_coupling': afferent,
-                        'efferent_coupling': efferent,
-                        'instability': round(instability, 2),
-                        'is_abstract': is_abstract
+                    metrics[cname] = {
+                        "afferent_coupling": afferent,
+                        "efferent_coupling": efferent,
+                        "instability": round(efferent / total, 2) if total > 0 else 0,
+                        "is_abstract": "abstract" in class_node.modifiers,
                     }
-            except:
+            except Exception:
                 continue
-        
         return metrics
-    
+
     @staticmethod
     def _calculate_afferent(class_name: str, dir_path: str) -> int:
-        """Count classes that depend on this class (incoming dependencies)"""
+        simple_name = class_name.split(".")[-1]
         count = 0
-        
-        java_files = Path(dir_path).rglob('*.java')
-        
-        for java_file in java_files:
+        for java_file in DirTraversal.get_files(dir_path, [".java"]):
             try:
-                with open(java_file, 'r', encoding='utf-8', errors='ignore') as f:
-                    content = f.read()
-                
-                # Check if file imports or references the class
-                if class_name.split('.')[-1] in content:
+                if simple_name in FileReader.read(str(java_file)):
                     count += 1
-            except:
+            except Exception:
                 continue
-        
         return count
-    
+
     @staticmethod
     def _calculate_efferent(class_node, package_name: str) -> int:
-        """Count classes this class depends on (outgoing dependencies)"""
-        dependencies = set()
-        
+        deps = set()
         try:
-            # Check imports
-            if hasattr(class_node, 'extends') and class_node.extends:
-                dependencies.add(class_node.extends.name)
-            
-            # Check implemented interfaces
-            if hasattr(class_node, 'implements') and class_node.implements:
-                for interface in class_node.implements:
-                    dependencies.add(interface.name)
-            
-            # Check field types and method signatures
-            if hasattr(class_node, 'body'):
+            if hasattr(class_node, "extends") and class_node.extends:
+                deps.add(class_node.extends.name)
+            if hasattr(class_node, "implements") and class_node.implements:
+                for iface in class_node.implements:
+                    deps.add(iface.name)
+            if hasattr(class_node, "body"):
                 for member in class_node.body:
-                    if hasattr(member, 'type'):
-                        if hasattr(member.type, 'name'):
-                            dependencies.add(member.type.name)
-        except:
+                    if hasattr(member, "type") and hasattr(member.type, "name"):
+                        deps.add(member.type.name)
+        except Exception:
             pass
-        
-        return len(dependencies)
+        return len(deps)

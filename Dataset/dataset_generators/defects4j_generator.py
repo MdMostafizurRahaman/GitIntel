@@ -203,11 +203,20 @@ class Defects4JGenerator:
                 if not (has_patch or files_info):
                     continue
                 
+                # Derive report URL from issue_id (GitHub issue or JIRA)
+                report_url = "UNKNOWN"
+                if issue_id:
+                    if issue_id.startswith('#'):
+                        report_url = f"https://github.com/{self.project_name}/{self.project_name}/issues/{issue_id[1:]}"
+                    elif re.match(r'[A-Z]+-\d+', issue_id):
+                        report_url = f"https://issues.apache.org/jira/browse/{issue_id}"
+
                 bugs_data.append({
                     "bug_id": bug_count,
                     "revision_id_buggy": parent_hash[:8],
                     "revision_id_fixed": commit_hash[:8],
                     "report_id": issue_id or "NA",
+                    "report_url": report_url,
                     "commit_message": commit_subject,
                     "author_name": author_name,
                     "commit_date": commit_date,
@@ -232,14 +241,15 @@ class Defects4JGenerator:
         csv_file = project_dir / "active-bugs.csv"
         with open(csv_file, 'w', newline='', encoding='utf-8') as f:
             writer = csv.writer(f)
-            writer.writerow(['bug.id', 'revision.id.buggy', 'revision.id.fixed', 
-                           'report.id'])
+            writer.writerow(['bug.id', 'revision.id.buggy', 'revision.id.fixed',
+                             'report.id', 'report.url'])
             for bug in bugs_data:
                 writer.writerow([
                     bug['bug_id'],
                     bug['revision_id_buggy'],
                     bug['revision_id_fixed'],
-                    bug['report_id']
+                    bug['report_id'],
+                    bug['report_url']
                 ])
         
         # Generate metadata JSON

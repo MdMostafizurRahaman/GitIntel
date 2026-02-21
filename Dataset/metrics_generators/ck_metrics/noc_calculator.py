@@ -1,72 +1,34 @@
 #!/usr/bin/env python3
-"""
-NOC (Number of Children) Calculator
-Real implementation using Java AST parsing
-"""
-
+"""NOC (Number of Children) Calculator"""
 import javalang
 from typing import Dict
 from collections import defaultdict
-from pathlib import Path
+from metrics_generators.shared_utils import JavaAST, DirTraversal
 
 
 class NOCCalculator:
-    """Calculate NOC - Number of Children (direct subclasses)"""
-    
     @staticmethod
     def calculate_from_file(file_path: str) -> int:
-        """
-        Calculate NOC for a single file
-        
-        Returns:
-            Number of subclasses/children (0 for single file analysis)
-        """
-        # NOC requires analyzing multiple files to find children
-        # For single file, return 0
+        # NOC requires multi-file analysis; single file always 0
         return 0
-    
+
     @staticmethod
     def calculate_from_directory(dir_path: str) -> Dict[str, int]:
-        """
-        Calculate NOC for all classes in a directory
-        NOC = number of immediate subclasses of a class
-        
-        Args:
-            dir_path: Path to directory containing Java files
-            
-        Returns:
-            Dictionary mapping class names to NOC values
-        """
-        # Build inheritance tree from all files
-        inheritance_tree = defaultdict(list)  # parent -> [children]
+        inheritance = defaultdict(list)
         all_classes = set()
-        
-        java_files = Path(dir_path).rglob('*.java')
-        
-        for java_file in java_files:
+        for java_file in DirTraversal.get_files(dir_path, [".java"]):
             try:
-                with open(java_file, 'r', encoding='utf-8', errors='ignore') as f:
-                    content = f.read()
-                
-                tree = javalang.parse.parse(content)
-                package_name = tree.package.name if tree.package else ""
-                
-                for path, class_node in tree.filter(javalang.tree.ClassDeclaration):
-                    class_name = f"{package_name}.{class_node.name}" if package_name else class_node.name
-                    all_classes.add(class_name)
-                    
-                    # If this class extends another, record relationship
+                tree, _ = JavaAST.parse_file(str(java_file))
+                if tree is None:
+                    continue
+                pkg = JavaAST.get_package(tree)
+                for _, class_node in tree.filter(javalang.tree.ClassDeclaration):
+                    cname = JavaAST.class_full_name(pkg, class_node)
+                    all_classes.add(cname)
                     if class_node.extends:
                         parent = class_node.extends.name
-                        parent_name = f"{package_name}.{parent}" if package_name else parent
-                        inheritance_tree[parent_name].append(class_name)
-            except:
+                        pname = JavaAST.class_full_name(pkg, type("_", (), {"name": parent})())
+                        inheritance[pname].append(cname)
+            except Exception:
                 continue
-        
-        # Convert to NOC results (count children for each class)
-        results = {}
-        for class_name in all_classes:
-            noc = len(inheritance_tree.get(class_name, []))
-            results[class_name] = noc
-        
-        return results
+        return {c: len(inheritance.get(c, [])) for c in all_classes}

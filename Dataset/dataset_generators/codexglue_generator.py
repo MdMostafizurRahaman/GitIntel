@@ -185,7 +185,9 @@ class CodeXGLUEGenerator:
         code_refinement_dir.mkdir(exist_ok=True)
         
         # Data storage
-        clone_detection_data = []
+        clone_functions = []        # list of {"func": code, "idx": n}
+        clone_func_map = {}         # code_hash -> int idx (dedup)
+        clone_pairs = []            # list of (idx1, idx2, label)
         defect_detection_data = []
         code_refinement_data = []
         commit_count = 0
@@ -252,24 +254,26 @@ class CodeXGLUEGenerator:
                     if not buggy_content or not fixed_content:
                         continue
                     
-                    # TASK 1: Clone Detection (similarity between code snippets)
+                    # TASK 1: Clone Detection (BigCloneBench format)
+                    # data.jsonl = one func per line with idx; pairs reference numeric idx
                     language = 'java' if file_path.endswith('.java') else 'python' if file_path.endswith('.py') else 'javascript'
                     funcs_buggy = self._extract_functions(buggy_content, language)
                     funcs_fixed = self._extract_functions(fixed_content, language)
-                    
-                    # Add clone detection pairs (buggy vs fixed are semantically similar)
+
+                    def _register_func(code_snippet: str) -> int:
+                        key = code_snippet[:200]
+                        if key not in clone_func_map:
+                            new_idx = len(clone_functions)
+                            clone_func_map[key] = new_idx
+                            clone_functions.append({"func": code_snippet[:500], "idx": new_idx})
+                        return clone_func_map[key]
+
                     if funcs_buggy and funcs_fixed:
-                        for i, func1 in enumerate(funcs_buggy[:2]):
-                            for j, func2 in enumerate(funcs_fixed[:2]):
-                                clone_detection_data.append({
-                                    'idx1': f"{commit_count}_{file_path}_{i}",
-                                    'idx2': f"{commit_count}_{file_path}_fixed_{j}",
-                                    'func1': func1['code'][:500],  # Truncate for storage
-                                    'func2': func2['code'][:500],
-                                    'label': 1,  # Same semantic (bug fix)
-                                    'commit': commit_hash[:8],
-                                    'file': file_path
-                                })
+                        for func1 in funcs_buggy[:2]:
+                            for func2 in funcs_fixed[:2]:
+                                i1 = _register_func(func1['code'])
+                                i2 = _register_func(func2['code'])
+                                clone_pairs.append((i1, i2, 1))  # label=1: semantically similar
                     
                     # TASK 2: Defect Detection (identify vulnerabilities)
                     has_vuln_before = self._detect_vulnerability(buggy_content)
@@ -302,11 +306,11 @@ class CodeXGLUEGenerator:
                     logger.info(f"Processed {commit_count} commits...")
             
             logger.info(f"  Analyzed {commit_count} commits")
-            logger.info(f"   Clone Detection: {len(clone_detection_data)} pairs")
+            logger.info(f"   Clone Detection: {len(clone_functions)} functions, {len(clone_pairs)} pairs")
             logger.info(f"   Defect Detection: {len(defect_detection_data)} functions")
             logger.info(f"   Code Refinement: {len(code_refinement_data)} pairs")
-            
-            if not (clone_detection_data or defect_detection_data or code_refinement_data):
+
+            if not (clone_pairs or defect_detection_data or code_refinement_data):
                 return {"error": "No data generated for any CodeXGLUE task"}
         
         except Exception as e:
@@ -314,28 +318,30 @@ class CodeXGLUEGenerator:
             return {"error": str(e)}
         
         # Save Clone Detection data (BigCloneBench format)
-        if clone_detection_data:
+        # data.jsonl: one function per line {"func": code, "idx": n}
+        # train/valid/test.txt: idx1 \t idx2 \t label
+        if clone_functions:
             clone_jsonl = clone_detection_dir / "data.jsonl"
             with open(clone_jsonl, 'w', encoding='utf-8') as f:
-                for item in clone_detection_data:
-                    f.write(json.dumps(item, ensure_ascii=False) + '\n')
-            
-            # Create train/valid/test splits (80/10/10)
-            total = len(clone_detection_data)
-            train_size = int(total * 0.8)
-            valid_size = int(total * 0.1)
-            
+                for func_entry in clone_functions:
+                    f.write(json.dumps(func_entry, ensure_ascii=False) + '\n')
+
+            # Create train/valid/test splits of pairs (80/10/10)
+            total_pairs = len(clone_pairs)
+            train_size = int(total_pairs * 0.8)
+            valid_size = int(total_pairs * 0.1)
+
             with open(clone_detection_dir / "train.txt", 'w') as f:
-                for item in clone_detection_data[:train_size]:
-                    f.write(f"{item['idx1']}\t{item['idx2']}\t{item['label']}\n")
-            
+                for idx1, idx2, label in clone_pairs[:train_size]:
+                    f.write(f"{idx1}\t{idx2}\t{label}\n")
+
             with open(clone_detection_dir / "valid.txt", 'w') as f:
-                for item in clone_detection_data[train_size:train_size+valid_size]:
-                    f.write(f"{item['idx1']}\t{item['idx2']}\t{item['label']}\n")
-            
+                for idx1, idx2, label in clone_pairs[train_size:train_size + valid_size]:
+                    f.write(f"{idx1}\t{idx2}\t{label}\n")
+
             with open(clone_detection_dir / "test.txt", 'w') as f:
-                for item in clone_detection_data[train_size+valid_size:]:
-                    f.write(f"{item['idx1']}\t{item['idx2']}\t{item['label']}\n")
+                for idx1, idx2, label in clone_pairs[train_size + valid_size:]:
+                    f.write(f"{idx1}\t{idx2}\t{label}\n")
         
         # Save Defect Detection data (Devign format)
         if defect_detection_data:
@@ -410,8 +416,8 @@ codexglue_dataset_{self.timestamp}/
 ### Tasks Implemented:
 
 1. **Clone Detection**: Measure semantic similarity between code snippets
-   - Format: idx1\tidx2\tlabel (0=not clone, 1=clone)
-   - Total pairs: {len(clone_detection_data)}
+   - Format: data.jsonl (one func per line with idx), train/valid/test.txt (idx1\\tidx2\\tlabel)
+   - Total functions: {len(clone_functions)}, Total pairs: {len(clone_pairs)}
 
 2. **Defect Detection**: Identify vulnerabilities in code
    - Format: JSONL with func, target (0=secure, 1=vulnerable)
@@ -424,7 +430,7 @@ codexglue_dataset_{self.timestamp}/
 ## Statistics
 - **Project**: {self.project_name}
 - **Total commits analyzed**: {commit_count}
-- **Clone detection pairs**: {len(clone_detection_data)}
+- **Clone detection functions**: {len(clone_functions)}, pairs: {len(clone_pairs)}
 - **Defect detection examples**: {len(defect_detection_data)}
 - **Code refinement pairs**: {len(code_refinement_data)}
 - **Generated**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
@@ -470,7 +476,8 @@ The official CodeXGLUE benchmark includes 14 datasets for 10 tasks:
                 'total_commits': commit_count,
                 'tasks': {
                     'clone_detection': {
-                        'count': len(clone_detection_data),
+                        'functions': len(clone_functions),
+                        'pairs': len(clone_pairs),
                         'description': 'Binary classification and retrieval for code clones'
                     },
                     'defect_detection': {
@@ -483,16 +490,16 @@ The official CodeXGLUE benchmark includes 14 datasets for 10 tasks:
                     }
                 }
             }, f, indent=2, ensure_ascii=False)
-        
+
         logger.info(f"  SUCCESS: CodeXGLUE dataset -> {dataset_dir}")
         logger.info(f"  Tasks: Clone Detection, Defect Detection, Code Refinement")
-        
+
         return {
             "status": "success",
             "total_commits": commit_count,
             "output_dir": str(dataset_dir),
             "tasks": {
-                "clone_detection": len(clone_detection_data),
+                "clone_detection": len(clone_pairs),
                 "defect_detection": len(defect_detection_data),
                 "code_refinement": len(code_refinement_data)
             }

@@ -62,8 +62,8 @@ class MasterMetricsGenerator:
         
         try:
             # Read file content once for efficiency
-            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                content = f.read()
+            from metrics_generators.shared_utils import FileReader
+            content = FileReader.read(file_path)
             
             # ========== LOC Metrics (5) ==========
             loc_data = LOCCalculator.calculate_detailed(file_path)
@@ -76,6 +76,7 @@ class MasterMetricsGenerator:
             # ========== SIZE Metrics (4) ==========
             metrics['metrics']['num_files'] = 1
             metrics['metrics']['num_classes'] = len(re.findall(r'\bclass\s+\w+', content))
+            metrics['metrics']['num_interfaces_count'] = len(re.findall(r'\binterface\s+\w+', content))
             metrics['metrics']['num_methods'] = len(re.findall(r'\b(?:public|private|protected|static|def)\s+(?:\w+\s+)*\w+\s*\(', content))
             metrics['metrics']['num_statements'] = len(re.findall(r';', content))
             

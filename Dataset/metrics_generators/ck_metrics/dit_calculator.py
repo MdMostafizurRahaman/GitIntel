@@ -1,128 +1,56 @@
 #!/usr/bin/env python3
-"""
-DIT (Depth of Inheritance Tree) Calculator
-Real implementation using Java AST parsing
-"""
-
+"""DIT (Depth of Inheritance Tree) Calculator"""
 import javalang
 from typing import Dict
 from collections import defaultdict
+from metrics_generators.shared_utils import FileReader, JavaAST, DirTraversal
 
 
 class DITCalculator:
-    """Calculate DIT - Depth of Inheritance Tree"""
-    
     @staticmethod
     def calculate_from_directory(dir_path: str) -> Dict[str, int]:
-        """
-        Calculate DIT for all classes in a directory
-        DIT = maximum path length from class to root of inheritance hierarchy
-        
-        Args:
-            dir_path: Path to directory containing Java files
-            
-        Returns:
-            Dictionary mapping class names to DIT values
-        """
-        # First pass: build inheritance tree
-        inheritance_tree = defaultdict(str)  # child -> parent
+        inheritance_tree = defaultdict(str)
         all_classes = set()
-        
-        from pathlib import Path
-        java_files = Path(dir_path).rglob('*.java')
-        
-        for java_file in java_files:
+        for java_file in DirTraversal.get_files(dir_path, [".java"]):
             try:
-                with open(java_file, 'r', encoding='utf-8', errors='ignore') as f:
-                    content = f.read()
-                
-                tree = javalang.parse.parse(content)
-                package_name = tree.package.name if tree.package else ""
-                
-                for path, class_node in tree.filter(javalang.tree.ClassDeclaration):
-                    class_name = f"{package_name}.{class_node.name}" if package_name else class_node.name
-                    all_classes.add(class_name)
-                    
-                    # Store parent class if extends exists
+                tree, _ = JavaAST.parse_file(str(java_file))
+                if tree is None:
+                    continue
+                pkg = JavaAST.get_package(tree)
+                for _, class_node in tree.filter(javalang.tree.ClassDeclaration):
+                    cname = JavaAST.class_full_name(pkg, class_node)
+                    all_classes.add(cname)
                     if class_node.extends:
                         parent = class_node.extends.name
-                        parent_name = f"{package_name}.{parent}" if package_name else parent
-                        inheritance_tree[class_name] = parent_name
-            except:
+                        pname = JavaAST.class_full_name(pkg, type("_", (), {"name": parent})())
+                        inheritance_tree[cname] = pname
+            except Exception:
                 continue
-        
-        # Second pass: calculate DIT for each class
-        results = {}
-        for class_name in all_classes:
-            dit = DITCalculator._calculate_depth(class_name, inheritance_tree)
-            results[class_name] = dit
-        
-        return results
-    
+        return {c: DITCalculator._depth(c, inheritance_tree) for c in all_classes}
+
     @staticmethod
-    def _calculate_depth(class_name: str, inheritance_tree: Dict, visited: set = None) -> int:
-        """
-        Calculate depth recursively
-        
-        Args:
-            class_name: Name of class to calculate DIT for
-            inheritance_tree: Dictionary of parent classes
-            visited: Set to track visited classes (prevent cycles)
-            
-        Returns:
-            Integer depth of inheritance
-        """
+    def _depth(class_name: str, tree: Dict, visited: set = None) -> int:
         if visited is None:
             visited = set()
-        
-        if class_name in visited:
-            return 0  # Circular inheritance prevention
-        
-        if class_name not in inheritance_tree:
-            return 0  # No parent found
-        
+        if class_name in visited or class_name not in tree:
+            return 0
         visited.add(class_name)
-        parent = inheritance_tree[class_name]
-        
-        # Recursive: 1 + depth of parent
-        return 1 + DITCalculator._calculate_depth(parent, inheritance_tree, visited.copy())
-    
+        return 1 + DITCalculator._depth(tree[class_name], tree, visited.copy())
+
     @staticmethod
     def calculate_from_file(file_path: str) -> int:
-        """
-        Calculate DIT for a single file (returns max DIT from all classes in file)
-        
-        Args:
-            file_path: Path to Java file
-            
-        Returns:
-            Maximum DIT value from all classes in file
-        """
-        try:
-            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                content = f.read()
-            
-            tree = javalang.parse.parse(content)
-            
-            # Build mini inheritance tree for this file
-            inheritance_tree = {}
-            package_name = tree.package.name if tree.package else ""
-            
-            for path, class_node in tree.filter(javalang.tree.ClassDeclaration):
-                class_name = f"{package_name}.{class_node.name}" if package_name else class_node.name
-                
-                if class_node.extends:
-                    parent = class_node.extends.name
-                    parent_name = f"{package_name}.{parent}" if package_name else parent
-                    inheritance_tree[class_name] = parent_name
-            
-            # Calculate depths and return max
-            if not inheritance_tree:
-                return 0
-            
-            depths = [DITCalculator._calculate_depth(cls, inheritance_tree) 
-                     for cls in inheritance_tree.keys()]
-            return max(depths) if depths else 0
-            
-        except Exception as e:
+        tree, _ = JavaAST.parse_file(file_path)
+        if tree is None:
             return 0
+        pkg = JavaAST.get_package(tree)
+        inheritance = {}
+        for _, class_node in tree.filter(javalang.tree.ClassDeclaration):
+            cname = JavaAST.class_full_name(pkg, class_node)
+            if class_node.extends:
+                parent = class_node.extends.name
+                pname = JavaAST.class_full_name(pkg, type("_", (), {"name": parent})())
+                inheritance[cname] = pname
+        if not inheritance:
+            return 0
+        depths = [DITCalculator._depth(c, inheritance) for c in inheritance]
+        return max(depths) if depths else 0

@@ -1,92 +1,40 @@
 #!/usr/bin/env python3
-"""
-SOC (Source Lines of Code) Calculator
-Counts source lines excluding non-executable statements
-"""
-
-import re
-from pathlib import Path
+"""SOC (Source Lines of Code) Calculator - executable lines only"""
 from typing import List
+from metrics_generators.shared_utils import FileReader, DirTraversal
 
 
 class SOCCalculator:
-    """Calculate SOC - Source Lines of Code (executable only)"""
-    
     @staticmethod
     def calculate_from_file(file_path: str) -> int:
-        """
-        Calculate executable source lines from a single file
-        Excludes blank lines, pure comments, and import statements
-        
-        Args:
-            file_path: Path to source file
-            
-        Returns:
-            Count of executable source lines
-        """
         try:
-            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                lines = f.readlines()
-            
-            soc_count = 0
-            in_block_comment = False
-            
+            lines = FileReader.read_lines(file_path)
+            soc = 0
+            in_block = False
             for line in lines:
-                stripped = line.strip()
-                
-                # Skip blank lines
-                if not stripped:
+                s = line.strip()
+                if not s:
                     continue
-                
-                # Track multi-line comments
-                if '/*' in stripped:
-                    in_block_comment = True
-                
-                if in_block_comment:
-                    if '*/' in stripped:
-                        in_block_comment = False
+                if "/*" in s:
+                    in_block = True
+                if in_block:
+                    if "*/" in s:
+                        in_block = False
                     continue
-                
-                # Skip single-line comments
-                if stripped.startswith('//') or stripped.startswith('#'):
+                if s.startswith("//") or s.startswith("#"):
                     continue
-                
-                # Skip import/package statements (non-executable)
-                if stripped.startswith('import ') or stripped.startswith('package '):
+                if s.startswith("import ") or s.startswith("package "):
                     continue
-                
-                # Skip from statements (Python)
-                if stripped.startswith('from ') and ' import ' in stripped:
+                if s.startswith("from ") and " import " in s:
                     continue
-                
-                # Count as executable source line
-                soc_count += 1
-            
-            return soc_count
-            
+                soc += 1
+            return soc
         except Exception:
             return 0
-    
+
     @staticmethod
     def calculate_from_directory(dir_path: str, extensions: List[str] = None) -> int:
-        """
-        Calculate total executable source lines from directory
-        
-        Args:
-            dir_path: Directory path
-            extensions: File extensions to include
-            
-        Returns:
-            Total executable source lines
-        """
-        if extensions is None:
-            extensions = ['.java', '.py', '.cpp', '.cs', '.js']
-        
-        total_soc = 0
-        dir_obj = Path(dir_path)
-        
-        for file_path in dir_obj.rglob('*'):
-            if file_path.is_file() and file_path.suffix in extensions:
-                total_soc += SOCCalculator.calculate_from_file(str(file_path))
-        
-        return total_soc
+        total = 0
+        for fp in DirTraversal.get_files(dir_path, extensions):
+            total += SOCCalculator.calculate_from_file(str(fp))
+        return total

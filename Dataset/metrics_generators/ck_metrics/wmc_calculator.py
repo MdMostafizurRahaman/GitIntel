@@ -1,120 +1,56 @@
 #!/usr/bin/env python3
-"""
-WMC (Weighted Methods per Class) Calculator
-Real implementation using AST parsing for Java
-"""
-
+"""WMC (Weighted Methods per Class) Calculator"""
 import javalang
-from pathlib import Path
 from typing import Dict
+from metrics_generators.shared_utils import JavaAST
 
 
 class WMCCalculator:
-    """Calculate WMC - Weighted Methods per Class"""
-    
     @staticmethod
     def calculate_from_file(file_path: str) -> Dict[str, int]:
-        """
-        Calculate WMC for all classes in a Java file
-        WMC = sum of cyclomatic complexity of all methods
-        
-        Args:
-            file_path: Path to Java source file
-            
-        Returns:
-            Dictionary mapping class names to WMC values
-        """
         results = {}
-        
-        try:
-            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                content = f.read()
-            
-            # Parse Java file
-            try:
-                tree = javalang.parse.parse(content)
-            except:
-                return results
-            
-            # Get package name
-            package_name = tree.package.name if tree.package else ""
-            
-            # Process each class
-            for path, class_node in tree.filter(javalang.tree.ClassDeclaration):
-                class_name = f"{package_name}.{class_node.name}" if package_name else class_node.name
-                
-                # Count methods in class
-                method_count = 0
-                for _, method in tree.filter(javalang.tree.MethodDeclaration):
-                    method_count += 1
-                
-                # WMC = number of methods (simplified, can be enhanced with cyclomatic complexity)
-                results[class_name] = max(1, method_count)  # At least 1 (constructor)
-            
+        tree, _ = JavaAST.parse_file(file_path)
+        if tree is None:
             return results
-            
-        except Exception as e:
-            return results
-    
+        pkg = JavaAST.get_package(tree)
+        for _, class_node in tree.filter(javalang.tree.ClassDeclaration):
+            class_name = JavaAST.class_full_name(pkg, class_node)
+            # Count only methods belonging to THIS class, not the whole file
+            method_count = len(class_node.methods) if class_node.methods else 0
+            results[class_name] = max(1, method_count)
+        return results
+
     @staticmethod
     def calculate_complexity_weighted(file_path: str) -> Dict[str, float]:
-        """
-        Calculate WMC weighted by cyclomatic complexity of each method
-        More accurate implementation
-        
-        Args:
-            file_path: Path to Java source file
-            
-        Returns:
-            Dictionary mapping class names to weighted WMC values
-        """
         results = {}
-        
-        try:
-            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                content = f.read()
-            
-            tree = javalang.parse.parse(content)
-            package_name = tree.package.name if tree.package else ""
-            
-            for path, class_node in tree.filter(javalang.tree.ClassDeclaration):
-                class_name = f"{package_name}.{class_node.name}" if package_name else class_node.name
-                
-                # Sum complexities of all methods
-                total_complexity = 0
-                for _, method in tree.filter(javalang.tree.MethodDeclaration):
-                    # Count decision points (if, for, while, catch, case, etc.)
-                    complexity = WMCCalculator._calculate_cyclomatic_complexity(method)
-                    total_complexity += complexity
-                
-                results[class_name] = max(1, total_complexity)
-            
+        tree, _ = JavaAST.parse_file(file_path)
+        if tree is None:
             return results
-            
-        except Exception:
-            return results
-    
+        pkg = JavaAST.get_package(tree)
+        for _, class_node in tree.filter(javalang.tree.ClassDeclaration):
+            class_name = JavaAST.class_full_name(pkg, class_node)
+            # Sum complexity of methods in THIS class only
+            total = sum(
+                WMCCalculator._cyclomatic(m)
+                for m in (class_node.methods or [])
+            )
+            results[class_name] = max(1, total)
+        return results
+
     @staticmethod
-    def _calculate_cyclomatic_complexity(method_node) -> int:
-        """Calculate cyclomatic complexity of a method"""
-        complexity = 1  # Base complexity
-        
+    def _cyclomatic(method_node) -> int:
+        complexity = 1
         try:
-            for _, node in method_node.filter(javalang.tree.IfStatement):
+            for _, _ in method_node.filter(javalang.tree.IfStatement):
                 complexity += 1
-            
-            for _, node in method_node.filter(javalang.tree.WhileStatement):
+            for _, _ in method_node.filter(javalang.tree.WhileStatement):
                 complexity += 1
-            
-            for _, node in method_node.filter(javalang.tree.ForStatement):
+            for _, _ in method_node.filter(javalang.tree.ForStatement):
                 complexity += 1
-            
-            for _, node in method_node.filter(javalang.tree.SwitchStatement):
+            for _, _ in method_node.filter(javalang.tree.SwitchStatement):
                 complexity += 1
-            
-            for _, node in method_node.filter(javalang.tree.CatchClause):
+            for _, _ in method_node.filter(javalang.tree.CatchClause):
                 complexity += 1
-        except:
+        except Exception:
             pass
-        
         return complexity
