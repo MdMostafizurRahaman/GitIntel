@@ -219,7 +219,7 @@ class Defects4JGenerator:
                 if bug_count % 10 == 0:
                     logger.info(f"Processed {bug_count} bugs...")
             
-            logger.info(f"✅ Found {len(bugs_data)} bug-fixing commits")
+            logger.info(f"  Found {len(bugs_data)} bug-fixing commits")
             
             if not bugs_data:
                 return {"error": "No bug-fixing commits found"}
@@ -306,8 +306,8 @@ defects4j checkout -p {self.project_name} -v 1f -w /path/to/work_dir
 - Paper: "Defects4J: A Database of Existing Faults to Enable Controlled Testing Studies for Java Programs" (ISSTA 2014)
 """)
         
-        logger.info(f"✅ SUCCESS: {len(bugs_data)} bugs -> {dataset_dir}")
-        logger.info(f"📁 Structure: {self.project_name}/active-bugs.csv + patches/")
+        logger.info(f"  SUCCESS: {len(bugs_data)} bugs -> {dataset_dir}")
+        logger.info(f"  Structure: {self.project_name}/active-bugs.csv + patches/")
         
         return {
             "status": "success",
@@ -334,11 +334,11 @@ def main():
     result = generator.generate()
     
     if "error" in result:
-        print(f"❌ ERROR: {result['error']}")
+        print(f"  ERROR: {result['error']}")
         sys.exit(1)
     else:
-        print(f"✅ SUCCESS! Generated {result['total_bugs']} bugs")
-        print(f"📁 Output: {result['output_dir']}")
+        print(f"  SUCCESS! Generated {result['total_bugs']} bugs")
+        print(f"  Output: {result['output_dir']}")
 
 
 if __name__ == "__main__":

@@ -57,7 +57,6 @@ except ImportError as e:
 try:
     from metrics_catalog import MetricsCatalog
     from github_autonomous_agent import GitHubAutonomousAgent
-    from interactive_dataset_generator import InteractiveDatasetGenerator
     from autonomous_agent import AutonomousDatasetAgent, AgentMode
     from enhanced_agentic_system import EnhancedAgenticSystem, AgentMode as EnhancedMode
     from llm_code_jury_system import LLMCodeJurySystem
@@ -71,7 +70,10 @@ except ImportError as e:
 
 # Try to import LLM Jury System
 try:
-    import google.generativeai as genai
+    import warnings
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=FutureWarning)
+        import google.generativeai as genai
     import time
     from functools import wraps
     LLM_AVAILABLE = True
@@ -235,13 +237,13 @@ def get_git_root(file_path: str) -> Optional[str]:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 class MessageType(Enum):
-    SYSTEM = "🤖"
-    USER = "👤"
-    THINKING = "💭"
-    ACTION = "⚡"
-    SUCCESS = "✓"
+    SYSTEM = " "
+    USER = " "
+    THINKING = " "
+    ACTION = " "
+    SUCCESS = " "
     ERROR = "[ERROR]"
-    QUESTION = "❓"
+    QUESTION = " "
     INFO = "[INFO]"
 
 
@@ -515,7 +517,7 @@ class AgenticDatasetGUI:
                    command=self.browse_folder).pack(side=tk.LEFT, padx=2)
         ttk.Button(repo_input_frame, text="Clone", width=10,
                    command=self.clone_repository).pack(side=tk.LEFT, padx=2)
-        ttk.Button(repo_input_frame, text="✓ Set", 
+        ttk.Button(repo_input_frame, text="  Set", 
                    command=self.set_repository).pack(side=tk.LEFT, padx=2)
         
         self.repo_status = ttk.Label(repo_frame, text="", font=('Segoe UI', 9))
@@ -751,7 +753,7 @@ class AgenticDatasetGUI:
         # ═══════════════════════════════════════════════════════════════════
         # APPROVAL SECTION
         # ═══════════════════════════════════════════════════════════════════
-        self.approval_frame = ttk.LabelFrame(self.right_frame, text="Action Required ❓", padding=10)
+        self.approval_frame = ttk.LabelFrame(self.right_frame, text="Action Required  ", padding=10)
         self.approval_frame.pack(fill=tk.X, pady=(0, 10))
         
         self.approval_text = ttk.Label(self.approval_frame, 
@@ -868,12 +870,12 @@ class AgenticDatasetGUI:
             
             # Status indicator
             status_colors = {
-                TaskStatus.PENDING: '⏳',
-                TaskStatus.WAITING_APPROVAL: '❓',
-                TaskStatus.IN_PROGRESS: '[PROCESSING]',
-                TaskStatus.COMPLETED: '✓',
-                TaskStatus.FAILED: '[ERROR]',
-                TaskStatus.SKIPPED: '⏭️'
+                TaskStatus.PENDING: ' ',
+                TaskStatus.WAITING_APPROVAL: ' ',
+                TaskStatus.IN_PROGRESS: ' ',
+                TaskStatus.COMPLETED: ' ',
+                TaskStatus.FAILED: ' ',
+                TaskStatus.SKIPPED: ' '
             }
             
             # Determine style based on status
@@ -974,54 +976,22 @@ class AgenticDatasetGUI:
                                 args=(query,), daemon=True).start()
     
     def _process_with_enhanced_system(self, query: str):
-        """Process using EnhancedAgenticSystem"""
-        # SIMPLIFIED: Check if it's a benchmark request first
-        query_lower = query.lower()
-        is_benchmark = any(b.lower() in query_lower for b in self.BENCHMARK_DATASETS.keys())
-        
-        if is_benchmark:
-            # Use old working benchmark generation DIRECTLY
-            self.add_agent_message(MessageType.INFO, 
-                "Benchmark dataset detected. Using proven benchmark generator.")
-            threading.Thread(target=self._create_plan_from_input, 
-                            args=(query,), daemon=True).start()
+        """Process ALL queries via EnhancedAgenticSystem (Bedrock Claude 3) - NO hardcoded bypasses"""
+        if not self.enhanced_system:
+            self.add_agent_message(MessageType.ERROR, "  Agent not initialized")
             return
-        
-        # For NON-benchmark: check if catalog is loaded
-        if not self.catalog:
-            self.add_agent_message(MessageType.ERROR, 
-                "ERROR Metrics catalog not available. Cannot analyze custom metrics.")
-            return
-            
-        # Show available metrics FIRST before asking questions
-        all_metrics = self.catalog.get_all_metrics()
-        categories = self.catalog.get_categories()
-        
-        metrics_summary = f"  **{len(all_metrics)} Metrics Available:**\n\n"
-        for category in categories:
-            cat_metrics = self.catalog.get_metrics_by_category(category)
-            metrics_summary += f"**{category.upper()}** ({len(cat_metrics)}): "
-            metrics_summary += ", ".join(list(cat_metrics.keys())[:5])
-            if len(cat_metrics) > 5:
-                metrics_summary += f" (+{len(cat_metrics)-5} more)"
-            metrics_summary += "\n"
-        
-        self.add_agent_message(MessageType.SUCCESS, metrics_summary)
         
         # Set repository if not already set
         if not self.enhanced_system.repo_path or str(self.enhanced_system.repo_path) != str(self.repo_path):
             try:
                 self.add_agent_message(MessageType.THINKING, 
-                    "Setting up repository and discovering metrics...")
-                
-                repo_info = self.enhanced_system.set_repository(self.repo_path)
-                
+                    "🔧 Setting up repository...")
+                self.enhanced_system.set_repository(self.repo_path)
             except Exception as e:
-                self.add_agent_message(MessageType.ERROR, 
-                    f"  Repository setup failed: {e}")
+                self.add_agent_message(MessageType.ERROR, f"Repository setup failed: {e}")
                 return
         
-        # Start conversation in background thread
+        # Start conversation in background thread - Bedrock handles everything
         thread = threading.Thread(target=self._enhanced_conversation_thread, args=(query,))
         thread.daemon = True
         thread.start()
@@ -1036,10 +1006,16 @@ class AgenticDatasetGUI:
             self._display_enhanced_messages()
             
             # Handle result status
-            while result['status'] in ['needs_clarification', 'needs_approval_for_formula_generation', 
+            while result['status'] in ['needs_feedback', 'needs_clarification', 'needs_approval_for_formula_generation', 
                                        'awaiting_approval', 'awaiting_final_approval']:
                 
-                if result['status'] == 'needs_clarification':
+                if result['status'] == 'needs_feedback':
+                    # Waiting for user to confirm analysis
+                    self.awaiting_analysis_confirmation = True
+                    self.root.after(0, lambda: self._setup_enhanced_input_handler("Type 'yes' to proceed, or describe what to change"))
+                    break
+                
+                elif result['status'] == 'needs_clarification':
                     # Wait for user response
                     question = result['question']
                     self.root.after(0, lambda: self._setup_enhanced_input_handler(question))
@@ -1147,12 +1123,57 @@ class AgenticDatasetGUI:
             self.agent_input.bind('<Return>', 
                 lambda e: self._handle_clarification_response(self.agent_input.get()))
     
+    def _enhanced_continue_conversation_thread(self, feedback: str):
+        """Continue enhanced conversation after analysis confirmation"""
+        try:
+            # Send feedback to enhanced system
+            result = self.enhanced_system.continue_conversation(feedback)
+            
+            # Display new messages
+            self._display_enhanced_messages()
+            
+            # Handle result status
+            while result['status'] in ['needs_feedback', 'needs_clarification', 'awaiting_approval']:
+                
+                if result['status'] == 'needs_feedback':
+                    # Another analysis/confirmation round
+                    self.awaiting_analysis_confirmation = True
+                    self.root.after(0, lambda: self._setup_enhanced_input_handler("Confirm or describe changes"))
+                    break
+                
+                elif result['status'] == 'needs_clarification':
+                    # Ask clarification question
+                    question = result.get('question', 'Please clarify')
+                    self.root.after(0, lambda: self._setup_enhanced_input_handler(question))
+                    break
+                
+                elif result['status'] == 'awaiting_approval':
+                    # Show plan for approval
+                    plan_text = result.get('plan', 'Plan ready for approval')
+                    self.root.after(0, lambda: self.add_agent_message(MessageType.QUESTION, plan_text))
+                    self.root.after(0, lambda: self._setup_approval_buttons(
+                        on_approve=lambda: self._approve_plan(),
+                        on_reject=lambda: self._reject_plan()
+                    ))
+                    break
+            
+            # If completed, show result
+            if result['status'] == 'completed':
+                success_text = f"**Dataset Generated!**\n\n"
+                success_text += f"**Files:**\n"
+                for key, value in result.get('files', {}).items():
+                    success_text += f"  • {key}: {value}\n"
+                self.root.after(0, lambda: self.add_agent_message(MessageType.SUCCESS, success_text))
+        
+        except Exception as e:
+            self.root.after(0, lambda: self.add_agent_message(MessageType.ERROR, f"Error: {str(e)}"))
+    
     def _handle_clarification_response(self, response: str):
         """Handle user's clarification response"""
         if not response or 'Type your answer' in response:
             return
         
-        self.add_agent_message(MessageType.USER, f"💬 {response}")
+        self.add_agent_message(MessageType.USER, f"  {response}")
         
         # Continue conversation in background
         thread = threading.Thread(target=self._continue_enhanced_conversation, args=(response,))
@@ -1160,14 +1181,41 @@ class AgenticDatasetGUI:
         thread.start()
     
     def _continue_enhanced_conversation(self, response: str):
-        """Continue the enhanced conversation"""
+        """Continue the enhanced conversation - triggers dataset generation when ready"""
         try:
             result = self.enhanced_system.continue_conversation(response)
             self._display_enhanced_messages()
             
-            # Handle new status (similar to initial conversation)
-            # Reuse the logic from _enhanced_conversation_thread
+            # Handle all possible statuses - same logic as _enhanced_conversation_thread
+            if result['status'] == 'needs_clarification':
+                question = result.get('question', '')
+                self.root.after(0, lambda: self._setup_enhanced_input_handler(question))
             
+            elif result['status'] == 'awaiting_approval':
+                self.root.after(0, lambda: self._setup_approval_buttons(
+                    on_approve=lambda: self._approve_plan(),
+                    on_reject=lambda: self._reject_plan(),
+                    on_modify=lambda: self._modify_plan()
+                ))
+            
+            elif result['status'] == 'awaiting_final_approval':
+                preview_text = "**Preview Ready! Confirm to generate?**\n\n"
+                for col_preview in result.get('preview', []):
+                    preview_text += f"• **{col_preview.column_name}**: {col_preview.formula}\n"
+                    preview_text += f"  Sample: {col_preview.sample_values[:3]}\n"
+                self.root.after(0, lambda: self.add_agent_message(MessageType.PREVIEW, preview_text))
+                self.root.after(0, lambda: self._setup_final_approval_buttons(
+                    on_confirm=lambda: self._confirm_generation(),
+                    on_cancel=lambda: self._cancel_generation()
+                ))
+            
+            elif result['status'] == 'completed':
+                success_text = f"  **Dataset Generated!**\n\n"
+                success_text += f"  CSV: {result.get('csv_file', 'N/A')}\n"
+                success_text += f"  JSON: {result.get('json_file', 'N/A')}\n"
+                success_text += f"  Rows: {result.get('rows', 'N/A')}, Columns: {result.get('columns', 'N/A')}"
+                self.root.after(0, lambda: self.add_agent_message(MessageType.SUCCESS, success_text))
+
         except Exception as e:
             self.root.after(0, lambda: self.add_agent_message(MessageType.ERROR, 
                 f"Error: {str(e)}"))
@@ -1697,7 +1745,7 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
                         
                 # Execute task directly
                 self.task_manager.set_task_status(task.id, TaskStatus.IN_PROGRESS)
-                self.root.after(0, lambda t=task: self.add_agent_message(MessageType.ACTION, f"⚡ Executing: {t.title}..."))
+                self.root.after(0, lambda t=task: self.add_agent_message(MessageType.ACTION, f"  Executing: {t.title}..."))
                 
                 try:
                     if task.action:
@@ -1836,6 +1884,14 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
         
         feedback_lower = feedback.lower()
         
+        # Check if waiting for analysis confirmation (after metrics are shown)
+        if hasattr(self, 'awaiting_analysis_confirmation') and self.awaiting_analysis_confirmation:
+            self.awaiting_analysis_confirmation = False
+            # Continue enhanced conversation with user feedback
+            threading.Thread(target=self._enhanced_continue_conversation_thread, 
+                           args=(feedback,), daemon=True).start()
+            return
+        
         # Check if waiting for extraction approval
         if hasattr(self, 'awaiting_extraction_approval') and self.awaiting_extraction_approval:
             if any(word in feedback_lower for word in ['extract', 'yes', 'ok', 'approve', 'proceed']):
@@ -1890,8 +1946,16 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
         # Treat as new query
         else:
             self.current_query = feedback
-            threading.Thread(target=self._intelligent_chat_processor, 
-                           args=(feedback,), daemon=True).start()
+            # Route ALL new queries through enhanced_system (Bedrock) if available
+            if self.enhanced_system and self.repo_path:
+                threading.Thread(target=self._process_with_enhanced_system,
+                               args=(feedback,), daemon=True).start()
+            elif self.enhanced_system and not self.repo_path:
+                self.add_agent_message(MessageType.QUESTION,
+                    "  Please set a repository first (paste GitHub URL or folder path above), then ask again.")
+            else:
+                threading.Thread(target=self._intelligent_chat_processor, 
+                               args=(feedback,), daemon=True).start()
     
     def _process_feedback(self, feedback: str):
         """Legacy feedback processor - redirects to send_feedback logic"""
@@ -1929,71 +1993,93 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
                 action=self.task_verify_repo,
                 requires_approval=False
             )
-            
-            # Step 2: Extract data
-            self.root.after(0, lambda: self.add_agent_message(MessageType.ACTION,
-                "Step 2/5: Extracting real data from repository..."))
-            
-            known_metrics = plan.get('known_metrics', [])
-            validated_custom = plan.get('validated_custom_metrics', [])
-            
-            # Get file limit from GUI (user control!)
-            file_limit = self.file_limit_var.get().strip()
-            
-            # Warn user if no limit or very high limit
-            if not file_limit or file_limit.lower() == "all":
-                self.root.after(0, lambda: self.add_agent_message(MessageType.QUESTION,
-                    f"**WARNING**: No file limit set!\n\n"
-                    f"This will process ALL files in the repository which may take a very long time.\n\n"
-                    f"**Recommended**: Set a file limit (e.g., 100) in the File Limit field above.\n\n"
-                    f"Current setting: '{file_limit}' - Are you sure you want to continue?"))
-                # Don't proceed without explicit user confirmation
-                return
-            
-            task2 = self.task_manager.add_task(
-                "Extract Metrics",
-                f"Calculate {len(known_metrics)} known + {len(validated_custom)} custom metrics from {file_limit} files",
-                action=lambda: self._extract_real_data(known_metrics, validated_custom, file_limit),
-                requires_approval=False
-            )
-            
-            # Step 3: Generate dataset
-            self.root.after(0, lambda: self.add_agent_message(MessageType.ACTION,
-                "Step 3/5: Generating dataset file..."))
-            
-            output_config = {
-                'format': 'csv',
-                'benchmark': plan.get('benchmark'),
-                'selected_metrics': known_metrics,
-                'custom_metrics': validated_custom,
-                'file_limit': self.file_limit_var.get() if hasattr(self, 'file_limit_var') else 'All'
-            }
-            
-            task3 = self.task_manager.add_task(
-                "Generate Dataset",
-                "Create output CSV/JSON",
-                action=lambda: self.task_generate_output(output_config),
-                requires_approval=False
-            )
-            
-            # Step 4: Create visualization
-            self.root.after(0, lambda: self.add_agent_message(MessageType.ACTION,
-                "Step 4/5: Creating visualizations..."))
-            
-            task4 = self.task_manager.add_task(
-                "Create Visualizations",
-                "Generate charts and graphs",
-                action=lambda: self._create_visualizations(output_config),
-                requires_approval=False
-            )
-            
-            # Step 5: Validate
-            task5 = self.task_manager.add_task(
-                "Validate Output",
-                "Check generated files",
-                action=self.task_validate,
-                requires_approval=False
-            )
+
+            # ── ROUTE: benchmark intent vs custom-metric intent ──────────────
+            intent = plan.get('intent', 'custom_metrics')
+            benchmark_name = plan.get('benchmark')
+
+            if intent == 'benchmark' and benchmark_name:
+                # Route directly to the proper benchmark generator
+                # (e.g. ManySStuBs4J → git commit traversal, NOT file-level MetricsHelper)
+                self.root.after(0, lambda b=benchmark_name: self.add_agent_message(
+                    MessageType.ACTION,
+                    f"Step 2/3: Generating {b} dataset using dedicated generator..."))
+
+                self.task_manager.add_task(
+                    f"Generate {benchmark_name} Dataset",
+                    f"Run {benchmark_name} generator (real git commit / code analysis)",
+                    action=lambda b=benchmark_name: self.task_setup_benchmark(b),
+                    requires_approval=False
+                )
+
+                self.task_manager.add_task(
+                    "Validate Output",
+                    "Check generated files",
+                    action=self.task_validate,
+                    requires_approval=False
+                )
+
+            else:
+                # Custom metrics / formula intent → generic file-level extraction
+                self.root.after(0, lambda: self.add_agent_message(MessageType.ACTION,
+                    "Step 2/5: Extracting real data from repository..."))
+
+                known_metrics = plan.get('known_metrics', [])
+                validated_custom = plan.get('validated_custom_metrics', [])
+
+                # Get file limit from GUI (user control!)
+                file_limit = self.file_limit_var.get().strip()
+
+                # Warn user if no limit or very high limit
+                if not file_limit or file_limit.lower() == "all":
+                    self.root.after(0, lambda: self.add_agent_message(MessageType.QUESTION,
+                        f"**WARNING**: No file limit set!\n\n"
+                        f"This will process ALL files in the repository which may take a very long time.\n\n"
+                        f"**Recommended**: Set a file limit (e.g., 100) in the File Limit field above.\n\n"
+                        f"Current setting: '{file_limit}' - Are you sure you want to continue?"))
+                    return
+
+                self.task_manager.add_task(
+                    "Extract Metrics",
+                    f"Calculate {len(known_metrics)} known + {len(validated_custom)} custom metrics from {file_limit} files",
+                    action=lambda: self._extract_real_data(known_metrics, validated_custom, file_limit),
+                    requires_approval=False
+                )
+
+                self.root.after(0, lambda: self.add_agent_message(MessageType.ACTION,
+                    "Step 3/5: Generating dataset file..."))
+
+                output_config = {
+                    'format': 'csv',
+                    'benchmark': benchmark_name,
+                    'selected_metrics': known_metrics,
+                    'custom_metrics': validated_custom,
+                    'file_limit': self.file_limit_var.get() if hasattr(self, 'file_limit_var') else 'All'
+                }
+
+                self.task_manager.add_task(
+                    "Generate Dataset",
+                    "Create output CSV/JSON",
+                    action=lambda: self.task_generate_output(output_config),
+                    requires_approval=False
+                )
+
+                self.root.after(0, lambda: self.add_agent_message(MessageType.ACTION,
+                    "Step 4/5: Creating visualizations..."))
+
+                self.task_manager.add_task(
+                    "Create Visualizations",
+                    "Generate charts and graphs",
+                    action=lambda: self._create_visualizations(output_config),
+                    requires_approval=False
+                )
+
+                self.task_manager.add_task(
+                    "Validate Output",
+                    "Check generated files",
+                    action=self.task_validate,
+                    requires_approval=False
+                )
             
             # Start execution
             self.root.after(0, lambda: self.add_agent_message(MessageType.SYSTEM,
@@ -2186,7 +2272,7 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
             }
             
             if benchmark_name in method_map:
-                self.add_agent_message(MessageType.ACTION, f"⚡ Generating {benchmark_name}...")
+                self.add_agent_message(MessageType.ACTION, f"  Generating {benchmark_name}...")
                 method_map[benchmark_name]()
                 self.add_agent_message(MessageType.SUCCESS, f"  {benchmark_name} generated!")
                 return f"{benchmark_name} dataset generated successfully"
@@ -2465,83 +2551,33 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
     
     def _extract_file_metrics(self, file_path: str, selected_metrics: List[str]) -> Dict:
         """
-        Use MetricsHelper to get all metrics - NO local calculation!
-        All metric extraction is delegated to metrics_generators via MetricsHelper.
-        
-        IMPORTANT: MetricsHelper.get_all_metrics() returns a nested structure:
-            {'metrics': {actual_64_metrics_dict}, ...other_keys...}
-        
-        So we must extract the 'metrics' key before filtering/returning.
+        Use MetricsHelper to get all 64 metrics for a file, then filter to the
+        selected subset.  MetricsHelper returns {'metrics': {...64 metrics...}, ...}.
         """
-        # AGGRESSIVE DEBUG
-        safe_print(f"  _extract_file_metrics called with {len(selected_metrics)} metrics")
-        
         if not self.metrics_helper:
-            safe_print(f"self.metrics_helper is None!")
             return {'file': file_path}
-        
+
         try:
-            # MetricsHelper handles both absolute and relative paths
             result_dict = self.metrics_helper.get_all_metrics(file_path)
-            
-            # CRITICAL DEBUG
-            safe_print(f"File: {os.path.basename(file_path)}")
-            safe_print(f"result_dict type: {type(result_dict)}")
-            safe_print(f"result_dict keys: {list(result_dict.keys()) if isinstance(result_dict, dict) else 'NOT A DICT'}")
-            
-            # Extract the actual metrics from the nested structure
-            # MetricsHelper returns {'metrics': {actual metrics}, ...other keys...}
             all_metrics = result_dict.get('metrics', {})
-            
-            safe_print(f"all_metrics type: {type(all_metrics)}")
-            safe_print(f"all_metrics size: {len(all_metrics) if isinstance(all_metrics, dict) else 'NOT A DICT'}")
-            if isinstance(all_metrics, dict) and len(all_metrics) > 0:
-                safe_print(f"Sample keys: {list(all_metrics.keys())[:5]}")
-            
-            # Debug on first file
+
+            # Log once when first file is processed
             if not hasattr(self, '_metrics_debug_logged'):
-                safe_print(f"Path: {file_path}")
-                safe_print(f"Result type: {type(result_dict)}, keys: {list(result_dict.keys())}")
-                safe_print(f"Metrics dict size: {len(all_metrics)}")
-                
                 self.add_agent_message(MessageType.INFO,
-                    f"  MetricsHelper returned {len(all_metrics)} metrics for {os.path.basename(file_path)}")
-                if all_metrics:
-                    sample_keys = list(all_metrics.keys())[:10]
-                    self.add_agent_message(MessageType.INFO,
-                        f"  Sample metric keys: {sample_keys}...")
-                    self.add_agent_message(MessageType.INFO,
-                        f"  Filtering to {len(selected_metrics)} selected metrics")
-                else:
-                    self.add_agent_message(MessageType.ERROR,
-                        f"MetricsHelper returned NO metrics for {os.path.basename(file_path)}")
-                    safe_print(f"Result dict: {result_dict}")
+                    f"  MetricsHelper ready — {len(all_metrics)} metrics available per file")
                 self._metrics_debug_logged = True
-            
-            # Filter to selected metrics only
-            if selected_metrics and len(selected_metrics) > 0:
-                result = {}
-                found_count = 0
-                for metric_name in selected_metrics:
-                    if metric_name in all_metrics:
-                        result[metric_name] = all_metrics[metric_name]
-                        found_count += 1
-                    else:
-                        result[metric_name] = None
-                if not hasattr(self, '_metrics_filter_logged'):
-                    self.add_agent_message(MessageType.INFO,
-                        f"  Filtered {len(all_metrics)} → {found_count} matching metrics")
-                    self._metrics_filter_logged = True
+
+            # Filter to the metrics the user actually asked for
+            if selected_metrics:
+                result = {m: all_metrics.get(m, None) for m in selected_metrics}
             else:
-                result = all_metrics
-                safe_print(f"  No selected_metrics provided! Using all {len(result)} metrics")
-            
+                result = dict(all_metrics)
+
             result['file'] = file_path
             return result
+
         except Exception as e:
-            safe_print(f"  _extract_file_metrics exception: {str(e)}")
-            import traceback
-            safe_print(traceback.format_exc())
+            print(f"[_extract_file_metrics] {os.path.basename(file_path)}: {e}")
             return {'file': file_path}
     
     def task_validate(self):
@@ -2670,7 +2706,7 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
         """Download benchmark datasets"""
         download_status = []
         for benchmark in benchmarks:
-            download_status.append(f"✓ Downloaded {benchmark}")
+            download_status.append(f"  Downloaded {benchmark}")
         return f"Downloaded {len(benchmarks)} benchmark(s)"
     
     def task_analyze_benchmarks(self, benchmarks: List[str]):
@@ -2785,7 +2821,7 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
                             "  Sourcerer: JSON with full code (from GIT commits)")
             
             commit_info = f"  Commits: {'ALL' if not commit_limit else commit_limit}"
-            return f"  Generated {len(benchmarks)} benchmark datasets with ORIGINAL formats!\n\n{commit_info}\n  Files: {', '.join(generated_files)}\n📂 Location: {output_dir}\n\n  Using PROPER benchmark formats with REAL GIT COMMIT data!"
+            return f"  Generated {len(benchmarks)} benchmark datasets with ORIGINAL formats!\n\n{commit_info}\n  Files: {', '.join(generated_files)}\n  Location: {output_dir}\n\n  Using PROPER benchmark formats with REAL GIT COMMIT data!"
             
         except Exception as e:
             import traceback
@@ -3188,9 +3224,13 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
         # Add to conversation history
         self.conversation_history.append({"role": "user", "content": query})
         
-        # Process in background thread
-        threading.Thread(target=self._intelligent_chat_processor, 
-                        args=(query,), daemon=True).start()
+        # Route to intelligent agent (Bedrock)
+        if self.enhanced_system:
+            threading.Thread(target=self._process_with_enhanced_system, 
+                            args=(query,), daemon=True).start()
+        else:
+            self.add_agent_message(MessageType.ERROR, 
+                "  Agent not initialized. Check configuration.")
     
     
     def _intelligent_chat_processor(self, query: str):
@@ -3369,8 +3409,8 @@ CRITICAL RULES:
                     f"Formula: `{formula_expr}`\n\n"
                     f"But these base metrics are NOT available:\n{unknown_list}\n\n"
                     f"Should I:\n"
-                    f"  1️⃣ Extract them from repository using Jury-generated code?\n"
-                    f"  2️⃣ Use alternative/approximation?\n\n"
+                    f"    Extract them from repository using Jury-generated code?\n"
+                    f"    Use alternative/approximation?\n\n"
                     f"Type 'extract' or 'yes' to proceed with extraction, or describe alternative."))
                 
                 # Store for later
@@ -3497,7 +3537,7 @@ CRITICAL RULES:
             known_metrics = understanding.get('known_metrics', [])
             validated_custom = understanding.get('validated_custom_metrics', [])
             
-            approval_msg = f"""📋 **HERE'S MY UNDERSTANDING:**
+            approval_msg = f"""  **HERE'S MY UNDERSTANDING:**
 
 {understanding.get('summary', 'Generate dataset')}
 
@@ -3757,7 +3797,7 @@ These metrics will be used to calculate: {formula_name}
             self.set_repository()
     
     def clone_repository(self):
-        """Clone a Git repository from URL"""
+        """Clone a Git repository from URL directly to GitIntelProject/clone/<repo_name>"""
         repo_input = self.repo_var.get().strip()
         
         # Validate input
@@ -3782,7 +3822,7 @@ These metrics will be used to calculate: {formula_name}
         # Create clone dialog
         clone_dialog = tk.Toplevel(self.root)
         clone_dialog.title("Clone Repository")
-        clone_dialog.geometry("600x300")
+        clone_dialog.geometry("600x250")
         clone_dialog.grab_set()
         
         # Header
@@ -3798,27 +3838,24 @@ These metrics will be used to calculate: {formula_name}
         url_text.insert('1.0', repo_input)
         url_text.config(state=tk.DISABLED)
         
-        # Destination selection
-        dest_frame = ttk.LabelFrame(clone_dialog, text="Clone Destination", padding=10)
+        # Auto-destination info (NO SELECTION - FIXED PATH)
+        dest_frame = ttk.LabelFrame(clone_dialog, text="Auto Clone Destination (FIXED)", padding=10)
         dest_frame.pack(fill=tk.X, padx=20, pady=(0, 10))
         
-        # Default destination
-        default_dest = os.path.join(os.path.expanduser("~"), "GitIntel_Clones")
-        dest_var = tk.StringVar(value=default_dest)
+        # Extract repo name from URL
+        repo_name = repo_input.rstrip('/').split('/')[-1].replace('.git', '')
         
-        dest_input_frame = ttk.Frame(dest_frame)
-        dest_input_frame.pack(fill=tk.X)
+        # FIXED destination: GitIntelProject/clone/<repo_name>
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        clone_base = os.path.join(base_dir, "clone")
+        final_dest = os.path.join(clone_base, repo_name)
         
-        ttk.Entry(dest_input_frame, textvariable=dest_var, 
-                  font=('Consolas', 9)).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
+        dest_display = tk.Text(dest_frame, height=2, wrap=tk.WORD, font=('Consolas', 9))
+        dest_display.pack(fill=tk.X)
+        dest_display.insert('1.0', final_dest)
+        dest_display.config(state=tk.DISABLED)
         
-        def browse_destination():
-            folder = filedialog.askdirectory(title="Select Clone Destination")
-            if folder:
-                dest_var.set(folder)
-        
-        ttk.Button(dest_input_frame, text="Browse", 
-                   command=browse_destination).pack(side=tk.LEFT)
+        ttk.Label(dest_frame, text="  .git will be at this location", font=('Segoe UI', 9)).pack()
         
         # Progress area
         progress_frame = ttk.LabelFrame(clone_dialog, text="Progress", padding=10)
@@ -3832,7 +3869,7 @@ These metrics will be used to calculate: {formula_name}
         btn_frame = ttk.Frame(clone_dialog)
         btn_frame.pack(fill=tk.X, padx=20, pady=(0, 10))
         
-        clone_btn = ttk.Button(btn_frame, text="Start Clone", style='Accent.TButton')
+        clone_btn = ttk.Button(btn_frame, text="Start Clone (Fixed Path)", style='Accent.TButton')
         cancel_btn = ttk.Button(btn_frame, text="Cancel")
         
         def log_progress(message):
@@ -3841,34 +3878,33 @@ These metrics will be used to calculate: {formula_name}
             clone_dialog.after(0, lambda: progress_text.see(tk.END))
         
         def start_clone():
-            """Start cloning in background thread"""
+            """Start cloning to FIXED GitIntelProject/clone/<repo_name>"""
             clone_btn.config(state=tk.DISABLED)
             cancel_btn.config(text="Close")
             
             def clone_thread():
                 try:
-                    dest_path = dest_var.get()
-                    
-                    # Create destination directory
-                    os.makedirs(dest_path, exist_ok=True)
-                    log_progress(f" ] Destination: {dest_path}")
-                    
-                    # Extract repo name from URL
-                    repo_name = repo_input.rstrip('/').split('/')[-1].replace('.git', '')
-                    clone_path = os.path.join(dest_path, repo_name)
+                    # Create clone base directory
+                    os.makedirs(clone_base, exist_ok=True)
+                    log_progress(f"  Auto-destination: {clone_base}")
                     
                     # Check if already exists
-                    if os.path.exists(clone_path):
-                        log_progress(f"Directory already exists: {repo_name}")
-                        log_progress(f"Using existing directory...")
-                        final_path = clone_path
+                    if os.path.exists(final_dest):
+                        log_progress(f"  Repository exists: {repo_name}")
+                        log_progress(f"  Using existing clone at: {final_dest}")
+                        
+                        # Verify .git exists
+                        if os.path.isdir(os.path.join(final_dest, '.git')):
+                            log_progress(f"  .git directory confirmed")
+                        else:
+                            log_progress(f"   WARNING: .git directory NOT found!")
                     else:
-                        log_progress(f" Cloning {repo_name}...")
-                        log_progress(f"This may take a few minutes...")
+                        log_progress(f"  Cloning {repo_name}...")
+                        log_progress(f"   This may take a few minutes...")
                         
                         # Run git clone
                         process = subprocess.Popen(
-                            ['git', 'clone', '--progress', repo_input, clone_path],
+                            ['git', 'clone', '--progress', repo_input, final_dest],
                             stdout=subprocess.PIPE,
                             stderr=subprocess.STDOUT,
                             universal_newlines=True,
@@ -3882,25 +3918,30 @@ These metrics will be used to calculate: {formula_name}
                         process.wait()
                         
                         if process.returncode == 0:
-                            log_progress(f"\n Repository cloned successfully!")
-                            final_path = clone_path
+                            log_progress(f"\n  Repository cloned successfully!")
+                            
+                            # Verify .git exists
+                            if os.path.isdir(os.path.join(final_dest, '.git')):
+                                log_progress(f"  .git directory confirmed")
+                            else:
+                                log_progress(f"   WARNING: .git directory NOT found after clone!")
                         else:
-                            log_progress(f"\n   Clone failed with code {process.returncode}")
+                            log_progress(f"\n  Clone failed with code {process.returncode}")
                             return
                     
                     # Set the repository in main window
-                    log_progress(f" ] Setting up repository...")
-                    self.root.after(0, lambda: self.repo_var.set(final_path))
+                    log_progress(f"\n   Setting up repository...")
+                    self.root.after(0, lambda: self.repo_var.set(final_dest))
                     self.root.after(0, lambda: self.set_repository())
                     
-                    log_progress(f"\n🎉 Ready to analyze!")
+                    log_progress(f"\n  Ready! All work will happen in: {clone_base}")
                     clone_dialog.after(2000, clone_dialog.destroy)
                     
                 except subprocess.CalledProcessError as e:
-                    log_progress(f"\n   Git error: {e}")
-                    log_progress(f"  Make sure Git is installed and URL is correct")
+                    log_progress(f"\n  Git error: {e}")
+                    log_progress(f"   Make sure Git is installed and URL is correct")
                 except Exception as e:
-                    log_progress(f"\n   Unexpected error: {e}")
+                    log_progress(f"\n  Unexpected error: {e}")
                 finally:
                     clone_dialog.after(0, lambda: clone_btn.config(state=tk.NORMAL))
             
@@ -3954,7 +3995,7 @@ These metrics will be used to calculate: {formula_name}
         header.pack(pady=10)
         
         # Info frame
-        info_frame = ttk.LabelFrame(benchmark_window, text="📋 Available Benchmarks", padding=10)
+        info_frame = ttk.LabelFrame(benchmark_window, text="  Available Benchmarks", padding=10)
         info_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 10))
         
         # Scrollable content
@@ -4003,7 +4044,7 @@ These metrics will be used to calculate: {formula_name}
         # ═══════════════════════════════════════════════════════════════════
         # CLASS LIMIT INPUT
         # ═══════════════════════════════════════════════════════════════════
-        limit_frame = ttk.LabelFrame(benchmark_window, text="⚙️ Dataset Size", padding=10)
+        limit_frame = ttk.LabelFrame(benchmark_window, text="  Dataset Size", padding=10)
         limit_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
         
         ttk.Label(limit_frame, text="How many classes to analyze?",
@@ -4206,7 +4247,7 @@ These metrics will be used to calculate: {formula_name}
                 f"Selected {len(self.selected_metrics)} metrics")
             metrics_window.destroy()
         
-        ttk.Button(btn_frame, text="✓ Save Selection",
+        ttk.Button(btn_frame, text="  Save Selection",
                   command=save_selection,
                   style='Accent.TButton').pack(side=tk.RIGHT, padx=2)
         
@@ -4467,7 +4508,7 @@ Click **▶ Start Execution** to begin.
             # Show tasks
             tasks_text = "Tasks:\n"
             for i, task in enumerate(plan.get('tasks', []), 1):
-                auto = "🤖" if task.get('auto_execute') else "❓"
+                auto = " " if task.get('auto_execute') else " "
                 tasks_text += f"  {i}. {auto} {task.get('task')}\n"
             self.add_agent_message(MessageType.INFO, tasks_text)
             
@@ -4483,7 +4524,7 @@ Click **▶ Start Execution** to begin.
     def _execute_agent_ask_mode(self, plan: dict):
         """Execute agent in ASK mode"""
         self.add_agent_message(MessageType.ACTION, 
-            "▶️ ASK MODE - Permission required for each task\n\n"
+            "  ASK MODE - Permission required for each task\n\n"
             "Approval workflow initiated. Check task panel for approval buttons."
         )
         
@@ -4931,6 +4972,26 @@ Click **▶ Start Execution** to begin.
         )
         thread.start()
 
+    def _jury_resume_after_clarification_thread(self, requirements: Dict, confidence: float):
+        """Auto-resume full workflow after clarification completes"""
+        try:
+            def progress_callback(msg):
+                self.root.after(0, lambda m=msg: self.jury_log(m, 'system'))
+
+            result = self.integrated_jury.resume_after_clarification(
+                requirements=requirements,
+                confidence=confidence,
+                progress_callback=progress_callback
+            )
+
+            self.root.after(0, lambda r=result: self._jury_handle_result(r))
+
+        except Exception as e:
+            import traceback
+            error_msg = f"ERROR: {str(e)}\n{traceback.format_exc()}"
+            self.root.after(0, lambda m=error_msg: self.jury_log(m, 'error'))
+            self.root.after(0, lambda: self.jury_status_var.set("Error occurred"))
+
     def _jury_continue_clarification_thread(self, user_feedback: str):
         """Continue clarification process in background"""
         try:
@@ -4947,11 +5008,19 @@ Click **▶ Start Execution** to begin.
     def _jury_handle_clarification_result(self, result: Dict):
         """Handle clarification result"""
         if result['status'] == 'clarified':
-            self.jury_log(" Requirements clarified! Ready to generate code.", 'system')
-            self.jury_log("Please click 'Start New Request' to begin generation with clarified requirements.", 'question')
-            self.jury_status_var.set("Clarified! Ready for code generation")
+            self.jury_log(" Requirements fully understood! Automatically starting code generation...", 'system')
+            self.jury_log(f"Confidence: {result.get('confidence', 100):.0f}%", 'thinking')
+            self.jury_status_var.set("Requirements clear — generating code now...")
             self.jury_clarification_pending = False
             self.jury_answer_btn.configure(state=tk.DISABLED)
+
+            # Auto-resume: run Phase 1.5 + Phase 2 with the clarified requirements
+            thread = threading.Thread(
+                target=self._jury_resume_after_clarification_thread,
+                args=(result['requirements'], result.get('confidence', 100)),
+                daemon=True
+            )
+            thread.start()
         else:
             # Need more clarification
             self.jury_clarification_pending = True
@@ -5004,7 +5073,7 @@ Click **▶ Start Execution** to begin.
         # Offer dataset generation first
         dataset_response = messagebox.askyesnocancel(
             "Dataset Generation",
-            f"✅ Code validated by {result['test_results']['passing_llms']}/3 LLMs!\n\n"
+            f"  Code validated by {result['test_results']['passing_llms']}/3 LLMs!\n\n"
             f"Function: {result['function_name']}\n"
             f"Description: {result['description'][:100]}...\n\n"
             f"Would you like to generate a REAL dataset using this code?\n\n"
@@ -5023,7 +5092,7 @@ Click **▶ Start Execution** to begin.
                     "Go to Repository tab → Browse/Clone a repo")
                 return
             
-            self.jury_log("\n🚀 Starting dataset generation with validated code...", 'system')
+            self.jury_log("\n  Starting dataset generation with validated code...", 'system')
             
             # Convert jury result to custom metrics format
             custom_metric = self._convert_jury_to_metric_format(result)
@@ -5085,7 +5154,7 @@ Click **▶ Start Execution** to begin.
         """Generate real dataset using jury-validated code"""
         try:
             self.root.after(0, lambda: self.add_agent_message(MessageType.INFO,
-                "📊 Extracting base metrics from repository..."))
+                "  Extracting base metrics from repository..."))
             
             # Use existing dataset generation logic from _generate_metrics_dataset
             # Get base metrics from repo
@@ -5096,7 +5165,7 @@ Click **▶ Start Execution** to begin.
             
             if not java_files:
                 self.root.after(0, lambda: self.add_agent_message(MessageType.ERROR,
-                    "❌ No Java files found in repository!"))
+                    "  No Java files found in repository!"))
                 return
             
             self.root.after(0, lambda: self.add_agent_message(MessageType.INFO,
@@ -5117,11 +5186,11 @@ Click **▶ Start Execution** to begin.
             
             if not rows:
                 self.root.after(0, lambda: self.add_agent_message(MessageType.ERROR,
-                    "❌ Failed to extract metrics from repository!"))
+                    "  Failed to extract metrics from repository!"))
                 return
             
             self.root.after(0, lambda: self.add_agent_message(MessageType.SUCCESS,
-                f"✅ Extracted base metrics from {len(rows)} files"))
+                f"  Extracted base metrics from {len(rows)} files"))
             
             # Apply jury-validated custom metric
             self.root.after(0, lambda: self.add_agent_message(MessageType.INFO,
@@ -5137,10 +5206,10 @@ Click **▶ Start Execution** to begin.
             
             if applied_count > 0:
                 self.root.after(0, lambda: self.add_agent_message(MessageType.SUCCESS,
-                    f"✅ Successfully applied custom metric!"))
+                    f"  Successfully applied custom metric!"))
             else:
                 self.root.after(0, lambda: self.add_agent_message(MessageType.ERROR,
-                    f"❌ Custom metric application failed: {errors}"))
+                    f"  Custom metric application failed: {errors}"))
                 return
             
             # Save dataset
@@ -5156,7 +5225,7 @@ Click **▶ Start Execution** to begin.
                 writer.writerows(rows)
             
             self.root.after(0, lambda: self.add_agent_message(MessageType.SUCCESS,
-                f"✅ Dataset saved: {output_file}\n"
+                f"  Dataset saved: {output_file}\n"
                 f"   Records: {len(rows)}\n"
                 f"   Columns: {len(rows[0].keys())}\n"
                 f"   Custom metric: {jury_result['function_name']}"))
@@ -5172,7 +5241,7 @@ Click **▶ Start Execution** to begin.
             import traceback
             error_msg = f"Error: {str(e)}\n{traceback.format_exc()}"
             self.root.after(0, lambda msg=error_msg: self.add_agent_message(MessageType.ERROR,
-                f"❌ Dataset generation failed:\n{msg}"))
+                f"  Dataset generation failed:\n{msg}"))
     
     def log_system(self, text: str):
         """Add log to system logs tab"""

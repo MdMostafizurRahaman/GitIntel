@@ -301,7 +301,7 @@ class CodeXGLUEGenerator:
                 if commit_count % 50 == 0:
                     logger.info(f"Processed {commit_count} commits...")
             
-            logger.info(f"✅ Analyzed {commit_count} commits")
+            logger.info(f"  Analyzed {commit_count} commits")
             logger.info(f"   Clone Detection: {len(clone_detection_data)} pairs")
             logger.info(f"   Defect Detection: {len(defect_detection_data)} functions")
             logger.info(f"   Code Refinement: {len(code_refinement_data)} pairs")
@@ -484,8 +484,8 @@ The official CodeXGLUE benchmark includes 14 datasets for 10 tasks:
                 }
             }, f, indent=2, ensure_ascii=False)
         
-        logger.info(f"✅ SUCCESS: CodeXGLUE dataset -> {dataset_dir}")
-        logger.info(f"📁 Tasks: Clone Detection, Defect Detection, Code Refinement")
+        logger.info(f"  SUCCESS: CodeXGLUE dataset -> {dataset_dir}")
+        logger.info(f"  Tasks: Clone Detection, Defect Detection, Code Refinement")
         
         return {
             "status": "success",
@@ -513,12 +513,12 @@ def main():
     result = generator.generate()
     
     if "error" in result:
-        print(f"❌ ERROR: {result['error']}")
+        print(f"  ERROR: {result['error']}")
         sys.exit(1)
     else:
-        print(f"✅ SUCCESS! CodeXGLUE dataset generated")
-        print(f"📁 Output: {result['output_dir']}")
-        print(f"📊 Tasks:")
+        print(f"  SUCCESS! CodeXGLUE dataset generated")
+        print(f"  Output: {result['output_dir']}")
+        print(f"  Tasks:")
         for task, count in result['tasks'].items():
             print(f"   - {task}: {count} examples")
 
