@@ -244,9 +244,12 @@ class ManySStuBs4JGenerator:
             if not commits:
                 return {"error": "No commits found"}
 
-            limit = self.commit_limit or len(commits)
-
-            for idx, commit_line in enumerate(commits[:limit]):
+            # Process commits until we find self.commit_limit stubs (not limited by commits)
+            for idx, commit_line in enumerate(commits):
+                # Stop only when we've found enough stubs
+                if self.commit_limit and len(dataset) >= self.commit_limit:
+                    break
+                
                 parts = commit_line.split('|', 2)
                 if len(parts) < 2:
                     continue
@@ -289,6 +292,10 @@ class ManySStuBs4JGenerator:
                         'sourceBeforeFix': stub['sourceBeforeFix'],
                         'sourceAfterFix': stub['sourceAfterFix'],
                     })
+                    
+                    # Stop if we've found enough stubs
+                    if self.commit_limit and len(dataset) >= self.commit_limit:
+                        break
 
                 if (idx + 1) % 50 == 0:
                     logger.info(f"Processed {idx + 1} commits, found {len(dataset)} stubs...")
@@ -331,6 +338,87 @@ class ManySStuBs4JGenerator:
 
         logger.info(f"ManySStuBs4J dataset -> {dataset_dir}")
         logger.info(f"Bug type distribution: {type_counts}")
+
+        # Generate README
+        readme = dataset_dir / "README.md"
+        with open(readme, 'w', encoding='utf-8') as f:
+            f.write(f"""# ManySStuBs4J Dataset
+
+## Overview
+This dataset follows the **ManySStuBs4J** standard from https://github.com/maldil/ManySStuBs4J
+
+ManySStuBs4J contains {len(dataset)} single-statement bug stubs extracted from GitHub commits.
+
+### Structure:
+```
+manystubs4j_dataset_{self.timestamp}/
+├── manystubs4j_dataset.json   # Main dataset with all stubs
+└── README.md                  # This file
+```
+
+### JSON Format:
+```json
+{{
+  "dataset_type": "ManySStuBs4J",
+  "total_stubs": {len(dataset)},
+  "bug_type_distribution": {type_counts},
+  "issues": [
+    {{
+      "bugType": "CHANGE_OPERAND",
+      "commitSHA1": "abc123...",
+      "fixCommitParentSHA1": "def456...",
+      "commitFile": "src/Main.java",
+      "patch": "-originalCode\\n+fixedCode",
+      "projectName": "kaprka",
+      "bugLineNum": 42,
+      "fixLineNum": 42,
+      "sourceBeforeFix": "int x = a * b;",
+      "sourceAfterFix": "int x = a + b;"
+    }},
+    ...
+  ]
+}}
+```
+
+### Bug Types (16 categories):
+```
+1. CHANGE_OPERATOR        - Changed binary/unary operator (e.g., + to -)
+2. CHANGE_OPERAND         - Changed operand/variable (e.g., a to b)
+3. CHANGE_NUMERAL         - Changed numeric literal
+4. CHANGE_BOOLEAN_LITERAL - Flipped boolean (true <-> false)
+5. WRONG_FUNCTION_NAME    - Called different method
+6. CHANGE_MODIFIER        - Changed access modifier
+7. ADD_THROWS_EXCEPTION   - Added throws clause
+8. DELETE_THROWS_EXCEPTION - Removed throws clause
+9. CHANGE_EXCEPTION       - Different exception type
+10. MORE_SPECIFIC_IF      - More specific condition
+11. LESS_SPECIFIC_IF      - Less specific condition
+12. MORE_SPECIFIC_RETURN_TYPE - Changed return type
+13. CHANGE_STRING_LITERAL - Changed string constant
+14. CHANGE_RETURN_VALUE   - Different return value
+15. CHANGE_OBJECT         - Different object/type
+16. CHANGE_CALLER_EXPRESSION - Different method call
+```
+
+### Statistics
+- **Total stubs**: {len(dataset)}
+- **Bug type distribution**:
+  {chr(10).join([f'  - {k}: {v}' for k, v in sorted(type_counts.items())])}
+- **Generated**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+
+## Use Cases
+- Bug/defect prediction
+- Code repair learning
+- Program synthesis from buggy code
+- Clone detection training
+
+## References
+- GitHub: https://github.com/maldil/ManySStuBs4J
+- Paper: "Detecting Code Clones with Recurrent Neural Networks and Tree-Based Convolution" (MSR 2020)
+- Original data: GitHub commits with single-line changes
+""")
+
+        logger.info(f"Generated README at {readme}")
 
         return {
             "status": "success",

@@ -107,7 +107,9 @@ class BugsJarGenerator:
                 ['git', 'diff-tree', '--no-commit-id', '--name-only', '-r', commit_hash],
                 cwd=self.repo_path,
                 capture_output=True,
-                text=True
+                text=True,
+                encoding='utf-8',
+                errors='replace'
             )
             if result.returncode == 0:
                 files = [f.strip() for f in result.stdout.split('\n') 
@@ -125,7 +127,9 @@ class BugsJarGenerator:
                 ['git', 'diff', '--numstat', parent_hash, commit_hash],
                 cwd=self.repo_path,
                 capture_output=True,
-                text=True
+                text=True,
+                encoding='utf-8',
+                errors='replace'
             )
             if result.returncode == 0:
                 lines = result.stdout.strip().split('\n')
@@ -208,7 +212,9 @@ class BugsJarGenerator:
                     ['git', 'rev-parse', f'{commit_hash}^'],
                     cwd=self.repo_path,
                     capture_output=True,
-                    text=True
+                    text=True,
+                    encoding='utf-8',
+                    errors='replace'
                 )
                 
                 if parent_result.returncode != 0:

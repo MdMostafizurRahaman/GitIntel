@@ -5,6 +5,7 @@ import os
 import sys
 import json
 import numpy as np
+import uuid
 from datetime import datetime
 from pathlib import Path
 from enum import Enum
@@ -59,7 +60,7 @@ try:
     from enhanced_agentic_system import EnhancedAgenticSystem, AgentMode as EnhancedMode
     from llm_code_jury_system import LLMCodeJurySystem
     from agentic_code_test_executor import AgenticCodeTestExecutor
-    from multi_agent_orchestrator import MultiAgentOrchestrator, create_orchestrator, WorkflowStatus
+    from multi_agent_orchestrator import MultiAgentOrchestrator, WorkflowStatus
     AGENT_AVAILABLE = True
 except ImportError as e:
     print(f"Warning: Some agent imports failed: {e}")
@@ -72,12 +73,6 @@ try:
 except ImportError as e:
     print(f"Warning: IntegratedJurySystem not available: {e}")
     JURY_AVAILABLE = False
-
-# MetricsCatalog always needed
-try:
-    from metrics_catalog import MetricsCatalog
-except ImportError:
-    MetricsCatalog = None
 
 # LLM_AVAILABLE: Legacy Gemini flag — not used (AWS Bedrock via IntegratedJurySystem)
 import time
@@ -429,7 +424,7 @@ class AgenticDatasetGUI:
             "Welcome to GitIntel Agentic Dataset Generator!\n\n"
             "Powered by IntegratedJurySystem (Jury 1 → Jury 2 → Jury 1/2/3):\n"
             "  1. Jury 1 understands your requirement (asks if unclear)\n"
-            "  2. Jury 2 checks the 64-metric catalog + 7 benchmarks;\n"
+            "  2. Jury 2 checks the 65-metric catalog + 7 benchmarks;\n"
             "     calls existing functions or synthesises new code\n"
             "  3. All 3 Jury LLMs write unit tests independently;\n"
             "     ≥2/3 must pass — up to 5 retries before human review\n\n"
@@ -762,7 +757,7 @@ class AgenticDatasetGUI:
                   relief='flat', cursor='hand2', activebackground=C['accent_hover'],
                   command=self.show_metrics_selector).pack(side=tk.LEFT, padx=(0, 6))
 
-        self.selected_metrics_count = tk.StringVar(value="0/64")
+        self.selected_metrics_count = tk.StringVar(value="0/65")
         tk.Label(met_row, textvariable=self.selected_metrics_count,
                  font=('Segoe UI', 9), bg=C['panel'], fg=C['fg_muted']).pack(side=tk.LEFT)
 
@@ -1318,6 +1313,25 @@ class AgenticDatasetGUI:
         self.message_text.insert(tk.END, f"\n{hdr_prefix} [{timestamp}]\n", hdr_tag)
         self.message_text.insert(tk.END, f"{content}\n", body_tag)
 
+        # Render action buttons if any
+        if actions:
+            for action in actions:
+                label = action.get('label', 'Open')
+                callback = action.get('callback')
+                if callback:
+                    btn = tk.Button(
+                        self.message_text,
+                        text=f"  {label}  ",
+                        font=('Segoe UI', 8),
+                        bg=self.colors['accent'],
+                        fg='white',
+                        relief='flat',
+                        cursor='hand2',
+                        command=callback
+                    )
+                    self.message_text.window_create(tk.END, window=btn)
+                    self.message_text.insert(tk.END, "\n")
+
         self.message_text.see(tk.END)
         self.message_text.config(state=tk.DISABLED)
         
@@ -1765,15 +1779,15 @@ class AgenticDatasetGUI:
                         f"\nAll {num_formulas} formula(s) validated successfully!\n"
                         f"Ready for full dataset generation with validated code")
                 else:
-                    self.add_agent_message(MessageType.WARNING,
+                    self.add_agent_message(MessageType.ERROR,
                         f"\n Some formulas failed validation\n"
                         f"   Review failed tests before dataset generation")
             else:
                 if not self.test_executor:
-                    self.add_agent_message(MessageType.WARNING,
+                    self.add_agent_message(MessageType.ERROR,
                         "Test executor not available - skipping test validation")
                 else:
-                    self.add_agent_message(MessageType.WARNING,
+                    self.add_agent_message(MessageType.ERROR,
                         "No repository set - skipping test validation")
         
         # Display final messages
@@ -1781,7 +1795,7 @@ class AgenticDatasetGUI:
         
         # Prepare for full dataset generation using enhanced_system
         self.add_agent_message(MessageType.THINKING, 
-            "Preparing full dataset generation with all 64+ metrics...")
+            "Preparing full dataset generation with all 65+ metrics...")
         
         # Mark that we should use enhanced_system for generation
         self.use_enhanced_generation = True
@@ -2429,7 +2443,7 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
                 "   • Type 'no' to cancel\n\n"
                 "**4. Quick options:**\n"
                 "   • Select benchmarks above\n"
-                "   • Choose metrics (64+ available)\n"
+                "   • Choose metrics (65+ available)\n"
                 "   • Click 'Generate Dataset'")
         
         # Treat as new query
@@ -2678,8 +2692,8 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
             if METRICS_HELPER_AVAILABLE:
                 try:
                     self.metrics_helper = MetricsHelper(str(self.repo_path))
-                    self.add_agent_message(MessageType.SUCCESS, 
-                        f"MetricsHelper initialized - 64 real metrics available")
+                    self.add_agent_message(MessageType.SUCCESS,
+                        f"MetricsHelper initialized - 65 real metrics available")
                 except Exception as e:
                     safe_print(f"  MetricsHelper initialization failed: {e}")
                     self.metrics_helper = None
@@ -2694,8 +2708,8 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
                     if METRICS_HELPER_AVAILABLE:
                         try:
                             self.metrics_helper = MetricsHelper(str(self.repo_path))
-                            self.add_agent_message(MessageType.SUCCESS, 
-                                f"MetricsHelper initialized - 64 real metrics available")
+                            self.add_agent_message(MessageType.SUCCESS,
+                                f"MetricsHelper initialized - 65 real metrics available")
                         except Exception as e:
                             safe_print(f"  MetricsHelper initialization failed: {e}")
                             self.metrics_helper = None
@@ -2781,7 +2795,8 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
         try:
             result = subprocess.run(
                 ['git', 'log', '--oneline', '--grep=fix', '-n', '50'],
-                cwd=self.repo_path, capture_output=True, text=True, timeout=30
+                cwd=self.repo_path, capture_output=True, text=True, timeout=30,
+                encoding='utf-8'
             )
             
             commits = result.stdout.strip().split('\n')
@@ -2880,7 +2895,7 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
             
             if not selected_metrics:
                 selected_metrics = ['loc', 'cyclomatic_complexity']
-                self.add_agent_message(MessageType.WARNING, 
+                self.add_agent_message(MessageType.ERROR,
                     f"  No metrics selected, using defaults: {selected_metrics}")
             
             # Get user-specified file limit (no hardcoding!)
@@ -3040,33 +3055,35 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
     
     def _extract_file_metrics(self, file_path: str, selected_metrics: List[str]) -> Dict:
         """
-        Use MetricsHelper to get all 64 metrics for a file, then filter to the
-        selected subset.  MetricsHelper returns {'metrics': {...64 metrics...}, ...}.
+        Use MetricsHelper to get only the selected metrics for a file.
+        Passes selected_metrics through so only needed calculators run.
         """
-        if not self.metrics_helper:
-            return {'file': file_path}
-
         try:
-            result_dict = self.metrics_helper.get_all_metrics(file_path)
+            if not self.metrics_helper:
+                print(f"[ERROR] metrics_helper is None for {os.path.basename(file_path)}")
+                return {'file': file_path}
+
+            result_dict = self.metrics_helper.get_all_metrics(file_path, selected_metrics=selected_metrics)
             all_metrics = result_dict.get('metrics', {})
 
             # Log once when first file is processed
             if not hasattr(self, '_metrics_debug_logged'):
                 self.add_agent_message(MessageType.INFO,
-                    f"  MetricsHelper ready — {len(all_metrics)} metrics available per file")
+                    f"  MetricsHelper ready — computing {len(selected_metrics)} selected metrics per file")
                 self._metrics_debug_logged = True
 
-            # Filter to the metrics the user actually asked for
+            # Final filter: return only the exact metrics the user selected
             if selected_metrics:
                 result = {m: all_metrics.get(m, None) for m in selected_metrics}
             else:
                 result = dict(all_metrics)
-
             result['file'] = file_path
             return result
 
         except Exception as e:
-            print(f"[_extract_file_metrics] {os.path.basename(file_path)}: {e}")
+            print(f"[METRICS EXTRACTION ERROR] {os.path.basename(file_path)}: {type(e).__name__}: {e}")
+            import traceback
+            traceback.print_exc()
             return {'file': file_path}
     
     def task_validate(self):
@@ -3133,7 +3150,7 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             
             # Get numeric columns
-            numeric_cols = df.select_dtypes(include=['int64', 'float64']).columns.tolist()
+            numeric_cols = df.select_dtypes(include=['int65', 'float65']).columns.tolist()
             
             if len(numeric_cols) == 0:
                 return "  No numeric metrics to visualize"
@@ -3407,7 +3424,7 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
         """Clear all selections"""
         self.benchmark_var.set("None")
         self.selected_metrics = []
-        self.selected_metrics_count.set("0/64 selected")
+        self.selected_metrics_count.set("0/65 selected")
         self.combine_var.set(False)
         self.add_agent_message(MessageType.INFO, "Selection cleared")
     
@@ -3436,52 +3453,111 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
             }
             
             if benchmark in method_map:
-                method_map[benchmark]()
-                self.root.after(0, lambda: self.add_agent_message(MessageType.SUCCESS,
-                    f"  {benchmark} dataset generated successfully!"))
+                result = method_map[benchmark]()
+
+                # Create individual folder link for benchmark dataset
+                output_msg = f"{benchmark} dataset generated successfully!"
+                if isinstance(result, dict) and 'output_dir' in result:
+                    output_folder = result.get('output_dir', '')
+                    self.root.after(0, lambda: self.add_agent_message(MessageType.SUCCESS,
+                        output_msg,
+                        actions=[{
+                            'label': 'Open Dataset Folder',
+                            'callback': lambda p=output_folder: os.startfile(p) if sys.platform == 'win32' else subprocess.Popen(['xdg-open', p])
+                        }]
+                    ))
+                else:
+                    self.root.after(0, lambda: self.add_agent_message(MessageType.SUCCESS, output_msg))
             
         except Exception as e:
             error_msg = str(e)
             self.root.after(0, lambda msg=error_msg: self.add_agent_message(MessageType.ERROR, f"Error: {msg}"))
     
     def _generate_metrics_dataset(self, metrics: List[str]):
-        """Generate dataset with selected metrics using Multi-Agent Orchestrator"""
+        """Generate metrics dataset directly"""
         try:
             self.add_agent_message(MessageType.ACTION, f"Generating dataset with {len(metrics)} metrics...")
-            self.add_agent_message(MessageType.THINKING, "Starting Multi-Agent Orchestrator...")
-            
-            # Initialize Multi-Agent Orchestrator
-            orchestrator = MultiAgentOrchestrator(
-                metrics_catalog=self.catalog,
-                max_refinement_cycles=3,
-                progress_callback=lambda msg: self.root.after(0, 
-                    lambda m=msg: self.add_agent_message(MessageType.SYSTEM, m))
-            )
-            
-            # Run full workflow
-            result = orchestrator.run_full_workflow(
-                user_request=f"Calculate metrics for repository: {', '.join(metrics)}",
-                repo_path=str(self.repo_path),
-                selected_predefined_metrics=metrics
-            )
-            
-            # Handle result
-            if result.status == WorkflowStatus.SUCCESS:
-                self.root.after(0, lambda: self.add_agent_message(MessageType.SUCCESS,
-                    f"Dataset generated successfully with {len(metrics)} metrics!"))
-                self.root.after(0, lambda: self.add_agent_message(MessageType.SUCCESS,
-                    f"Output: {result.output_path}"))
-            elif result.status == WorkflowStatus.NEEDS_HUMAN_INTERVENTION:
-                self.root.after(0, lambda: self.add_agent_message(MessageType.WARNING,
-                    f"Workflow needs human intervention after {result.cycles_completed} cycles"))
-            else:
-                self.root.after(0, lambda: self.add_agent_message(MessageType.ERROR,
-                    f"Workflow failed: {result.final_message}"))
-                    
+
+            # Ensure metrics_helper is initialized
+            if not self.metrics_helper and METRICS_HELPER_AVAILABLE:
+                try:
+                    self.metrics_helper = MetricsHelper(str(self.repo_path))
+                    self.add_agent_message(MessageType.INFO, "MetricsHelper initialized")
+                except Exception as e:
+                    self.add_agent_message(MessageType.ERROR, f"Failed to initialize MetricsHelper: {e}")
+                    return
+
+            if not self.metrics_helper:
+                self.add_agent_message(MessageType.ERROR, "MetricsHelper not available")
+                return
+
+            threading.Thread(
+                target=self._generate_metrics_dataset_direct,
+                args=(metrics,),
+                daemon=True
+            ).start()
+
         except Exception as e:
-            import traceback
-            error_msg = f"{str(e)}\n{traceback.format_exc()}"
+            error_msg = str(e)
             self.root.after(0, lambda msg=error_msg: self.add_agent_message(MessageType.ERROR, f"Error: {msg}"))
+
+    def open_generated_dataset(self, filepath: Optional[str] = None):
+        """Open generated dataset in default application or display in new window"""
+        try:
+            if filepath is None:
+                # Try to find the most recent dataset
+                generated_dir = Path(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) / "generated_datasets"
+                if not generated_dir.exists():
+                    self.add_agent_message(MessageType.ERROR, "No generated datasets found")
+                    return
+                
+                csv_files = sorted(generated_dir.glob("*.csv"), key=os.path.getmtime, reverse=True)
+                if not csv_files:
+                    self.add_agent_message(MessageType.ERROR, "No CSV files found in generated_datasets")
+                    return
+                
+                filepath = str(csv_files[0])
+            
+            # Try to open with default application
+            import subprocess
+            if sys.platform == 'win32':
+                os.startfile(filepath)
+            elif sys.platform == 'darwin':
+                subprocess.Popen(['open', filepath])
+            else:
+                subprocess.Popen(['xdg-open', filepath])
+            
+            self.add_agent_message(MessageType.INFO, f"Opened: {os.path.basename(filepath)}")
+        except Exception as e:
+            self.add_agent_message(MessageType.ERROR, f"Could not open file: {str(e)[:100]}")
+    
+    def view_agent_session_logs(self):
+        """Display list of recent agent session logs"""
+        try:
+            session_dir = Path(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) / "agent_sessions"
+            if not session_dir.exists():
+                self.add_agent_message(MessageType.ERROR, "No agent session logs found")
+                return
+            
+            session_files = sorted(session_dir.glob("*.json"), key=os.path.getmtime, reverse=True)
+            
+            if not session_files:
+                self.add_agent_message(MessageType.INFO, "No session logs available")
+                return
+            
+            self.add_agent_message(MessageType.SUCCESS, f"Found {len(session_files)} agent sessions:")
+            for session_file in session_files[:10]:  # Show last 10
+                try:
+                    with open(session_file, 'r') as f:
+                        data = json.load(f)
+                    session_info = f"  • {data.get('session_id', 'unknown')} - {data.get('agent_system', 'unknown')} "
+                    session_info += f"({data.get('metrics_count', 0)} metrics, "
+                    session_info += f"{data.get('rows', 0)} rows)"
+                    self.add_agent_message(MessageType.INFO, session_info)
+                except:
+                    pass
+        except Exception as e:
+            self.add_agent_message(MessageType.ERROR, f"Error reading sessions: {str(e)[:100]}")
     
     def _generate_combined_dataset(self, benchmark: str, metrics: List[str]):
         """Generate combined benchmark + custom metrics"""
@@ -3691,7 +3767,7 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
         MAIN ENTRY POINT: Process chat input from unified interface
         Handles ALL user requirements:
         1. Repository path/link check
-        2. Metric selection from 64+ catalog
+        2. Metric selection from 65+ catalog
         3. Natural language query interpretation
         4. LLM jury process for unknown metrics
         5. User approval workflow
@@ -3865,6 +3941,26 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
             else:
                 known_metrics = list(metrics_needed)
 
+            # Check if this is a "metrics dataset" request vs "custom metric" request
+            goal_lower = goal.lower()
+            is_metrics_dataset = any(word in goal_lower for word in ['dataset', 'extract', 'collect', 'analyze', 'all metrics'])
+
+            # If user wants a metrics dataset (not custom code), auto-select appropriate metrics
+            if is_metrics_dataset:
+                # Use specified metrics, or all 65 if none specified
+                metrics_to_use = known_metrics if known_metrics else list(MetricsCatalog.get_all_metrics().keys())
+                if metrics_to_use:
+                    self.add_agent_message(
+                        MessageType.THINKING,
+                        f"Generating metrics dataset with {len(metrics_to_use)} metrics..."
+                    )
+                    self.selected_metrics = metrics_to_use
+                    self.selected_metrics_count.set(f"{len(metrics_to_use)}/65 selected")
+                    # Trigger dataset generation directly
+                    self.root.after(100, lambda m=metrics_to_use: self._generate_metrics_dataset(m))
+                    return
+
+            # Otherwise, proceed with custom code generation (original path)
             metrics_line = ', '.join(metrics_needed) if metrics_needed else 'none'
             catalog_line = (
                 f"  Catalog : {len(known_metrics)} known"
@@ -4630,7 +4726,7 @@ These metrics will be used to calculate: {formula_name}
         # Create clone dialog
         clone_dialog = tk.Toplevel(self.root)
         clone_dialog.title("Clone Repository")
-        clone_dialog.geometry("600x250")
+        clone_dialog.geometry("800x550")
         clone_dialog.grab_set()
         
         # Header
@@ -4668,8 +4764,8 @@ These metrics will be used to calculate: {formula_name}
         # Progress area
         progress_frame = ttk.LabelFrame(clone_dialog, text="Progress", padding=10)
         progress_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=(0, 10))
-        
-        progress_text = scrolledtext.ScrolledText(progress_frame, height=5, 
+
+        progress_text = scrolledtext.ScrolledText(progress_frame, height=15,
                                                    font=('Consolas', 8), wrap=tk.WORD)
         progress_text.pack(fill=tk.BOTH, expand=True)
         
@@ -4998,15 +5094,15 @@ These metrics will be used to calculate: {formula_name}
                   command=benchmark_window.destroy).pack(side=tk.LEFT, padx=2)
         
     def show_metrics_selector(self):
-        """Show metrics selector dialog - ALL 64 metrics from catalog"""
+        """Show metrics selector dialog - ALL 65 metrics from catalog"""
         # Create metrics window
         metrics_window = tk.Toplevel(self.root)
-        metrics_window.title("  Select Metrics (64 Available)")
+        metrics_window.title("  Select Metrics (65 Available)")
         metrics_window.geometry("900x700")
         metrics_window.grab_set()
         
         # Header
-        header = ttk.Label(metrics_window, text="Select Metrics from Catalog (64 Total)",
+        header = ttk.Label(metrics_window, text="Select Metrics from Catalog (65 Total)",
                           font=('Segoe UI', 12, 'bold'))
         header.pack(pady=10)
         
@@ -5081,7 +5177,7 @@ These metrics will be used to calculate: {formula_name}
         # Save button
         def save_selection():
             self.selected_metrics = [k for k, v in metric_vars.items() if v.get()]
-            self.selected_metrics_count.set(f"{len(self.selected_metrics)}/64 selected")
+            self.selected_metrics_count.set(f"{len(self.selected_metrics)}/65 selected")
             self.add_agent_message(MessageType.SUCCESS, 
                 f"Selected {len(self.selected_metrics)} metrics")
             metrics_window.destroy()
@@ -5210,50 +5306,74 @@ Click **▶ Start Execution** to begin.
             # Get all Java files
             java_files = []
             for root_dir, dirs, files in os.walk(self.repo_path):
+                dirs[:] = [d for d in dirs if d not in ['.git', 'node_modules', '__pycache__', 'venv']]
                 for file in files:
                     if file.endswith('.java'):
                         java_files.append(os.path.join(root_dir, file))
-            
-            self.root.after(0, lambda: self.add_agent_message(MessageType.SUCCESS,
-                f"Found {len(java_files)} Java files"))
-            
+
+            # Apply file limit from GUI
+            raw_limit = self.file_limit_var.get().strip() if hasattr(self, 'file_limit_var') else 'All'
+            if raw_limit and raw_limit.lower() not in ('all', '0', ''):
+                try:
+                    limit_num = int(raw_limit)
+                    java_files = java_files[:limit_num]
+                except ValueError:
+                    pass
+
+            self.root.after(0, lambda n=len(java_files): self.add_agent_message(MessageType.SUCCESS,
+                f"Found {n} Java files (limit: {raw_limit})"))
+
             # Extract metrics from each file
-            self.root.after(0, lambda: self.add_agent_message(MessageType.THINKING,
-                f"[STEP 2] Extracting metrics from {len(java_files)} files..."))
+            self.root.after(0, lambda n=len(java_files): self.add_agent_message(MessageType.THINKING,
+                f"[STEP 2] Extracting metrics from {n} files..."))
             
             all_metrics = []
-            for idx, file_path in enumerate(java_files, 1):
+            total_files = len(java_files)
+
+            # Debug first file info before parallel run
+            if java_files:
+                safe_print(f"\n========== PROCESSING FIRST FILE ==========")
+                safe_print(f"File path: {java_files[0]}")
+                safe_print(f"self.metrics_helper exists: {self.metrics_helper is not None}")
+                safe_print(f"selected_metrics count: {len(selected_metrics)}")
+                safe_print(f"selected_metrics sample: {selected_metrics[:5]}")
+
+            import concurrent.futures, threading
+            processed_count = [0]
+            count_lock = threading.Lock()
+            progress_step = max(1, total_files // 10)
+
+            def _process_file(file_path):
                 try:
-                    # CRITICAL DEBUG
-                    if idx == 1:
-                        safe_print(f"\n========== PROCESSING FIRST FILE ==========")
-                        safe_print(f"File path: {file_path}")
-                        safe_print(f"self.metrics_helper exists: {self.metrics_helper is not None}")
-                        safe_print(f"selected_metrics count: {len(selected_metrics)}")
-                        safe_print(f"selected_metrics sample: {selected_metrics[:5]}")
-                    
-                    file_metrics = self._extract_file_metrics(file_path, selected_metrics)
-                    
-                    # DEBUG: Show what we got
-                    if idx == 1:
-                        safe_print(f"\nFIRST FILE RESULT")
-                        safe_print(f"  Type: {type(file_metrics)}")
-                        safe_print(f"  Keys: {list(file_metrics.keys())}")
-                        safe_print(f"  Count: {len(file_metrics)}")
-                        safe_print(f"  Sample values: {list(file_metrics.items())[:3]}")
-                        print(f" Keys: {list(file_metrics.keys())}, Count: {len(file_metrics)}")
-                        print(f" Content preview: {dict(list(file_metrics.items())[:5])}")
-                    
-                    file_metrics['file'] = file_path.replace(self.repo_path, '').lstrip(os.sep)
-                    all_metrics.append(file_metrics)
-                    
-                    # Progress indicator
-                    if idx % max(1, len(java_files) // 10) == 0:
-                        self.root.after(0, lambda i=idx, t=len(java_files): 
+                    fm = self._extract_file_metrics(file_path, selected_metrics)
+                    fm['file'] = file_path.replace(self.repo_path, '').lstrip(os.sep)
+                    with count_lock:
+                        processed_count[0] += 1
+                        cnt = processed_count[0]
+                    if cnt % progress_step == 0 or cnt == total_files:
+                        self.root.after(0, lambda i=cnt, t=total_files:
                             self.add_agent_message(MessageType.INFO,
-                            f"Processed {i}/{t} files..."))
+                            f"Processed {i}/{t} files ({int(i/t*100)}%)..."))
+                    return fm
                 except Exception as e:
                     print(f"Error processing {file_path}: {e}")
+                    return None
+
+            with concurrent.futures.ThreadPoolExecutor(max_workers=6) as executor:
+                results = list(executor.map(_process_file, java_files))
+
+            all_metrics = [r for r in results if r is not None]
+
+            # Debug first file result
+            if all_metrics:
+                first = all_metrics[0]
+                safe_print(f"\nFIRST FILE RESULT")
+                safe_print(f"  Type: {type(first)}")
+                safe_print(f"  Keys: {list(first.keys())}")
+                safe_print(f"  Count: {len(first)}")
+                safe_print(f"  Sample values: {list(first.items())[:3]}")
+                print(f" Keys: {list(first.keys())}, Count: {len(first)}")
+                print(f" Content preview: {dict(list(first.items())[:5])}")
             
             self.root.after(0, lambda: self.add_agent_message(MessageType.SUCCESS,
                 f"Extracted metrics from {len(all_metrics)} files"))
@@ -5296,7 +5416,12 @@ Click **▶ Start Execution** to begin.
             
             # Success message
             self.root.after(0, lambda: self.add_agent_message(MessageType.SUCCESS,
-                f"Dataset saved: {output_file.name}"))
+                f"Dataset saved: {output_file.name}",
+                actions=[{
+                    'label': 'Open Dataset Folder',
+                    'callback': lambda p=str(output_file): os.startfile(p) if sys.platform == 'win32' else subprocess.Popen(['open', p]) if sys.platform == 'darwin' else subprocess.Popen(['xdg-open', p])
+                }]
+            ))
             self.root.after(0, lambda: self.add_agent_message(MessageType.SUCCESS,
                 f"Generated: {len(all_metrics)} rows × {len(df.columns)} metrics"))
             

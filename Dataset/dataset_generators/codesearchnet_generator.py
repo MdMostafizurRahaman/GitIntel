@@ -51,7 +51,8 @@ class CodeSearchNetGenerator:
             result = subprocess.run(
                 ['git', 'log', '-1', '--format=%H', '--', str(file_path.relative_to(self.repo_path))],
                 cwd=self.repo_path,
-                capture_output=True, text=True, timeout=10
+                capture_output=True, text=True, timeout=10,
+                encoding='utf-8'
             )
             if result.returncode == 0 and result.stdout.strip():
                 return result.stdout.strip()
@@ -184,7 +185,17 @@ class CodeSearchNetGenerator:
         # Use GitHub-style repo identifier if possible
         repo_identifier = project_name
 
-        java_files = self._get_java_files()
+        # Get all Java files (not limited by file_limit)
+        # file_limit will apply to the number of extracted documented methods instead
+        java_files = []
+        for root, dirs, files in os.walk(self.repo_path):
+            dirs[:] = [d for d in dirs if not d.startswith('.')
+                       and d not in ['target', 'build', 'node_modules',
+                                     'generated_datasets', '__pycache__']]
+            for f in files:
+                if f.endswith('.java'):
+                    java_files.append(Path(root) / f)
+        
         logger.info(f"Found {len(java_files)} Java files")
 
         if not java_files:
@@ -195,6 +206,10 @@ class CodeSearchNetGenerator:
 
         try:
             for file_path in java_files:
+                # Stop if we've found enough documented methods
+                if self.file_limit and len(dataset) >= self.file_limit:
+                    break
+                
                 try:
                     with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                         source = f.read()
@@ -212,6 +227,10 @@ class CodeSearchNetGenerator:
                     methods = extractor(source, rel_path)
 
                     for mth in methods:
+                        # Stop if we've found enough documented methods
+                        if self.file_limit and len(dataset) >= self.file_limit:
+                            break
+                        
                         docstring = mth['docstring']
                         if not docstring:
                             # Skip methods with no documentation (CodeSearchNet only includes documented methods)
@@ -286,6 +305,70 @@ class CodeSearchNetGenerator:
             }, f, indent=2, ensure_ascii=False)
 
         logger.info(f"SUCCESS: CodeSearchNet dataset -> {dataset_dir}")
+
+        # Generate README
+        readme = dataset_dir / "README.md"
+        with open(readme, 'w', encoding='utf-8') as f:
+            f.write(f"""# CodeSearchNet Dataset
+
+## Overview
+This dataset follows the **CodeSearchNet** standard format from https://github.com/github/CodeSearchNet
+
+CodeSearchNet provides large-scale method-level code + documentation pairs for code search tasks.
+
+### Structure:
+```
+codesearchnet_dataset_{self.timestamp}/
+├── codesearchnet_java.jsonl          # Primary: one method per line
+├── codesearchnet_dataset.json        # Alternative JSON format
+└── README.md                         # This file
+```
+
+### JSONL Format (one method per line):
+```json
+{{"repo": "project", "path": "src/Main.java", "func_name": "calculate", "language": "java", "url": "https://...", "original_string": "public int calculate(...)", "code": "public int calculate(int x) {{ return x * 2; }}", "code_tokens": ["public", "int", "calculate", ...], "docstring": "Calculates double of input", "docstring_tokens": ["Calculates", "double", "of", ...], "sha": "abc123", "partition": "train"}}
+```
+
+### Schema:
+```
+- repo: Repository identifier
+- path: File path relative to repo
+- func_name: Method/function name
+- language: Programming language (java)
+- url: GitHub link to method
+- original_string: Full method signature + body
+- code: Executable code
+- code_tokens: Tokenized code (max 512 tokens)
+- docstring: Documentation/Javadoc
+- docstring_tokens: Tokenized documentation (max 100)
+- sha: Git commit SHA
+- partition: 'train' (80%), 'valid' (10%), 'test' (10%)
+```
+
+### Partitions:
+- **Train** (80%): {int(total * 0.8)} methods
+- **Valid** (10%): {int(total * 0.1)} methods  
+- **Test** (10%):  {int(total * 0.1)} methods
+
+## Statistics
+- **Total methods**: {total}
+- **From files**: {len(java_files)}
+- **Language**: Java
+- **Generated**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+
+## Use Cases
+- Code search retrieval (finding relevant code by description)
+- Documentation generation (generating Javadoc from code)
+- Code clone detection
+- Code-to-documentation semantic matching
+
+## References
+- GitHub CodeSearchNet: https://github.com/github/CodeSearchNet
+- Paper: "CodeSearchNet Challenge: Evaluating the State of Semantic Code Search"
+- Original Java dataset: https://github.com/github/CodeSearchNet/tree/master/resources
+""")
+
+        logger.info(f"Generated README at {readme}")
 
         return {
             "status": "success",

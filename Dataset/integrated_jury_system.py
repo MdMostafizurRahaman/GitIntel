@@ -78,7 +78,7 @@ class IntegratedJurySystem:
     """
 
     MAX_RETRIES = 5
-    CONFIDENCE_THRESHOLD = 75   # % below which Jury 1 asks one more question
+    CONFIDENCE_THRESHOLD = 60   # % below which Jury 1 asks one more question
 
     # Claude model on AWS Bedrock (cross-region inference profile)
     _CLAUDE_MODEL = "us.anthropic.claude-3-5-sonnet-20241022-v2:0"
@@ -120,7 +120,7 @@ class IntegratedJurySystem:
         self._clarification_history: List[Dict] = []
         self._clarification_attempts: int = 0  # Track attempts to avoid infinite loops
         self._last_clarification_question: str = ""  # Track last question to detect duplicates
-        self.MAX_CLARIFICATIONS: int = 3  # Cap at 3 clarification rounds
+        self.MAX_CLARIFICATIONS: int = 2  # Cap at 2 clarification rounds (not 3)
 
     # ── Public API ────────────────────────────────────────────────────────────
 

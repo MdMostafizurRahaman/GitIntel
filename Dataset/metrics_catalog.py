@@ -66,6 +66,12 @@ class MetricsCatalog:
             'type': 'integer',
             'category': 'size'
         },
+        'num_interfaces_count': {
+            'name': 'Number of Interfaces',
+            'description': 'Total number of interfaces defined',
+            'type': 'integer',
+            'category': 'size'
+        },
     }
     
     # ============ COMPLEXITY METRICS (4) ============
@@ -446,10 +452,10 @@ class MetricsCatalog:
         },
     }
     
-    # Combine ALL metrics (63 total)
+    # Combine ALL metrics (65 total)
     ALL_METRICS = {
         **LOC_METRICS,           # 5
-        **SIZE_METRICS,          # 4
+        **SIZE_METRICS,          # 5
         **COMPLEXITY_METRICS,    # 4
         **CHANGE_METRICS,        # 4
         **CK_METRICS,            # 6
@@ -462,7 +468,7 @@ class MetricsCatalog:
         **COUPLING_METRICS,      # 4
         **PROCESS_METRICS,       # 6
         **LABEL_METRICS,         # 3
-    }  # Total: 64 metrics
+    }  # Total: 65 metrics
     
     @classmethod
     def get_all_metrics(cls) -> Dict:
@@ -697,9 +703,10 @@ class MetricsCatalog:
             return {}
 
     @classmethod
-    def calculate_all_metrics(cls, file_path: str, repo_path: str = None) -> dict:
+    def calculate_all_metrics(cls, file_path: str, repo_path: str = None, selected_metrics: list = None) -> dict:
         """
         Single entry point – returns every available metric for a file.
+        Pass selected_metrics to skip calculators whose outputs are not needed.
         Delegates to MasterMetricsGenerator when possible; falls back to
         individual calculators for CK / complexity metrics.
         """
@@ -708,7 +715,7 @@ class MetricsCatalog:
             from metrics_generators import MasterMetricsGenerator
             generator_path = repo_path or str(Path(file_path).parent)
             generator = MasterMetricsGenerator(generator_path)
-            result = generator.generate_all_metrics(file_path)
+            result = generator.generate_all_metrics(file_path, selected_metrics=selected_metrics)
             return result.get("metrics", {})
         except Exception:
             # Fallback: assemble from individual calculators

@@ -35,22 +35,31 @@ class ChangeAnalyzer:
                 cwd=repo_path,
                 capture_output=True,
                 text=True,
+                encoding='utf-8',
                 timeout=5
             )
             
             commits = len(result.stdout.strip().split('\n')) if result.stdout else 0
             
-            # Get total additions and deletions
+            # Get total additions and deletions (--numstat is fast: no diff content)
             result = subprocess.run(
-                ['git', 'log', '-p', '--', file_path],
+                ['git', 'log', '--numstat', '--format=', '--', file_path],
                 cwd=repo_path,
                 capture_output=True,
                 text=True,
+                encoding='utf-8',
                 timeout=10
             )
-            
-            additions = len(re.findall(r'^\+[^+]', result.stdout, re.MULTILINE))
-            deletions = len(re.findall(r'^-[^-]', result.stdout, re.MULTILINE))
+
+            additions, deletions = 0, 0
+            for line in result.stdout.splitlines():
+                parts = line.split('\t')
+                if len(parts) >= 2:
+                    try:
+                        additions += int(parts[0])
+                        deletions += int(parts[1])
+                    except ValueError:
+                        pass  # binary files show '-' instead of numbers
             
             return {
                 'num_commits': commits,
@@ -80,22 +89,31 @@ class ChangeAnalyzer:
                 cwd=dir_path,
                 capture_output=True,
                 text=True,
+                encoding='utf-8',
                 timeout=10
             )
             
             total_commits = len(result.stdout.strip().split('\n')) if result.stdout else 0
             
-            # Get total additions/deletions
+            # Get total additions/deletions (--numstat: no diff content)
             result = subprocess.run(
-                ['git', 'log', '--all', '-p'],
+                ['git', 'log', '--all', '--numstat', '--format='],
                 cwd=dir_path,
                 capture_output=True,
                 text=True,
+                encoding='utf-8',
                 timeout=30
             )
-            
-            additions = len(re.findall(r'^\+[^+]', result.stdout, re.MULTILINE))
-            deletions = len(re.findall(r'^-[^-]', result.stdout, re.MULTILINE))
+
+            additions, deletions = 0, 0
+            for line in result.stdout.splitlines():
+                parts = line.split('\t')
+                if len(parts) >= 2:
+                    try:
+                        additions += int(parts[0])
+                        deletions += int(parts[1])
+                    except ValueError:
+                        pass
             
             return {
                 'total_commits': total_commits,

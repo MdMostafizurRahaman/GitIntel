@@ -4,9 +4,7 @@ Follows EXACT official structure from https://github.com/microsoft/CodeXGLUE
 14 datasets for 10 diversified programming language tasks
 """
 
-import os
 import json
-import csv
 import subprocess
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional
@@ -123,7 +121,8 @@ class CodeXGLUEGenerator:
                 ['git', 'diff-tree', '--no-commit-id', '--name-only', '-r', commit_hash],
                 cwd=self.repo_path,
                 capture_output=True,
-                text=True
+                text=True,
+                encoding='utf-8'
             )
             if result.returncode == 0:
                 files = [f.strip() for f in result.stdout.split('\n') 
@@ -190,7 +189,7 @@ class CodeXGLUEGenerator:
         clone_pairs = []            # list of (idx1, idx2, label)
         defect_detection_data = []
         code_refinement_data = []
-        commit_count = 0
+        commits_processed = 0
         
         try:
             result = subprocess.run(
@@ -210,7 +209,9 @@ class CodeXGLUEGenerator:
             logger.info(f"Found {len(commits)} total commits, analyzing for CodeXGLUE tasks...")
             
             for commit_line in commits:
-                if self.commit_limit and commit_count >= self.commit_limit:
+                # Stop when we've found enough total data samples (not commits)
+                total_samples = len(clone_pairs) + len(defect_detection_data) + len(code_refinement_data)
+                if self.commit_limit and total_samples >= self.commit_limit:
                     break
                 
                 parts = commit_line.split('|||')
@@ -230,7 +231,8 @@ class CodeXGLUEGenerator:
                     ['git', 'rev-parse', f'{commit_hash}^'],
                     cwd=self.repo_path,
                     capture_output=True,
-                    text=True
+                    text=True,
+                encoding='utf-8'
                 )
                 
                 if parent_result.returncode != 0:
@@ -242,7 +244,7 @@ class CodeXGLUEGenerator:
                 if not modified_files:
                     continue
                 
-                commit_count += 1
+                sample_count_before = len(clone_pairs) + len(defect_detection_data) + len(code_refinement_data)
                 
                 is_bug_fix, issue_id = self._is_bug_fixing_commit(commit_msg)
                 
@@ -282,7 +284,7 @@ class CodeXGLUEGenerator:
                     if funcs_buggy:
                         for i, func in enumerate(funcs_buggy[:2]):
                             defect_detection_data.append({
-                                'idx': f"{commit_count}_{file_path}_{i}",
+                                'idx': f"{len(defect_detection_data)}_{file_path}_{i}",
                                 'func': func['code'][:500],
                                 'target': 1 if has_vuln_before else 0,
                                 'commit': commit_hash[:8],
@@ -293,7 +295,7 @@ class CodeXGLUEGenerator:
                     # TASK 3: Code Refinement (buggy -> fixed)
                     if is_bug_fix and len(buggy_content) < 5000 and len(fixed_content) < 5000:
                         code_refinement_data.append({
-                            'idx': f"{commit_count}_{file_path}",
+                            'idx': f"{len(code_refinement_data)}_{file_path}",
                             'buggy': buggy_content[:1000],  # Truncate
                             'fixed': fixed_content[:1000],
                             'commit': commit_hash[:8],
@@ -302,13 +304,17 @@ class CodeXGLUEGenerator:
                             'project': self.project_name
                         })
                 
-                if commit_count % 50 == 0:
-                    logger.info(f"Processed {commit_count} commits...")
+                commits_processed += 1
+                if commits_processed % 50 == 0:
+                    total_samples = len(clone_pairs) + len(defect_detection_data) + len(code_refinement_data)
+                    logger.info(f"Processed {commits_processed} commits, found {total_samples} total samples...")
             
-            logger.info(f"  Analyzed {commit_count} commits")
+            total_samples = len(clone_pairs) + len(defect_detection_data) + len(code_refinement_data)
+            logger.info(f"  Processed {commits_processed} commits, total samples: {total_samples}")
             logger.info(f"   Clone Detection: {len(clone_functions)} functions, {len(clone_pairs)} pairs")
             logger.info(f"   Defect Detection: {len(defect_detection_data)} functions")
             logger.info(f"   Code Refinement: {len(code_refinement_data)} pairs")
+            commit_count = commits_processed
 
             if not (clone_pairs or defect_detection_data or code_refinement_data):
                 return {"error": "No data generated for any CodeXGLUE task"}

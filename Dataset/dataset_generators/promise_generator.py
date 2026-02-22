@@ -73,7 +73,18 @@ class ProfessionalPROMISEGenerator:
         
         project_name = self.repo_path.name
         
-        java_files = self._get_java_files()
+        # Get ALL Java files (not limited by file_limit)
+        # file_limit will apply to the number of extracted metric records instead
+        java_files = []
+        for root, dirs, files in os.walk(self.repo_path):
+            dirs[:] = [d for d in dirs if not d.startswith('.') and 
+                      d not in ['target', 'build', 'node_modules', 'generated_datasets', 
+                               'output', '__pycache__', 'venv', '.git']]
+            
+            for f in files:
+                if f.endswith('.java'):
+                    java_files.append(Path(root) / f)
+        
         logger.info(f"Found {len(java_files)} Java files")
         
         if not java_files:
@@ -82,6 +93,10 @@ class ProfessionalPROMISEGenerator:
         
         try:
             for file_path in java_files:
+                # Stop if we've found enough metric records
+                if self.file_limit and len(dataset) >= self.file_limit:
+                    break
+                
                 try:
                     with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                         code = f.read()
@@ -275,6 +290,86 @@ class ProfessionalPROMISEGenerator:
                 writer.writerows(dataset)
         
         logger.info(f"SUCCESS: Professional PROMISE dataset generated: {len(dataset)} files -> {dataset_dir}")
+        
+        # Generate README
+        readme = dataset_dir / "README.md"
+        with open(readme, 'w', encoding='utf-8') as f:
+            f.write(f"""# Professional PROMISE Dataset
+
+## Overview
+This dataset follows the **PROMISE** (Predict On ModuLes ProperIes Software mEtrics) standard 
+from http://promise.site.uottawa.ca/
+
+PROMISE contains software defect prediction datasets with carefully calculated metrics.
+
+### Structure:
+```
+professional_promise_dataset_{self.timestamp}/
+├── professional_promise_dataset.json   # Main dataset (JSON)
+├── professional_promise_dataset.csv    # Spreadsheet-friendly (CSV)
+└── README.md                          # This file
+```
+
+### Format:
+Each record contains 44 metrics for defect prediction:
+
+**PROMISE Standard Metrics (21):**
+- loc, m, o, locDataAndCommentLines, locExecutableCodeLines
+- nopa, npm, nprm, npa, npra
+- fan_in, fan_out, noi, nop, ic
+- cbm, amc, max_cc, avg_cc, ca, ce
+
+**Professional Grade Additions (23):**
+- cyclomatic_complexity, essential_complexity, design_complexity
+- num_methods, num_fields, num_classes, num_interfaces
+- branch_count, call_pairs, condition_count
+- percent_comments, maintainability_index
+- edge_count, node_count, unique_operands, unique_operators
+- total_operands, total_operators, parameter_count
+- max_nested_blocks, average_token_count, max_complexity
+- defects (label)
+
+**Label:**
+- bug: 0 (clean) or 1 (defective)
+
+### Metrics Details:
+
+#### LOC Metrics:
+- `loc_total`: Total lines of code
+- `m`: Number of methods
+- `o`: Number of operations
+
+#### Complexity (CK):
+- `wmc`: Weighted Methods per Class
+- `dit`: Depth of Inheritance Tree
+- `noc`: Number of Children
+- `cbo`: Coupling Between Objects
+- `rfc`: Response For Class (methods + calls)
+- `lcom`: Lack of Cohesion
+
+#### Halstead Metrics:
+- `halstead_volume`, `halstead_difficulty`, `halstead_effort`
+- `unique_operators`, `unique_operands`
+
+### Statistics:
+- **Total files**: {len(dataset)}
+- **Metrics per file**: 44
+- **Language**: Java
+- **Generated**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+
+## Use Cases
+- Defect/bug prediction
+- Software quality assessment
+- Code maintainability estimation
+- Release readiness evaluation
+
+## References
+- PROMISE Repository: http://promise.site.uottawa.ca/
+- Paper: "Jureczko, M., & Madeyski, L. (2010). An empirical study on metrics that best predict defect cases"
+- Metrics used: CK metrics + Halstead + LOC metrics
+""")
+
+        logger.info(f"Generated README at {readme}")
         
         return {
             "status": "success",

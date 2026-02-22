@@ -31,6 +31,7 @@ class ProcessAnalyzer:
                 cwd=repo_path,
                 capture_output=True,
                 text=True,
+                encoding='utf-8',
                 timeout=5
             )
             
@@ -42,6 +43,7 @@ class ProcessAnalyzer:
                 cwd=repo_path,
                 capture_output=True,
                 text=True,
+                encoding='utf-8',
                 timeout=5
             )
             
@@ -54,6 +56,7 @@ class ProcessAnalyzer:
                 cwd=repo_path,
                 capture_output=True,
                 text=True,
+                encoding='utf-8',
                 timeout=5
             )
             
@@ -108,6 +111,7 @@ class ProcessAnalyzer:
                 cwd=repo_path,
                 capture_output=True,
                 text=True,
+                encoding='utf-8',
                 timeout=5
             )
             
@@ -119,6 +123,7 @@ class ProcessAnalyzer:
                 cwd=repo_path,
                 capture_output=True,
                 text=True,
+                encoding='utf-8',
                 timeout=10
             )
             
@@ -134,6 +139,7 @@ class ProcessAnalyzer:
                 cwd=repo_path,
                 capture_output=True,
                 text=True,
+                encoding='utf-8',
                 timeout=5
             )
             
@@ -169,6 +175,7 @@ class ProcessAnalyzer:
                 cwd=repo_path,
                 capture_output=True,
                 text=True,
+                encoding='utf-8',
                 timeout=10
             )
             
@@ -180,6 +187,7 @@ class ProcessAnalyzer:
                 cwd=repo_path,
                 capture_output=True,
                 text=True,
+                encoding='utf-8',
                 timeout=10
             )
             
@@ -191,6 +199,7 @@ class ProcessAnalyzer:
                 cwd=repo_path,
                 capture_output=True,
                 text=True,
+                encoding='utf-8',
                 timeout=10
             )
             

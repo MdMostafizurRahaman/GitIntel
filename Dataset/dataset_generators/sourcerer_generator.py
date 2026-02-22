@@ -69,7 +69,7 @@ class SourcererGenerator:
         project_name = self.repo_path.name
         
         try:
-            # Get all Java files
+            # Get all Java files (not limited - process until we have enough records)
             java_files = self._get_all_files('.java')
             logger.info(f"Found {len(java_files)} Java files")
             
@@ -89,6 +89,10 @@ class SourcererGenerator:
             total_imports = 0
             
             for file_path in java_files:
+                # Stop if we've found enough records
+                if self.file_limit and len(dataset) >= self.file_limit:
+                    break
+                
                 try:
                     with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                         code = f.read()
@@ -243,6 +247,115 @@ class SourcererGenerator:
             json.dump(repo_summary, f, indent=2)
         
         logger.info(f"SUCCESS: REAL Sourcerer dataset generated: {len(dataset)} files -> {dataset_dir}")
+        
+        # Generate README
+        readme = dataset_dir / "README.md"
+        with open(readme, 'w', encoding='utf-8') as f:
+            f.write(f"""# Sourcerer Dataset
+
+## Overview
+This dataset follows the **Sourcerer** standard from https://sourcerer.ics.uci.edu/
+
+Sourcerer provides large-scale code repository analysis with fine-grained metrics.
+
+### Structure:
+```
+sourcerer_dataset_{self.timestamp}/
+├── sourcerer_dataset.json      # File-level analysis data
+├── repository_summary.json     # Repository-level statistics
+└── README.md                   # This file
+```
+
+### File-Level Data Format:
+```json
+{{
+  "project": "project_name",
+  "file_path": "src/Main.java",
+  "language": "java",
+  "dataset_type": "sourcerer",
+  "code": "<full source code>",
+  "file_size": 1250,
+  "loc": 45,
+  
+  "num_classes": 1,
+  "num_interfaces": 0,
+  "num_enums": 0,
+  "num_methods": 5,
+  "num_imports": 8,
+  
+  "num_fields": 3,
+  "num_abstract_methods": 0,
+  "num_static_methods": 2,
+  "inheritance_depth": 1,
+  "implements_count": 0,
+  
+  "has_pom": true,
+  "has_gradle": false,
+  "extraction_method": "javalang_ast",
+  "is_real_data": true
+}}
+```
+
+### Repository-Level Summary:
+```json
+{{
+  "project_name": "my_project",
+  "repository_path": "/path/to/repo",
+  "total_files": 150,
+  "total_java_files": 120,
+  "total_loc": 50000,
+  "total_classes": 85,
+  "total_methods": 2450,
+  "total_imports": 890,
+  "avg_loc_per_file": 417,
+  "avg_methods_per_file": 20,
+  "file_type_distribution": {{ ".java": 120, ".xml": 5, ".md": 2 }},
+  "has_pom": true,
+  "build_system": "Maven"
+}}
+```
+
+### Metrics by File:
+
+**Size Metrics:**
+- `file_size`: Characters in file
+- `loc`: Lines of code (non-blank)
+
+**Class/Interface Metrics:**
+- `num_classes`: Classes defined
+- `num_interfaces`: Interfaces defined
+- `num_enums`: Enumerations
+- `num_methods`: Total methods
+
+**Complexity Metrics:**
+- `num_fields`: Member fields
+- `num_abstract_methods`: Abstract method count
+- `num_static_methods`: Static method count
+- `inheritance_depth`: Inheritance distance
+- `implements_count`: Interface implementations
+
+### Statistics:
+- **Total files**: {len(dataset)}
+- **Total LOC**: {total_loc}
+- **Total classes**: {total_classes}
+- **Total methods**: {total_methods}
+- **Avg LOC/file**: {total_loc // len(dataset) if dataset else 0}
+- **Build system**: {repo_summary.get('build_system', 'Unknown')}
+- **Generated**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+
+### Use Cases
+- Large-scale code repository analysis
+- Type/tool statistics
+- Language ecosystem analysis
+- Software engineering research
+
+## References
+- Sourcerer: https://sourcerer.ics.uci.edu/
+- GitHub: https://github.com/Mondego/Sourcerer
+- Application website: https://sourcerer.io/
+""")
+
+        logger.info(f"Generated README at {readme}")
         
         return {
             "status": "success",

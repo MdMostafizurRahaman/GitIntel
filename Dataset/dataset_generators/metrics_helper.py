@@ -20,14 +20,15 @@ class MetricsHelper:
         from metrics_catalog import MetricsCatalog
         return MetricsCatalog
 
-    def _flat(self, file_path: str) -> Dict[str, Any]:
+    def _flat(self, file_path: str, selected_metrics: list = None) -> Dict[str, Any]:
         """Return flat metrics dict via MetricsCatalog."""
-        return self._catalog().calculate_all_metrics(file_path, self.repo_path)
+        return self._catalog().calculate_all_metrics(file_path, self.repo_path, selected_metrics=selected_metrics)
 
     # ------------------------------------------------------------------
-    def get_all_metrics(self, file_path: str = None) -> Dict[str, Any]:
+    def get_all_metrics(self, file_path: str = None, selected_metrics: list = None) -> Dict[str, Any]:
         """
-        Return {'metrics': {64 metrics}} for a file.
+        Return {'metrics': {N metrics}} for a file.
+        Pass selected_metrics to only compute what is needed.
         GUI reads result.get('metrics', {}) from this.
         """
         try:
@@ -36,18 +37,16 @@ class MetricsHelper:
                 if not os.path.isfile(path):
                     print(f"[WARNING MetricsHelper] File not found: {path}")
                     return {"metrics": {}}
-                m = self._flat(path)
-                if m:
-                    print(f"[DEBUG MetricsHelper] {os.path.basename(path)}: {len(m)} metrics")
-                else:
-                    print(f"[WARNING MetricsHelper] {os.path.basename(path)}: 0 metrics")
+                m = self._flat(path, selected_metrics)
+                label = f"{len(selected_metrics)} selected" if selected_metrics else f"{len(m)}"
+                print(f"[DEBUG MetricsHelper] {os.path.basename(path)}: {label} metrics")
                 return {"metrics": m}
             else:
                 combined = {}
                 root = Path(self.repo_path)
                 for p in list(root.rglob("*.java")) + list(root.rglob("*.py")):
                     if ".git" not in p.parts:
-                        combined[str(p)] = self._flat(str(p))
+                        combined[str(p)] = self._flat(str(p), selected_metrics)
                 return {"metrics": combined}
         except Exception as e:
             print(f"[ERROR MetricsHelper] {type(e).__name__}: {e}")
