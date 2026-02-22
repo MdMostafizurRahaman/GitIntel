@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import os
+import traceback
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List
@@ -161,7 +162,6 @@ def apply_custom_metrics(extracted_data: List[Dict], custom_metrics: List[Dict],
                 except Exception as func_error:
                     safe_print(f"[ERROR] Error calling calculate_formulas: {func_error}")
                     safe_print(f"Error type: {type(func_error)}")
-                    import traceback
                     safe_print(traceback.format_exc())
                     errors.append(f"{metric_name}: Function call failed: {str(func_error)}")
                     continue
@@ -185,7 +185,6 @@ def apply_custom_metrics(extracted_data: List[Dict], custom_metrics: List[Dict],
                 errors.append(f"{metric_name}: No new columns created")
                 
         except Exception as e:
-            import traceback
             error_detail = traceback.format_exc()
             extraction_metadata[metric_name]['status'] = 'error'
             extraction_metadata[metric_name]['error'] = str(e)
