@@ -3,3 +3,38 @@ dataset_generators\generate_all_benchmarks.py
 dataset_check
 clone
 tmpclaude*
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+*.egg-info/
+.pytest_cache/
+.coverage
+
+# Temporary files
+tmpclaude-*/
+
+# Generated files
+*.csv
+*.json
+
+# Environment
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log

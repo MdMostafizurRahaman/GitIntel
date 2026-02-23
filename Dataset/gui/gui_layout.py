@@ -285,6 +285,16 @@ class LayoutMixin:
                   relief='solid', bd=1, cursor='hand2',
                   command=self.clear_plan).pack(side=tk.LEFT, padx=2)
 
+        self.open_output_btn = tk.Button(
+            ctrl_row, text="Open Output",
+            font=('Segoe UI', 9),
+            bg=C['accent'], fg='white',
+            relief='flat', bd=0, cursor='hand2',
+            state=tk.DISABLED,
+            activebackground='#1a5276',
+            command=self._open_output_folder)
+        self.open_output_btn.pack(side=tk.LEFT, padx=2)
+
         # Progress bar
         self.progress_var = tk.DoubleVar(value=0)
         self.progress_bar = ttk.Progressbar(plan_outer,

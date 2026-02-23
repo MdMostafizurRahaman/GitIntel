@@ -6,15 +6,25 @@ from typing import List, Optional
 
 try:
     from dotenv import load_dotenv
-    parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    env_path = os.path.join(parent_dir, '.env')
-    
+
+    # When frozen (PyInstaller exe), look for .env next to the executable
+    # When running as script, go two levels up: gui/ -> Dataset/
+    if getattr(sys, 'frozen', False):
+        base_dir = os.path.dirname(sys.executable)
+        env_path = os.path.join(base_dir, '.env')
+        # Also try one level up from exe (in case exe is in dist/ subfolder)
+        if not os.path.exists(env_path):
+            env_path = os.path.join(os.path.dirname(base_dir), '.env')
+    else:
+        parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        env_path = os.path.join(parent_dir, '.env')
+
     print(f"  Main file location: {__file__}")
     print(f"  Looking for .env at: {env_path}")
-    
+
     if os.path.exists(env_path):
         load_dotenv(env_path)
-        print(f"Loaded .env from {parent_dir}")
+        print(f"Loaded .env from {os.path.dirname(env_path)}")
         if os.environ.get('AWS_ACCESS_KEY_ID'):
             print(f"AWS_ACCESS_KEY_ID loaded successfully")
     else:
@@ -26,10 +36,15 @@ except ImportError:
     pass
 
 # Add parent directory to path
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-# Import helper functions from same directory (gui folder)
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# When frozen by PyInstaller, sys._MEIPASS is the temp extraction dir (auto in sys.path)
+# For script mode, add Dataset/ and gui/ directories manually
+if not getattr(sys, 'frozen', False):
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+else:
+    # Frozen: ensure _MEIPASS is in path (usually auto-set, but be explicit)
+    if hasattr(sys, '_MEIPASS'):
+        sys.path.insert(0, sys._MEIPASS)
 from dataset_helpers import safe_print
 
 # Import MetricsHelper from dataset_generators package
@@ -61,11 +76,9 @@ except ImportError as e:
     print(f"Warning: IntegratedJurySystem not available: {e}")
     JURY_AVAILABLE = False
 
-# LLM_AVAILABLE: Legacy Gemini flag — not used (AWS Bedrock via IntegratedJurySystem)
+# All LLM operations use IntegratedJurySystem with AWS Bedrock
 import time
 from functools import wraps
-LLM_AVAILABLE = False
-genai = None   # keeps legacy api_key-guarded references from raising NameError
 try:
     from .gui_types import TaskStatus, Task, TaskManager, MessageType, AgentMessage
     from .gui_styles import StylesMixin
@@ -212,42 +225,8 @@ class AgenticDatasetGUI(
                 self.enhanced_system = EnhancedAgenticSystem(mode=EnhancedMode.ASK)
                 
                 # Initialize LLMCodeJurySystem with 4 API keys
-                generator_key = os.environ.get('GEMINI_API_KEY', '')
-                jury_keys = [
-                    os.environ.get('Jurry_1', ''),
-                    os.environ.get('Jurry_2', ''),
-                    os.environ.get('Jurry_3', '')
-                ]
-                
-                if generator_key and all(jury_keys):
-                    # Enable AWS fallback by default
-                    self.llm_jury_system = LLMCodeJurySystem(
-                        generator_key=generator_key, 
-                        jury_keys=jury_keys,
-                        use_aws_fallback=True  # Auto-fallback to AWS when Gemini quota exceeded
-                    )
-                    
-                    # Check if AWS is configured
-                    aws_configured = bool(os.environ.get('AWS_ACCESS_KEY_ID') and 
-                                        os.environ.get('AWS_SECRET_ACCESS_KEY'))
-                    
-                    if aws_configured:
-                        self.add_agent_message(MessageType.SUCCESS, 
-                            f"Multi-LLM Jury System initialized (1 Generator + 3 Verifiers)\n"
-                            f"AWS Bedrock fallback: ENABLED (unlimited quota)")
-                    else:
-                        self.add_agent_message(MessageType.SUCCESS, 
-                            f"Multi-LLM Jury System initialized (1 Generator + 3 Verifiers)\n"
-                            f"AWS fallback: DISABLED (add AWS credentials to .env for unlimited)")
-                else:
-                    self.llm_jury_system = None
-                    missing = []
-                    if not generator_key: missing.append('GEMINI_API_KEY')
-                    if not jury_keys[0]: missing.append('Jurry_1')
-                    if not jury_keys[1]: missing.append('Jurry_2')
-                    if not jury_keys[2]: missing.append('Jurry_3')
-                    self.add_agent_message(MessageType.INFO, 
-                        f"Multi-LLM Jury disabled - missing: {', '.join(missing)}")
+                # Note: Legacy LLMCodeJurySystem removed — using IntegratedJurySystem instead
+                # which uses AWS Bedrock Claude for all operations
                     
             except Exception as e:
                 safe_print(f"Autonomous agent initialization failed: {e}")
@@ -273,10 +252,8 @@ class AgenticDatasetGUI(
         except:
             self.agent = None
         
-        # Configure main API key
-        self.api_key = os.environ.get('GOOGLE_API_KEY') or os.environ.get('GEMINI_API_KEY', '')
-        if self.api_key and genai is not None:
-            genai.configure(api_key=self.api_key)
+        # API key configuration handled by IntegratedJurySystem using AWS Bedrock
+        # No Gemini/Google API keys needed
         
         # Conversation state for agentic chat
         self.conversation_history = []

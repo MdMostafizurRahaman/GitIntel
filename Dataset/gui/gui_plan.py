@@ -463,7 +463,32 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
                 daemon=True,
             ).start()
             return
-        
+
+        # ── Second priority: Jury confirmation panel is showing ───────────────
+        # If _jury_pending_requirements is set, Jury 1 already clarified and is
+        # waiting for the user to click [Confirm] or [Cancel].
+        # If the user TYPES in the Feedback box instead, treat it as a correction
+        # and restart the jury workflow — unless they clearly typed "yes/confirm".
+        if hasattr(self, '_jury_pending_requirements') and self._jury_pending_requirements:
+            if any(word in feedback_lower for word in ['yes', 'ok', 'confirm', 'proceed']):
+                # Treat typed 'yes' same as clicking [Confirm]
+                self._confirm_cp1_yes()
+            else:
+                # User is correcting the understanding — restart jury with new text
+                self._jury_pending_requirements = None
+                self.set_approval_visible(False)
+                self._chat_jury_in_session = False
+                self.add_agent_message(
+                    MessageType.INFO,
+                    "Restarting with your correction — click  [Start]  to begin.",
+                )
+                self._populate_jury_task_plan()
+                self.start_btn.config(
+                    state=tk.NORMAL,
+                    command=lambda q=feedback: self._start_jury_from_plan(q),
+                )
+            return
+
         # Check if waiting for analysis confirmation (after metrics are shown)
         if hasattr(self, 'awaiting_analysis_confirmation') and self.awaiting_analysis_confirmation:
             self.awaiting_analysis_confirmation = False
@@ -523,19 +548,31 @@ Click **▶ Start Execution** to begin. I'll ask for your approval at each step.
                 "   • Choose metrics (65+ available)\n"
                 "   • Click 'Generate Dataset'")
         
-        # Treat as new query
+        # Treat as new query — route to IntegratedJurySystem (preferred) or enhanced_system
         else:
             self.current_query = feedback
-            # Route ALL new queries through enhanced_system (Bedrock) if available
-            if self.enhanced_system and self.repo_path:
+            # IntegratedJurySystem has priority over enhanced_system for new queries
+            if hasattr(self, 'integrated_jury') and self.integrated_jury and self.repo_path:
+                # Treat as fresh request — show Task Plan and wait for [Start]
+                self._chat_jury_in_session = False
+                self.add_agent_message(
+                    MessageType.INFO,
+                    "Task plan ready \u2026 click  [Start]  to begin the Jury workflow.",
+                )
+                self._populate_jury_task_plan()
+                self.start_btn.config(
+                    state=tk.NORMAL,
+                    command=lambda q=feedback: self._start_jury_from_plan(q),
+                )
+            elif self.enhanced_system and self.repo_path:
                 threading.Thread(target=self._process_with_enhanced_system,
                                args=(feedback,), daemon=True).start()
             elif self.enhanced_system and not self.repo_path:
                 self.add_agent_message(MessageType.QUESTION,
                     "  Please set a repository first (paste GitHub URL or folder path above), then ask again.")
             else:
-                threading.Thread(target=self._intelligent_chat_processor, 
-                               args=(feedback,), daemon=True).start()
+                self.add_agent_message(MessageType.ERROR,
+                    "  No AI system available. Check AWS credentials and IntegratedJurySystem initialization.")
     
     def _process_feedback(self, feedback: str):
         """Legacy feedback processor - redirects to send_feedback logic"""

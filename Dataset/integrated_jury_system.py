@@ -129,6 +129,7 @@ class IntegratedJurySystem:
         user_question: str,
         repo_path: Optional[str] = None,
         progress_callback: Optional[Callable[[str], None]] = None,
+        batch_mode: bool = False,
     ) -> Dict:
         """
         Main entry point.
@@ -136,8 +137,18 @@ class IntegratedJurySystem:
           {'status': 'needs_clarification', 'questions': [...], 'confidence': N, ...}
           {'status': 'success', 'code': '...', 'iterations': N, 'test_results': {...}, ...}
           {'status': 'human_intervention_required', 'message': '...', ...}
+
+        When batch_mode=True, skips interactive clarification: if Phase 1 returns
+        needs_clarification, the system auto-proceeds with its current best understanding.
         """
         log = self._make_logger(progress_callback)
+
+        # Assign a fresh session_id for each workflow call (important when
+        # one IntegratedJurySystem instance is reused across many queries).
+        self.session_id = (
+            f"jury_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            f"_{uuid.uuid4().hex[:6]}"
+        )
 
         # Initialise session directory
         base = Path(__file__).parent / "generated_datasets"
@@ -164,7 +175,17 @@ class IntegratedJurySystem:
         phase1 = self._phase1_understand_with_history(self._clarification_history)
 
         if phase1["status"] == "needs_clarification":
-            return phase1  # GUI must call provide_clarification() next
+            if not batch_mode:
+                return phase1  # GUI must call provide_clarification() next
+            # batch_mode: auto-proceed with current best understanding
+            log(
+                f"  [batch_mode] Confidence {phase1.get('confidence', 0)}% "
+                f"< {self.CONFIDENCE_THRESHOLD}% threshold — proceeding with "
+                f"current understanding: {phase1.get('current_understanding', '')[:80]}"
+            )
+            phase1 = self._extract_requirements_from_history(
+                self._clarification_history, allow_partial=True
+            )
 
         # Requirements are clear → run phases 2 + 3
         return self.resume_after_clarification(
