@@ -417,7 +417,7 @@ class LayoutMixin:
         self.message_text.pack(fill=tk.BOTH, expand=True)
 
         # Tag colours (log area is dark)
-        self.message_text.tag_configure('system',   foreground=C['info'],
+        self.message_text.tag_configure('system',   foreground='#ffffff',
                                         font=('Consolas', 9, 'bold'))
         self.message_text.tag_configure('user',     foreground=C['user_msg'],
                                         font=('Consolas', 9))
@@ -427,7 +427,7 @@ class LayoutMixin:
         self.message_text.tag_configure('success',  foreground=C['success_msg'])
         self.message_text.tag_configure('error',    foreground=C['error_msg'])
         self.message_text.tag_configure('question', foreground=C['question'])
-        self.message_text.tag_configure('info',     foreground=C['info'])
+        self.message_text.tag_configure('info',     foreground='#ffffff')
         self.message_text.tag_configure('bold',     font=('Consolas', 9, 'bold'))
         # Per-type header tags (header line above each message)
         self.message_text.tag_configure('hdr_user',
@@ -446,7 +446,7 @@ class LayoutMixin:
                                         foreground=C['question'],
                                         font=('Consolas', 9, 'bold'))
         self.message_text.tag_configure('hdr_system',
-                                        foreground=C['info'],
+                                        foreground='#ffffff',
                                         font=('Consolas', 9, 'bold'))
 
         # ── Confirmation area (jury checkpoints) ──────────────────────────
