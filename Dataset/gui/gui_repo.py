@@ -181,7 +181,8 @@ class RepoMixin:
     def set_repository(self):
         """Set the repository — supports local paths and GitHub URLs"""
         repo_input = self.repo_var.get().strip()
-        if not repo_input or 'Enter' in repo_input:
+        # ignore placeholder text as if it were blank
+        if not repo_input or 'Enter' in repo_input or repo_input == "Path or GitHub URL...":
             messagebox.showwarning("Warning", "Please enter a repository path or GitHub URL")
             return
 
@@ -197,6 +198,13 @@ class RepoMixin:
                 self.repo_status.config(text=repo_name, foreground='green')
                 # Update topbar label from main thread
                 self.root.after(0, lambda: self.topbar_repo_var.set(f"Repo: {repo_name}"))
+                # update entry text/placeholder so path appears for tests
+                try:
+                    self.repo_entry.delete(0, tk.END)
+                    self.repo_entry.insert(0, self.repo_path)
+                    self.repo_entry.config(fg=self.colors['fg'])
+                except Exception:
+                    pass
                 self.add_agent_message(MessageType.SUCCESS,
                     f"Repository set: {repo_name}\n"
                     f"Metrics discovered: {len(self.enhanced_system.available_metrics)}")
@@ -213,6 +221,13 @@ class RepoMixin:
                 py_count   = sum(1 for _ in path.rglob('*.py')   if _.is_file())
                 # Update topbar label from main thread
                 self.root.after(0, lambda n=repo_name: self.topbar_repo_var.set(f"Repo: {n}"))
+                # ensure entry field reflects actual path for placeholder/test visibility
+                try:
+                    self.repo_entry.delete(0, tk.END)
+                    self.repo_entry.insert(0, self.repo_path)
+                    self.repo_entry.config(fg=self.colors['fg'])
+                except Exception:
+                    pass
                 self.add_agent_message(
                     MessageType.SUCCESS,
                     f"Repository set: {repo_name}\n"

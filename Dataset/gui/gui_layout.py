@@ -104,8 +104,18 @@ class LayoutMixin:
                                    relief='solid', bd=1,
                                    insertbackground=C['fg'])
         self.repo_entry.pack(fill=tk.X, padx=6, pady=(6, 0))
-        self.repo_entry.insert(0, "Path or GitHub URL...")
+        # placeholder logic ------------------------------------------------
+        placeholder = "Path or GitHub URL..."
+        initial_repo = getattr(self, 'repo_path', '')
+        if initial_repo:
+            self.repo_entry.insert(0, initial_repo)
+            self.repo_entry.config(fg=C['fg'])
+        else:
+            self.repo_entry.insert(0, placeholder)
+            self.repo_entry.config(fg=C['fg_muted'])
+        # bindings to manage placeholder
         self.repo_entry.bind('<FocusIn>', self.on_repo_focus)
+        self.repo_entry.bind('<FocusOut>', self.on_repo_blur)
 
         btn_row = tk.Frame(repo_card, bg=C['panel'])
         btn_row.pack(fill=tk.X, padx=6, pady=4)
@@ -265,6 +275,7 @@ class LayoutMixin:
         self.start_btn = tk.Button(ctrl_row, text="Start",
                                    font=('Segoe UI', 9, 'bold'),
                                    bg=C['success'], fg='white',
+                                   disabledforeground='white',
                                    relief='flat', cursor='hand2',
                                    state=tk.DISABLED,
                                    activebackground='#15652c',
@@ -287,8 +298,9 @@ class LayoutMixin:
 
         self.open_output_btn = tk.Button(
             ctrl_row, text="Open Output",
-            font=('Segoe UI', 9),
+            font=('Segoe UI', 9, 'bold'),
             bg=C['accent'], fg='white',
+            disabledforeground='white',
             relief='flat', bd=0, cursor='hand2',
             state=tk.DISABLED,
             activebackground='#1a5276',
@@ -367,6 +379,7 @@ class LayoutMixin:
         self.send_btn = tk.Button(input_row, text="Send",
                                   font=('Segoe UI', 10, 'bold'),
                                   bg=C['accent'], fg='white',
+                                  disabledforeground='white',
                                   relief='flat', cursor='hand2',
                                   activebackground=C['accent_hover'],
                                   command=self.process_chat_input)
@@ -470,14 +483,16 @@ class LayoutMixin:
             confirm_btns, text="Confirm",
             font=('Segoe UI', 9, 'bold'),
             bg=C['success'], fg='white',
+            disabledforeground='white',
             relief='flat', cursor='hand2', activebackground="#91b79c",
             command=self._on_confirm_yes)
         self.confirm_yes_btn.pack(side=tk.LEFT, padx=(0, 4), ipady=4, ipadx=10)
 
         self.confirm_no_btn = tk.Button(
             confirm_btns, text="Cancel",
-            font=('Segoe UI', 9),
+            font=('Segoe UI', 9, 'bold'),
             bg=C['error'], fg='white',
+            disabledforeground='white',
             relief='flat', cursor='hand2', activebackground='#a8001a',
             command=self._on_confirm_no)
         self.confirm_no_btn.pack(side=tk.LEFT, padx=(0, 4), ipady=4, ipadx=10)
@@ -523,6 +538,12 @@ class LayoutMixin:
                                        relief='solid', bd=1,
                                        insertbackground=C['fg'])
         self.feedback_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 6))
+        # placeholder for feedback field; normally agent-only
+        fb_placeholder = "Feedback (agent only)"
+        self.feedback_entry.insert(0, fb_placeholder)
+        self.feedback_entry.config(fg=C['fg_muted'])
+        self.feedback_entry.bind('<FocusIn>', self.on_feedback_focus)
+        self.feedback_entry.bind('<FocusOut>', self.on_feedback_blur)
         self.feedback_entry.bind('<Return>', lambda e: self.send_feedback())
 
         tk.Button(fb_row, text="Send",
@@ -567,6 +588,33 @@ class LayoutMixin:
 
     def on_repo_focus(self, event):
         """Handle focus on repo entry"""
-        if 'Enter' in self.repo_entry.get():
+        text = self.repo_entry.get()
+        placeholder = "Path or GitHub URL..."
+        if text == placeholder:
             self.repo_entry.delete(0, tk.END)
+            self.repo_entry.config(fg=self.colors['fg'])
+
+    def on_feedback_focus(self, event):
+        """Clear placeholder when feedback field gets focus"""
+        text = self.feedback_entry.get()
+        placeholder = "Feedback (agent only)"
+        if text == placeholder:
+            self.feedback_entry.delete(0, tk.END)
+            self.feedback_entry.config(fg=self.colors['fg'])
+
+    def on_repo_blur(self, event):
+        """Restore placeholder text if entry is left empty"""
+        text = self.repo_entry.get().strip()
+        placeholder = "Path or GitHub URL..."
+        if not text:
+            self.repo_entry.insert(0, placeholder)
+            self.repo_entry.config(fg=self.colors['fg_muted'])
+
+    def on_feedback_blur(self, event):
+        """Restore placeholder in feedback field if emptied"""
+        text = self.feedback_entry.get().strip()
+        placeholder = "Feedback (agent only)"
+        if not text:
+            self.feedback_entry.insert(0, placeholder)
+            self.feedback_entry.config(fg=self.colors['fg_muted'])
 
