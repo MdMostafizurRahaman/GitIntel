@@ -122,6 +122,14 @@ class IntegratedJurySystem:
         self._last_clarification_question: str = ""  # Track last question to detect duplicates
         self.MAX_CLARIFICATIONS: int = 2  # Cap at 2 clarification rounds (not 3)
 
+        # Token usage tracking (reset per workflow run)
+        self._token_usage: Dict[str, Dict[str, int]] = {
+            "phase1": {"input": 0, "output": 0},
+            "phase2": {"input": 0, "output": 0},
+            "phase3": {"input": 0, "output": 0},
+        }
+        self._current_phase: str = "phase1"
+
     # ── Public API ────────────────────────────────────────────────────────────
 
     def run_full_workflow(
@@ -169,6 +177,14 @@ class IntegratedJurySystem:
         self._clarification_attempts = 0  # Reset for each workflow
         self._last_clarification_question = ""  # Reset for each workflow
 
+        # Reset per-phase token counters for this run
+        self._token_usage = {
+            "phase1": {"input": 0, "output": 0},
+            "phase2": {"input": 0, "output": 0},
+            "phase3": {"input": 0, "output": 0},
+        }
+        self._current_phase = "phase1"
+
         log("=" * 60)
         log("PHASE 1 — Requirement Understanding  (Jury 1 / Claude)")
         log("=" * 60)
@@ -204,6 +220,26 @@ class IntegratedJurySystem:
         result = self._phase1_understand_with_history(self._clarification_history)
         return result
 
+    def get_token_usage(self) -> Dict:
+        """Return a snapshot of per-phase token usage for the current/last workflow run."""
+        usage = {}
+        for phase, counts in self._token_usage.items():
+            inp = counts["input"]
+            out = counts["output"]
+            usage[phase] = {
+                "input": inp,
+                "output": out,
+                "total": inp + out,
+            }
+        grand_input  = sum(v["input"]  for v in usage.values())
+        grand_output = sum(v["output"] for v in usage.values())
+        usage["total"] = {
+            "input":  grand_input,
+            "output": grand_output,
+            "total":  grand_input + grand_output,
+        }
+        return usage
+
     def resume_after_clarification(
         self,
         requirements: Dict,
@@ -222,6 +258,7 @@ class IntegratedJurySystem:
         log("=" * 60)
         log("PHASE 2 — Catalog Check + Code Generation  (Jury 2 / Claude)")
         log("=" * 60)
+        self._current_phase = "phase2"
         gen = self._phase2_generate(requirements, log)
         code = gen.get("code", "")
         log(f"  Type      : {gen.get('type', 'unknown')}")
@@ -243,11 +280,13 @@ class IntegratedJurySystem:
 
             if attempt > 1 and feedback:
                 log("  Jury 2 refining code based on test failures...")
+                self._current_phase = "phase2"
                 refined = self._phase2_refine(requirements, final_code, feedback)
                 final_code = refined.get("code", final_code)
                 log(f"  Refined -> {len(final_code)} chars  ({refined.get('changes_made', '')})")
 
             log("  All 3 Claude instances generating + executing unit tests...")
+            self._current_phase = "phase3"
             test_results = self._phase3_validate(final_code, requirements, log)
 
             iterations.append(
@@ -275,6 +314,9 @@ class IntegratedJurySystem:
                     "requirements": requirements,
                     "session_id": self.session_id,
                     "session_dir": self.session_dir,
+                    "token_usage": {
+                        k: dict(v) for k, v in self._token_usage.items()
+                    },
                 }
 
             feedback = test_results.get("failure_summary", "Tests failed — code needs fixing")
@@ -296,6 +338,9 @@ class IntegratedJurySystem:
             "iterations": iterations,
             "session_id": self.session_id,
             "session_dir": self.session_dir,
+            "token_usage": {
+                k: dict(v) for k, v in self._token_usage.items()
+            },
         }
 
     # ── Phase 1: Jury 1 — Requirement Understanding ──────────────────────────
@@ -858,6 +903,14 @@ Return ONLY the raw Python test code — no markdown fences, no explanation:
                     body=body,
                 )
                 result = json.loads(response["body"].read())
+
+                # Accumulate real token counts from the response usage field
+                usage = result.get("usage", {})
+                _phase = getattr(self, "_current_phase", "phase1")
+                if hasattr(self, "_token_usage") and _phase in self._token_usage:
+                    self._token_usage[_phase]["input"]  += usage.get("input_tokens",  0)
+                    self._token_usage[_phase]["output"] += usage.get("output_tokens", 0)
+
                 text = result["content"][0]["text"].strip()
 
                 if parse_json:

@@ -246,6 +246,7 @@ class ChatMixin:
             iters = result.get("iterations", 1)
             tr = result.get("test_results", {})
             session_dir = result.get("session_dir", "N/A")
+            token_usage = result.get("token_usage", {})
             # Store so _apply_jury_code_thread can save CSV to the right directory
             self._last_jury_session_dir = session_dir
 
@@ -256,6 +257,16 @@ class ChatMixin:
                 f"  LLMs passed  : {tr.get('passing_llms', 0)}/3\n"
                 f"  Tests passed : {tr.get('total_passed', 0)}/{tr.get('total_tests', 0)}\n\n"
                 f"  Session saved to:\n  {session_dir}",
+                actions=[
+                    {
+                        'label': 'Open Session Folder',
+                        'callback': lambda p=session_dir: os.startfile(p) if os.path.exists(str(p)) else None,
+                    },
+                    {
+                        'label': 'Token Usage',
+                        'callback': lambda tu=token_usage: self._show_token_usage_popup(tu),
+                    },
+                ],
             )
             self._update_plan_step("2", "done")
             self._update_plan_step("3", "done")
@@ -300,6 +311,141 @@ class ChatMixin:
             self.add_agent_message(
                 MessageType.ERROR, f"Unexpected jury status: {status}"
             )
+
+    def _show_token_usage_popup(self, token_usage: dict, is_ai_generation: bool = True):
+        """Show a popup window with actual token usage broken down by algorithm phase."""
+        C = self.colors
+
+        phase_labels = {
+            "phase1": "Phase 1  Requirement Understanding  (Jury 1)",
+            "phase2": "Phase 2  Code Generation  (Jury 2)",
+            "phase3": "Phase 3  Test Validation  (3× Claude)",
+        }
+
+        rows = []
+        grand_in = grand_out = 0
+        for key, label in phase_labels.items():
+            counts = token_usage.get(key, {"input": 0, "output": 0})
+            inp = counts.get("input",  0)
+            out = counts.get("output", 0)
+            grand_in  += inp
+            grand_out += out
+            rows.append((label, inp, out, inp + out))
+
+        grand_total = grand_in + grand_out
+
+        popup = tk.Toplevel(self.root)
+        popup.title("Actual Token Usage — Dataset Generation")
+        popup.configure(bg=C['bg'])
+        popup.resizable(False, False)
+        popup.grab_set()
+
+        # ── Header ────────────────────────────────────────────────────────
+        hdr = tk.Frame(popup, bg=C['topbar'])
+        hdr.pack(fill=tk.X)
+        tk.Label(hdr, text="Actual Token Usage  —  This Generation Run",
+                 font=('Segoe UI', 11, 'bold'),
+                 fg=C['topbar_fg'], bg=C['topbar']).pack(
+            side=tk.LEFT, padx=12, pady=8)
+
+        # ── AI / No-AI badge ──────────────────────────────────────────────
+        if not is_ai_generation:
+            badge_text = "Benchmark / Metrics  —  No Claude AI used"
+            badge_color = '#f78166'
+        else:
+            badge_text = "Jury System  —  Claude 3.5 Sonnet via AWS Bedrock"
+            badge_color = '#57ab5a'
+        tk.Label(popup, text=badge_text,
+                 font=('Segoe UI', 8, 'bold'), fg=badge_color, bg=C['bg']).pack(
+            anchor=tk.W, padx=14, pady=(8, 0))
+
+        # ── Table ─────────────────────────────────────────────────────────
+        tbl = tk.Frame(popup, bg=C['panel'], padx=14, pady=10)
+        tbl.pack(fill=tk.X, padx=12, pady=(6, 0))
+
+        col_hdrs = [
+            ("Algorithm / Phase",    36, tk.W),
+            ("Input Tokens",         13, tk.E),
+            ("Output Tokens",        13, tk.E),
+            ("Total",                10, tk.E),
+        ]
+        for col, (htext, width, anchor) in enumerate(col_hdrs):
+            tk.Label(tbl, text=htext, width=width, anchor=anchor,
+                     font=('Segoe UI', 9, 'bold'),
+                     fg=C['fg'], bg=C['panel']).grid(
+                row=0, column=col, padx=(0, 6), pady=(0, 4), sticky=anchor)
+
+        tk.Frame(tbl, bg=C['border'], height=1).grid(
+            row=1, column=0, columnspan=4, sticky='ew', pady=(0, 6))
+
+        row_fg = '#555d66' if not is_ai_generation else C['fg']
+        for r_idx, (phase, inp, out, tot) in enumerate(rows, start=2):
+            tk.Label(tbl, text=phase, width=36, anchor=tk.W,
+                     font=('Segoe UI', 9), fg=row_fg,
+                     bg=C['panel']).grid(row=r_idx, column=0,
+                                          padx=(0, 6), pady=2, sticky=tk.W)
+            for col_idx, (val, color) in enumerate(
+                [(inp, '#adbac7'), (out, '#79c0ff'), (tot, '#ffffff')], start=1
+            ):
+                if not is_ai_generation:
+                    color = '#3d444d'
+                tk.Label(tbl, text=f"{val:,}", width=[13, 13, 10][col_idx - 1],
+                         anchor=tk.E, font=('Consolas', 9), fg=color,
+                         bg=C['panel']).grid(row=r_idx, column=col_idx,
+                                              padx=(0, 6), pady=2, sticky=tk.E)
+
+        # ── Total row ─────────────────────────────────────────────────────
+        sep_row = len(rows) + 2
+        tk.Frame(tbl, bg=C['border'], height=1).grid(
+            row=sep_row, column=0, columnspan=4, sticky='ew', pady=(6, 4))
+
+        tk.Label(tbl, text="TOTAL USED  (LLM only)", width=36, anchor=tk.W,
+                 font=('Segoe UI', 9, 'bold'), fg=C['fg'],
+                 bg=C['panel']).grid(row=sep_row + 1, column=0,
+                                      padx=(0, 6), pady=2, sticky=tk.W)
+        for col_idx, (val, color) in enumerate(
+            [(grand_in, '#adbac7'), (grand_out, '#79c0ff'), (grand_total, '#57ab5a')],
+            start=1
+        ):
+            if not is_ai_generation:
+                color = '#3d444d' if col_idx < 3 else '#555d66'
+            tk.Label(tbl, text=f"{val:,}", width=[13, 13, 10][col_idx - 1],
+                     anchor=tk.E, font=('Consolas', 10, 'bold'), fg=color,
+                     bg=C['panel']).grid(row=sep_row + 1, column=col_idx,
+                                          padx=(0, 6), pady=2, sticky=tk.E)
+
+        # ── Note ──────────────────────────────────────────────────────────
+        if not is_ai_generation:
+            note = (
+                "This generation used a standard benchmark / metrics algorithm.\n"
+                "No Claude AI calls were made — token usage is 0.\n"
+                "Token usage is only non-zero when the Jury System generates\n"
+                "custom metrics via the chat interface."
+            )
+        elif grand_total == 0:
+            note = (
+                "No token data captured. The generation may not have reached Phase 2.\n"
+                "Token counts are read from the AWS Bedrock response usage field."
+            )
+        else:
+            note = (
+                "Token counts are read directly from the AWS Bedrock response\n"
+                "usage field (input_tokens + output_tokens per API call).\n"
+                "Phase 2 includes all code-generation and refinement iterations.\n"
+                "Phase 4 runs the generated code locally — no LLM, not counted."
+            )
+        tk.Label(popup, text=note,
+                 font=('Segoe UI', 8), fg=C['fg_muted'], bg=C['bg'],
+                 justify=tk.LEFT, wraplength=500).pack(
+            anchor=tk.W, padx=14, pady=(8, 4))
+
+        # ── Close button ──────────────────────────────────────────────────
+        tk.Button(popup, text="Close",
+                  font=('Segoe UI', 9, 'bold'),
+                  bg=C['accent'], fg='white',
+                  relief='flat', cursor='hand2',
+                  activebackground=C['accent_hover'],
+                  command=popup.destroy).pack(pady=(4, 12), ipadx=16, ipady=4)
 
     def _extract_author_stats_fallback(self, repo_path: str) -> dict:
         """
@@ -441,13 +587,17 @@ class ChatMixin:
                         f"\n(showing top 5 of {total})\n\n"
                         f"Dataset saved to:\n  {output_csv}"
                     )
-                    self.root.after(0, lambda m=preview, csv=output_csv, n=total: (
-                        self.add_agent_message(MessageType.SUCCESS, m),
-                        self._update_plan_step("4", "done"),
-                        self.status_var.set(f"Dataset ready — {n} authors"),
-                        self.output_path_var.set(f"Output: {csv}"),
-                        self.open_output_btn.config(state=tk.NORMAL),
-                    ))
+                    def _show_author_success(m=preview, csv=output_csv, n=total):
+                        folder = os.path.dirname(str(csv))
+                        self.add_agent_message(MessageType.SUCCESS, m, actions=[{
+                            'label': 'Open Dataset Folder',
+                            'callback': lambda p=folder: os.startfile(p) if os.path.exists(p) else None,
+                        }])
+                        self._update_plan_step("4", "done")
+                        self.status_var.set(f"Dataset ready — {n} authors")
+                        self.output_path_var.set(f"Output: {csv}")
+                        self.open_output_btn.config(state=tk.NORMAL)
+                    self.root.after(0, _show_author_success)
                     return
                 else:
                     self.root.after(0, lambda: self.add_agent_message(
@@ -466,15 +616,17 @@ class ChatMixin:
                         f"Dataset generated — {n} rows, {len(result.columns)} columns\n\n"
                         f"Saved to:\n  {output_csv}"
                     )
-                    self.root.after(0, lambda m=preview, csv=output_csv: (
-                        self.add_agent_message(MessageType.SUCCESS, m),
-                        self._update_plan_step("4", "done"),
-                        self.output_path_var.set(f"Output: {csv}"),
-                        self.open_output_btn.config(state=tk.NORMAL),
-                    ))
+                    def _show_gen_success(m=preview, csv=output_csv):
+                        folder = os.path.dirname(str(csv))
+                        self.add_agent_message(MessageType.SUCCESS, m, actions=[{
+                            'label': 'Open Dataset Folder',
+                            'callback': lambda p=folder: os.startfile(p) if os.path.exists(p) else None,
+                        }])
+                        self._update_plan_step("4", "done")
+                        self.output_path_var.set(f"Output: {csv}")
+                        self.open_output_btn.config(state=tk.NORMAL)
+                    self.root.after(0, _show_gen_success)
                     return
-
-            # ── Strategy 3: File-level calculate(fp, repo_path) ─────────────
             if not hasattr(module, "calculate"):
                 raise AttributeError(
                     "Generated module has no usable entry point "
@@ -518,13 +670,17 @@ class ChatMixin:
                 f"File-level Dataset — {ok}/{total} files processed\n\n"
                 f"Dataset saved to:\n  {output_csv}"
             )
-            self.root.after(0, lambda m=preview, csv=output_csv, n=total: (
-                self.add_agent_message(MessageType.SUCCESS, m),
-                self._update_plan_step("4", "done"),
-                self.status_var.set(f"Dataset ready — {n} files"),
-                self.output_path_var.set(f"Output: {csv}"),
-                self.open_output_btn.config(state=tk.NORMAL),
-            ))
+            def _show_file_success(m=preview, csv=output_csv, n=total):
+                folder = os.path.dirname(str(csv))
+                self.add_agent_message(MessageType.SUCCESS, m, actions=[{
+                    'label': 'Open Dataset Folder',
+                    'callback': lambda p=folder: os.startfile(p) if os.path.exists(p) else None,
+                }])
+                self._update_plan_step("4", "done")
+                self.status_var.set(f"Dataset ready — {n} files")
+                self.output_path_var.set(f"Output: {csv}")
+                self.open_output_btn.config(state=tk.NORMAL)
+            self.root.after(0, _show_file_success)
 
         except Exception as exc:
             msg = str(exc)

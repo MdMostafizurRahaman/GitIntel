@@ -119,19 +119,30 @@ class DatasetMixin:
             if benchmark in method_map:
                 result = method_map[benchmark]()
 
-                # Create individual folder link for benchmark dataset
                 output_msg = f"{benchmark} dataset generated successfully!"
                 if isinstance(result, dict) and 'output_dir' in result:
                     output_folder = result.get('output_dir', '')
                     self.root.after(0, lambda: self.add_agent_message(MessageType.SUCCESS,
                         output_msg,
-                        actions=[{
-                            'label': 'Open Dataset Folder',
-                            'callback': lambda p=output_folder: os.startfile(p) if sys.platform == 'win32' else subprocess.Popen(['xdg-open', p])
-                        }]
+                        actions=[
+                            {
+                                'label': 'Open Dataset Folder',
+                                'callback': lambda p=output_folder: os.startfile(p) if sys.platform == 'win32' else subprocess.Popen(['xdg-open', p])
+                            },
+                            {
+                                'label': 'Token Usage',
+                                'callback': lambda: self._show_token_usage_popup({}, is_ai_generation=False),
+                            },
+                        ]
                     ))
                 else:
-                    self.root.after(0, lambda: self.add_agent_message(MessageType.SUCCESS, output_msg))
+                    self.root.after(0, lambda: self.add_agent_message(
+                        MessageType.SUCCESS, output_msg,
+                        actions=[{
+                            'label': 'Token Usage',
+                            'callback': lambda: self._show_token_usage_popup({}, is_ai_generation=False),
+                        }]
+                    ))
             
         except Exception as e:
             error_msg = str(e)
@@ -747,10 +758,16 @@ Click **▶ Start Execution** to begin.
             # Success message
             self.root.after(0, lambda: self.add_agent_message(MessageType.SUCCESS,
                 f"Dataset saved: {output_file.name}",
-                actions=[{
-                    'label': 'Open Dataset Folder',
-                    'callback': lambda p=str(output_file): os.startfile(p) if sys.platform == 'win32' else subprocess.Popen(['open', p]) if sys.platform == 'darwin' else subprocess.Popen(['xdg-open', p])
-                }]
+                actions=[
+                    {
+                        'label': 'Open Dataset Folder',
+                        'callback': lambda p=str(output_file): os.startfile(p) if sys.platform == 'win32' else subprocess.Popen(['open', p]) if sys.platform == 'darwin' else subprocess.Popen(['xdg-open', p])
+                    },
+                    {
+                        'label': 'Token Usage',
+                        'callback': lambda: self._show_token_usage_popup({}, is_ai_generation=False),
+                    },
+                ]
             ))
             self.root.after(0, lambda: self.add_agent_message(MessageType.SUCCESS,
                 f"Generated: {len(all_metrics)} rows × {len(df.columns)} metrics"))
