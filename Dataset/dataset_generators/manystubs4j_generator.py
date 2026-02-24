@@ -10,29 +10,29 @@ from datetime import datetime
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# 16 ManySStuBs4J bug type categories
+# 16 ManySStuBs4J bug type categories — exact enum values from original dataset
 BUG_TYPES = [
-    'CHANGE_OPERATOR',
-    'CHANGE_OPERAND',
+    'CHANGE_IDENTIFIER',
     'CHANGE_NUMERAL',
-    'CHANGE_BOOLEAN_LITERAL',
-    'WRONG_FUNCTION_NAME',
+    'SWAP_BOOLEAN_LITERAL',
     'CHANGE_MODIFIER',
+    'DIFFERENT_METHOD_SAME_ARGS',
+    'OVERLOAD_METHOD_MORE_ARGS',
+    'OVERLOAD_METHOD_DELETED_ARGS',
+    'CHANGE_CALLER_IN_FUNCTION_CALL',
+    'SWAP_ARGUMENTS',
+    'CHANGE_OPERATOR',
+    'CHANGE_UNARY_OPERATOR',
+    'CHANGE_OPERAND',
+    'LESS_SPECIFIC_IF',
+    'MORE_SPECIFIC_IF',
     'ADD_THROWS_EXCEPTION',
     'DELETE_THROWS_EXCEPTION',
-    'CHANGE_EXCEPTION',
-    'MORE_SPECIFIC_IF',
-    'LESS_SPECIFIC_IF',
-    'MORE_SPECIFIC_RETURN_TYPE',
-    'CHANGE_STRING_LITERAL',
-    'CHANGE_RETURN_VALUE',
-    'CHANGE_OBJECT',
-    'CHANGE_CALLER_EXPRESSION',
 ]
 
 OPERATORS = frozenset([
     '==', '!=', '>=', '<=', '>', '<',
-    '&&', '||', '!',
+    '&&', '||',
     '+', '-', '*', '/', '%',
     '+=', '-=', '*=', '/=', '%=',
     '&', '|', '^', '~', '<<', '>>', '>>>',
@@ -41,6 +41,8 @@ OPERATORS = frozenset([
 MODIFIERS = frozenset(['public', 'private', 'protected', 'static', 'final',
                        'abstract', 'synchronized', 'volatile', 'transient'])
 
+UNARY_OPERATORS = frozenset(['++', '--', '!', '~', '-', '+'])
+
 
 def _tokenize(line: str) -> List[str]:
     """Split a source line into tokens."""
@@ -48,88 +50,107 @@ def _tokenize(line: str) -> List[str]:
                       r'\'[^\']*\'|[!=<>]=|&&|\|\||[+\-*/&|^!~<>%]=?|[{}()\[\];:,.]', line)
 
 
+def _get_call_args(line: str, method: str) -> List[str]:
+    """Extract argument list tokens for a given method call."""
+    m = re.search(re.escape(method) + r'\s*\(([^)]*)\)', line)
+    if m:
+        return [a.strip() for a in m.group(1).split(',') if a.strip()]
+    return []
+
+
 def _classify_bug_type(before: str, after: str) -> str:
-    """Classify single-line change into one of the 16 ManySStuBs4J bug types."""
+    """Classify single-line change into one of the 16 ManySStuBs4J bug types
+    using the exact original enum values."""
     b_tokens = _tokenize(before.strip())
     a_tokens = _tokenize(after.strip())
+    before_s = before.strip()
+    after_s  = after.strip()
 
-    # Boolean literal flip
-    before_lower = before.strip().lower()
-    after_lower = after.strip().lower()
-    if (re.search(r'\btrue\b', before_lower) and re.search(r'\bfalse\b', after_lower)) or \
-       (re.search(r'\bfalse\b', before_lower) and re.search(r'\btrue\b', after_lower)):
-        return 'CHANGE_BOOLEAN_LITERAL'
+    # ── SWAP_BOOLEAN_LITERAL ─────────────────────────────────────────────────
+    if (re.search(r'\btrue\b', before_s, re.I) and re.search(r'\bfalse\b', after_s, re.I)) or \
+       (re.search(r'\bfalse\b', before_s, re.I) and re.search(r'\btrue\b', after_s, re.I)):
+        return 'SWAP_BOOLEAN_LITERAL'
 
-    # String literal change
-    b_strings = re.findall(r'"[^"]*"', before)
-    a_strings = re.findall(r'"[^"]*"', after)
-    if b_strings and a_strings and b_strings != a_strings and len(b_strings) == len(a_strings):
-        return 'CHANGE_STRING_LITERAL'
-
-    # Numeric literal change
-    b_nums = re.findall(r'\b\d+(?:\.\d+)?[fFdDlL]?\b', before)
-    a_nums = re.findall(r'\b\d+(?:\.\d+)?[fFdDlL]?\b', after)
-    if b_nums and a_nums and b_nums != a_nums and len(b_nums) <= len(a_nums) + 1:
+    # ── CHANGE_NUMERAL ───────────────────────────────────────────────────────
+    b_nums = re.findall(r'\b\d+(?:\.\d+)?[fFdDlL]?\b', before_s)
+    a_nums = re.findall(r'\b\d+(?:\.\d+)?[fFdDlL]?\b', after_s)
+    if b_nums != a_nums and len(b_nums) == len(a_nums) and b_nums and a_nums:
         return 'CHANGE_NUMERAL'
 
-    # Throws clause changes
-    if re.search(r'\bthrows\b', after) and not re.search(r'\bthrows\b', before):
+    # ── THROWS ───────────────────────────────────────────────────────────────
+    if re.search(r'\bthrows\b', after_s) and not re.search(r'\bthrows\b', before_s):
         return 'ADD_THROWS_EXCEPTION'
-    if re.search(r'\bthrows\b', before) and not re.search(r'\bthrows\b', after):
+    if re.search(r'\bthrows\b', before_s) and not re.search(r'\bthrows\b', after_s):
         return 'DELETE_THROWS_EXCEPTION'
 
-    # Modifier changes
+    # ── CHANGE_MODIFIER ──────────────────────────────────────────────────────
     b_mods = set(t for t in b_tokens if t in MODIFIERS)
     a_mods = set(t for t in a_tokens if t in MODIFIERS)
     if b_mods != a_mods:
         return 'CHANGE_MODIFIER'
 
-    # Operator changes – look for tokens that are only in operators set
+    # ── UNARY vs BINARY OPERATOR ─────────────────────────────────────────────
+    b_unary = re.findall(r'(?<![=<>!&|+\-*/])[+\-]{2}|(?<!\w)!(?!=)', before_s)
+    a_unary = re.findall(r'(?<![=<>!&|+\-*/])[+\-]{2}|(?<!\w)!(?!=)', after_s)
     b_ops = [t for t in b_tokens if t in OPERATORS]
     a_ops = [t for t in a_tokens if t in OPERATORS]
-    if b_ops != a_ops:
-        # Distinguish if/condition changes
-        if re.search(r'\bif\s*\(', before) or re.search(r'\bif\s*\(', after):
-            # More vs less specific if
-            if len(a_ops) > len(b_ops):
+
+    if before_s.startswith('if') or after_s.startswith('if') or \
+       re.search(r'\bif\s*\(', before_s) or re.search(r'\bif\s*\(', after_s):
+        if b_ops != a_ops or b_unary != a_unary:
+            if len(a_ops) + len(a_unary) > len(b_ops) + len(b_unary):
                 return 'MORE_SPECIFIC_IF'
             else:
                 return 'LESS_SPECIFIC_IF'
+
+    if b_unary != a_unary and b_ops == a_ops:
+        return 'CHANGE_UNARY_OPERATOR'
+    if b_ops != a_ops:
         return 'CHANGE_OPERATOR'
 
-    # Method name change: same structure but a method name differs
-    b_calls = re.findall(r'\b([a-zA-Z_]\w*)\s*\(', before)
-    a_calls = re.findall(r'\b([a-zA-Z_]\w*)\s*\(', after)
-    if b_calls and a_calls and b_calls != a_calls:
-        if len(b_calls) == len(a_calls):
-            return 'WRONG_FUNCTION_NAME'
-        return 'CHANGE_CALLER_EXPRESSION'
+    # ── METHOD CALL ANALYSIS ─────────────────────────────────────────────────
+    b_calls = re.findall(r'\b([a-zA-Z_]\w*)\s*\(', before_s)
+    a_calls = re.findall(r'\b([a-zA-Z_]\w*)\s*\(', after_s)
 
-    # Return statement change
-    if re.match(r'\s*return\b', before) and re.match(r'\s*return\b', after):
-        return 'CHANGE_RETURN_VALUE'
+    if b_calls and a_calls:
+        # Same method name, different argument counts
+        if b_calls[0] == a_calls[0]:
+            b_args = _get_call_args(before_s, b_calls[0])
+            a_args = _get_call_args(after_s, a_calls[0])
+            if len(b_args) != len(a_args):
+                return ('OVERLOAD_METHOD_MORE_ARGS' if len(a_args) > len(b_args)
+                        else 'OVERLOAD_METHOD_DELETED_ARGS')
+            # Same arg count but different order → SWAP_ARGUMENTS
+            if sorted(b_args) == sorted(a_args) and b_args != a_args:
+                return 'SWAP_ARGUMENTS'
+            # Same method, same args but caller changed
+            if b_calls != a_calls and len(b_calls) == len(a_calls):
+                b_callers = re.findall(r'(\w+)\.' + re.escape(b_calls[0]) + r'\s*\(', before_s)
+                a_callers = re.findall(r'(\w+)\.' + re.escape(a_calls[0]) + r'\s*\(', after_s)
+                if b_callers != a_callers:
+                    return 'CHANGE_CALLER_IN_FUNCTION_CALL'
+        # Different method name, same arg count → DIFFERENT_METHOD_SAME_ARGS
+        elif len(b_calls) == len(a_calls):
+            b_args = _get_call_args(before_s, b_calls[0])
+            a_args = _get_call_args(after_s, a_calls[0])
+            if len(b_args) == len(a_args):
+                return 'DIFFERENT_METHOD_SAME_ARGS'
+            return 'CHANGE_CALLER_IN_FUNCTION_CALL'
 
-    # Return type change on method signature
-    if re.search(r'(?:public|private|protected)\s+\w+\s+\w+\s*\(', before) and \
-       re.search(r'(?:public|private|protected)\s+\w+\s+\w+\s*\(', after):
-        b_type = re.search(r'(?:public|private|protected)\s+(\w+)\s+', before)
-        a_type = re.search(r'(?:public|private|protected)\s+(\w+)\s+', after)
-        if b_type and a_type and b_type.group(1) != a_type.group(1):
-            return 'MORE_SPECIFIC_RETURN_TYPE'
-
-    # Object/type name change
-    b_types = re.findall(r'\b[A-Z]\w*\b', before)
-    a_types = re.findall(r'\b[A-Z]\w*\b', after)
-    if b_types and a_types and set(b_types) != set(a_types):
-        return 'CHANGE_OBJECT'
-
-    # Operand (variable) change
+    # ── CHANGE_OPERAND (variable name changed, same structure) ───────────────
     b_ids = [t for t in b_tokens if re.match(r'[a-z_]\w+', t) and t not in MODIFIERS]
     a_ids = [t for t in a_tokens if re.match(r'[a-z_]\w+', t) and t not in MODIFIERS]
     if b_ids != a_ids and len(b_ids) == len(a_ids):
         return 'CHANGE_OPERAND'
 
-    return 'CHANGE_OPERAND'  # default fallback
+    # ── CHANGE_IDENTIFIER (type name, field, or non-method identifier changed) ─
+    b_caps = re.findall(r'\b[A-Z]\w*\b', before_s)
+    a_caps = re.findall(r'\b[A-Z]\w*\b', after_s)
+    if set(b_caps) != set(a_caps):
+        return 'CHANGE_IDENTIFIER'
+
+    # ── default fallback ──────────────────────────────────────────────────────
+    return 'CHANGE_OPERAND'
 
 
 def _parse_hunk_header(line: str) -> Tuple[int, int]:
@@ -277,20 +298,25 @@ class ManySStuBs4JGenerator:
                 stubs = _parse_single_line_hunks(diff_text, '')
 
                 for stub in stubs:
-                    # Build the patch snippet for this single hunk
-                    patch_snippet = (f"-{stub['sourceBeforeFix']}\n"
-                                     f"+{stub['sourceAfterFix']}")
+                    src_before = stub['sourceBeforeFix']
+                    src_after = stub['sourceAfterFix']
+                    # Build per-file patch snippet (unified diff lines for this hunk)
+                    patch_snippet = (f"-{src_before}\n+{src_after}")
                     dataset.append({
-                        'bugType': stub['bugType'],
-                        'commitSHA1': commit_hash,
-                        'fixCommitParentSHA1': parent_hash,
-                        'commitFile': stub['commitFile'],
-                        'patch': patch_snippet,
-                        'projectName': project_name,
-                        'bugLineNum': stub['bugLineNum'],
-                        'fixLineNum': stub['fixLineNum'],
-                        'sourceBeforeFix': stub['sourceBeforeFix'],
-                        'sourceAfterFix': stub['sourceAfterFix'],
+                        'bugType':              stub['bugType'],
+                        'fixCommitSHA1':        commit_hash,
+                        'fixCommitParentSHA1':  parent_hash,
+                        'bugFilePath':          stub['commitFile'],
+                        'fixPatch':             patch_snippet,
+                        'projectName':          project_name,
+                        'bugLineNum':           stub['bugLineNum'],
+                        'bugNodeStartChar':     0,
+                        'bugNodeLength':        len(src_before.strip()),
+                        'fixLineNum':           stub['fixLineNum'],
+                        'fixNodeStartChar':     0,
+                        'fixNodeLength':        len(src_after.strip()),
+                        'sourceBeforeFix':      src_before,
+                        'sourceAfterFix':       src_after,
                     })
                     
                     # Stop if we've found enough stubs
@@ -328,9 +354,10 @@ class ManySStuBs4JGenerator:
                 'generated_at': datetime.now().isoformat(),
                 'total_stubs': len(dataset),
                 'bug_type_distribution': type_counts,
-                'schema': ['bugType', 'commitSHA1', 'fixCommitParentSHA1',
-                           'commitFile', 'patch', 'projectName',
-                           'bugLineNum', 'fixLineNum',
+                'schema': ['bugType', 'fixCommitSHA1', 'fixCommitParentSHA1',
+                           'bugFilePath', 'fixPatch', 'projectName',
+                           'bugLineNum', 'bugNodeStartChar', 'bugNodeLength',
+                           'fixLineNum', 'fixNodeStartChar', 'fixNodeLength',
                            'sourceBeforeFix', 'sourceAfterFix'],
                 'bug_types': BUG_TYPES,
                 'issues': dataset,
@@ -364,14 +391,18 @@ manystubs4j_dataset_{self.timestamp}/
   "bug_type_distribution": {type_counts},
   "issues": [
     {{
-      "bugType": "CHANGE_OPERAND",
-      "commitSHA1": "abc123...",
+      "bugType": "CHANGE_OPERATOR",
+      "fixCommitSHA1": "abc123...",
       "fixCommitParentSHA1": "def456...",
-      "commitFile": "src/Main.java",
-      "patch": "-originalCode\\n+fixedCode",
-      "projectName": "kaprka",
+      "bugFilePath": "src/Main.java",
+      "fixPatch": "-originalCode\\n+fixedCode",
+      "projectName": "owner.repo",
       "bugLineNum": 42,
+      "bugNodeStartChar": 0,
+      "bugNodeLength": 25,
       "fixLineNum": 42,
+      "fixNodeStartChar": 0,
+      "fixNodeLength": 25,
       "sourceBeforeFix": "int x = a * b;",
       "sourceAfterFix": "int x = a + b;"
     }},
@@ -380,24 +411,24 @@ manystubs4j_dataset_{self.timestamp}/
 }}
 ```
 
-### Bug Types (16 categories):
+### Bug Types (16 categories — exact original enum values):
 ```
-1. CHANGE_OPERATOR        - Changed binary/unary operator (e.g., + to -)
-2. CHANGE_OPERAND         - Changed operand/variable (e.g., a to b)
-3. CHANGE_NUMERAL         - Changed numeric literal
-4. CHANGE_BOOLEAN_LITERAL - Flipped boolean (true <-> false)
-5. WRONG_FUNCTION_NAME    - Called different method
-6. CHANGE_MODIFIER        - Changed access modifier
-7. ADD_THROWS_EXCEPTION   - Added throws clause
-8. DELETE_THROWS_EXCEPTION - Removed throws clause
-9. CHANGE_EXCEPTION       - Different exception type
-10. MORE_SPECIFIC_IF      - More specific condition
-11. LESS_SPECIFIC_IF      - Less specific condition
-12. MORE_SPECIFIC_RETURN_TYPE - Changed return type
-13. CHANGE_STRING_LITERAL - Changed string constant
-14. CHANGE_RETURN_VALUE   - Different return value
-15. CHANGE_OBJECT         - Different object/type
-16. CHANGE_CALLER_EXPRESSION - Different method call
+1.  CHANGE_IDENTIFIER          - Changed variable/field/type identifier
+2.  CHANGE_NUMERAL             - Changed numeric literal
+3.  SWAP_BOOLEAN_LITERAL       - Flipped boolean (true <-> false)
+4.  CHANGE_MODIFIER            - Changed access modifier
+5.  DIFFERENT_METHOD_SAME_ARGS - Called different method with same args
+6.  OVERLOAD_METHOD_MORE_ARGS  - Same method called with more arguments
+7.  OVERLOAD_METHOD_DELETED_ARGS - Same method called with fewer arguments
+8.  CHANGE_CALLER_IN_FUNCTION_CALL - Same method but different caller object
+9.  SWAP_ARGUMENTS             - Same method but arguments swapped
+10. CHANGE_OPERATOR            - Changed binary operator
+11. CHANGE_UNARY_OPERATOR      - Changed unary operator (++/--)
+12. CHANGE_OPERAND             - Changed operand/variable
+13. LESS_SPECIFIC_IF           - Less specific if condition
+14. MORE_SPECIFIC_IF           - More specific if condition
+15. ADD_THROWS_EXCEPTION       - Added throws clause
+16. DELETE_THROWS_EXCEPTION    - Removed throws clause
 ```
 
 ### Statistics

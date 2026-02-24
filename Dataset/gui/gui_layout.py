@@ -296,16 +296,9 @@ class LayoutMixin:
                   relief='solid', bd=1, cursor='hand2',
                   command=self.clear_plan).pack(side=tk.LEFT, padx=2)
 
-        self.open_output_btn = tk.Button(
-            ctrl_row, text="Open Output",
-            font=('Segoe UI', 9, 'bold'),
-            bg=C['accent'], fg='white',
-            disabledforeground='white',
-            relief='flat', bd=0, cursor='hand2',
-            state=tk.DISABLED,
-            activebackground='#1a5276',
-            command=self._open_output_folder)
-        self.open_output_btn.pack(side=tk.LEFT, padx=2)
+        # 'Open Output' button removed per user request
+        # self.open_output_btn = tk.Button(...)
+        # self.open_output_btn.pack(...)
 
         # Progress bar
         self.progress_var = tk.DoubleVar(value=0)
@@ -539,7 +532,7 @@ class LayoutMixin:
                                        insertbackground=C['fg'])
         self.feedback_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 6))
         # placeholder for feedback field; normally agent-only
-        fb_placeholder = "Feedback (agent only)"
+        fb_placeholder = "Feedback ( Use for agent conversation)"
         self.feedback_entry.insert(0, fb_placeholder)
         self.feedback_entry.config(fg=C['fg_muted'])
         self.feedback_entry.bind('<FocusIn>', self.on_feedback_focus)
@@ -597,7 +590,7 @@ class LayoutMixin:
     def on_feedback_focus(self, event):
         """Clear placeholder when feedback field gets focus"""
         text = self.feedback_entry.get()
-        placeholder = "Feedback (agent only)"
+        placeholder = "Feedback ( Use for agent conversation)"
         if text == placeholder:
             self.feedback_entry.delete(0, tk.END)
             self.feedback_entry.config(fg=self.colors['fg'])
@@ -613,7 +606,7 @@ class LayoutMixin:
     def on_feedback_blur(self, event):
         """Restore placeholder in feedback field if emptied"""
         text = self.feedback_entry.get().strip()
-        placeholder = "Feedback (agent only)"
+        placeholder = "Feedback ( Use for agent conversation)"
         if not text:
             self.feedback_entry.insert(0, placeholder)
             self.feedback_entry.config(fg=self.colors['fg_muted'])

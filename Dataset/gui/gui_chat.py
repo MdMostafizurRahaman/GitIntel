@@ -372,25 +372,21 @@ class ChatMixin:
         for col, (htext, width, anchor) in enumerate(col_hdrs):
             tk.Label(tbl, text=htext, width=width, anchor=anchor,
                      font=('Segoe UI', 9, 'bold'),
-                     fg=C['fg'], bg=C['panel']).grid(
+                     fg='black', bg=C['panel']).grid(
                 row=0, column=col, padx=(0, 6), pady=(0, 4), sticky=anchor)
 
         tk.Frame(tbl, bg=C['border'], height=1).grid(
             row=1, column=0, columnspan=4, sticky='ew', pady=(0, 6))
 
-        row_fg = '#555d66' if not is_ai_generation else C['fg']
+        # phase labels and all values in table should be bold black
         for r_idx, (phase, inp, out, tot) in enumerate(rows, start=2):
             tk.Label(tbl, text=phase, width=36, anchor=tk.W,
-                     font=('Segoe UI', 9), fg=row_fg,
+                     font=('Segoe UI', 9, 'bold'), fg='black',
                      bg=C['panel']).grid(row=r_idx, column=0,
                                           padx=(0, 6), pady=2, sticky=tk.W)
-            for col_idx, (val, color) in enumerate(
-                [(inp, '#adbac7'), (out, '#79c0ff'), (tot, '#ffffff')], start=1
-            ):
-                if not is_ai_generation:
-                    color = '#3d444d'
+            for col_idx, val in enumerate((inp, out, tot), start=1):
                 tk.Label(tbl, text=f"{val:,}", width=[13, 13, 10][col_idx - 1],
-                         anchor=tk.E, font=('Consolas', 9), fg=color,
+                         anchor=tk.E, font=('Consolas', 9, 'bold'), fg='black',
                          bg=C['panel']).grid(row=r_idx, column=col_idx,
                                               padx=(0, 6), pady=2, sticky=tk.E)
 
@@ -400,17 +396,13 @@ class ChatMixin:
             row=sep_row, column=0, columnspan=4, sticky='ew', pady=(6, 4))
 
         tk.Label(tbl, text="TOTAL USED  (LLM only)", width=36, anchor=tk.W,
-                 font=('Segoe UI', 9, 'bold'), fg=C['fg'],
+                 font=('Segoe UI', 9, 'bold'), fg='black',
                  bg=C['panel']).grid(row=sep_row + 1, column=0,
                                       padx=(0, 6), pady=2, sticky=tk.W)
-        for col_idx, (val, color) in enumerate(
-            [(grand_in, '#adbac7'), (grand_out, '#79c0ff'), (grand_total, '#57ab5a')],
-            start=1
-        ):
-            if not is_ai_generation:
-                color = '#3d444d' if col_idx < 3 else '#555d66'
+        # total row values also bold black
+        for col_idx, val in enumerate((grand_in, grand_out, grand_total), start=1):
             tk.Label(tbl, text=f"{val:,}", width=[13, 13, 10][col_idx - 1],
-                     anchor=tk.E, font=('Consolas', 10, 'bold'), fg=color,
+                     anchor=tk.E, font=('Consolas', 10, 'bold'), fg='black',
                      bg=C['panel']).grid(row=sep_row + 1, column=col_idx,
                                           padx=(0, 6), pady=2, sticky=tk.E)
 
@@ -596,7 +588,6 @@ class ChatMixin:
                         self._update_plan_step("4", "done")
                         self.status_var.set(f"Dataset ready — {n} authors")
                         self.output_path_var.set(f"Output: {csv}")
-                        self.open_output_btn.config(state=tk.NORMAL)
                     self.root.after(0, _show_author_success)
                     return
                 else:
@@ -624,7 +615,6 @@ class ChatMixin:
                         }])
                         self._update_plan_step("4", "done")
                         self.output_path_var.set(f"Output: {csv}")
-                        self.open_output_btn.config(state=tk.NORMAL)
                     self.root.after(0, _show_gen_success)
                     return
             if not hasattr(module, "calculate"):
@@ -679,7 +669,6 @@ class ChatMixin:
                 self._update_plan_step("4", "done")
                 self.status_var.set(f"Dataset ready — {n} files")
                 self.output_path_var.set(f"Output: {csv}")
-                self.open_output_btn.config(state=tk.NORMAL)
             self.root.after(0, _show_file_success)
 
         except Exception as exc:

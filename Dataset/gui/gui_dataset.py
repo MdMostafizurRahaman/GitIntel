@@ -365,9 +365,10 @@ class DatasetMixin:
         btn_frame = ttk.Frame(quick_frame)
         btn_frame.pack(fill=tk.X)
         
+        # add a little extra gap between the two buttons so they aren't jammed together
         ttk.Button(btn_frame, text="Select All", command=select_all,
-                  style='Accent.TButton').pack(side=tk.LEFT, padx=2)
-        ttk.Button(btn_frame, text="Deselect All", command=deselect_all).pack(side=tk.LEFT, padx=2)
+                  style='Accent.TButton').pack(side=tk.LEFT, padx=(0,10))
+        ttk.Button(btn_frame, text="Deselect All", command=deselect_all).pack(side=tk.LEFT)
         
         # Selected count
         count_var = tk.StringVar(value="Selected: 0")
@@ -510,10 +511,11 @@ class DatasetMixin:
         btn_frame.pack(fill=tk.X, padx=10, pady=10)
         
         # Select/Deselect all
+        # separate metric select/deselect buttons with a larger gap
         ttk.Button(btn_frame, text="Select All",
-                  command=lambda: [v.set(True) for v in metric_vars.values()]).pack(side=tk.LEFT, padx=2)
+                  command=lambda: [v.set(True) for v in metric_vars.values()]).pack(side=tk.LEFT, padx=(0,10))
         ttk.Button(btn_frame, text="Deselect All",
-                  command=lambda: [v.set(False) for v in metric_vars.values()]).pack(side=tk.LEFT, padx=2)
+                  command=lambda: [v.set(False) for v in metric_vars.values()]).pack(side=tk.LEFT)
         
         # Save button
         def save_selection():

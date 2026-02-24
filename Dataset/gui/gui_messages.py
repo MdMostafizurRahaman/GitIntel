@@ -74,7 +74,7 @@ class MessagesMixin:
 
         # Render action buttons if any
         if actions:
-            for action in actions:
+            for idx, action in enumerate(actions):
                 label = action.get('label', 'Open')
                 callback = action.get('callback')
                 if callback:
@@ -89,7 +89,11 @@ class MessagesMixin:
                         command=callback
                     )
                     self.message_text.window_create(tk.END, window=btn)
-                    self.message_text.insert(tk.END, "\n")
+                    # add small gap between buttons
+                    if idx < len(actions) - 1:
+                        self.message_text.insert(tk.END, "   ")
+            # put a newline after all buttons (only one)
+            self.message_text.insert(tk.END, "\n")
 
         self.message_text.see(tk.END)
         self.message_text.config(state=tk.DISABLED)

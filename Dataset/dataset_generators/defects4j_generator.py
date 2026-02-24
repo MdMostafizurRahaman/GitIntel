@@ -217,8 +217,8 @@ class Defects4JGenerator:
 
                 bugs_data.append({
                     "bug_id": bug_count,
-                    "revision_id_buggy": parent_hash[:8],
-                    "revision_id_fixed": commit_hash[:8],
+                    "revision_id_buggy": parent_hash,
+                    "revision_id_fixed": commit_hash,
                     "report_id": issue_id or "NA",
                     "report_url": report_url,
                     "commit_message": commit_subject,
