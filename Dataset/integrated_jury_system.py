@@ -261,6 +261,7 @@ class IntegratedJurySystem:
         self._current_phase = "phase2"
         gen = self._phase2_generate(requirements, log)
         code = gen.get("code", "")
+        gen_description = gen.get("description", "Generated metric")
         log(f"  Type      : {gen.get('type', 'unknown')}")
         log(f"  Catalog   : {gen.get('catalog_calls', [])}")
         log(f"  Code size : {len(code)} chars")
@@ -309,6 +310,8 @@ class IntegratedJurySystem:
                 return {
                     "status": "success",
                     "code": final_code,
+                    "function_name": "calculate",
+                    "description": gen_description,
                     "iterations": attempt,
                     "test_results": test_results,
                     "requirements": requirements,
@@ -565,6 +568,23 @@ Return ONLY valid JSON (no markdown, no extra text):
             log = lambda _: None
 
         catalog = _get_catalog_summary()
+
+        # Only expose benchmark API if the user actually asked for benchmarks
+        benchmarks_needed = [b for b in requirements.get("benchmarks_needed", []) if b]
+        if benchmarks_needed:
+            benchmark_api_block = f"""  # Benchmark generation (user requested: {benchmarks_needed}):
+  MetricsCatalog.generate_benchmark(
+      benchmark_name: str,   # 'promise'|'defects4j'|'bugsjar'|
+                              # 'codesearchnet'|'codexglue'|'manystubs4j'|'sourcerer'
+      repo_path: str,
+      output_dir: str = None,
+      file_limit: int = None
+  ) -> dict"""
+            benchmark_rule = "  If benchmarks_needed is non-empty, call generate_benchmark for each one (call it once per benchmark key, NOT per file)."
+        else:
+            benchmark_api_block = "  # (No benchmarks requested — do NOT call generate_benchmark)"
+            benchmark_rule = "  CRITICAL: benchmarks_needed is empty — do NOT call generate_benchmark or any benchmark function under any circumstances."
+
         prompt = f"""You are Jury 2 — the Code Generator for a software-engineering dataset pipeline.
 
 TASK: Generate a self-contained Python module that fulfils this requirement:
@@ -585,14 +605,7 @@ Python API you must use:
   MetricsCatalog.calculate_ck_metrics(file_path)            # wmc, dit, noc, cbo, rfc, lcom
   MetricsCatalog.calculate_complexity_metrics(file_path)   # cyclomatic, cognitive, ...
 
-  # Benchmark generation:
-  MetricsCatalog.generate_benchmark(
-      benchmark_name: str,   # 'promise'|'defects4j'|'bugsjar'|
-                              # 'codesearchnet'|'codexglue'|'manystubs4j'|'sourcerer'
-      repo_path: str,
-      output_dir: str = None,
-      file_limit: int = None
-  ) -> dict
+{benchmark_api_block}
 
 CODE REQUIREMENTS:
 1. The module MUST expose a function:
@@ -601,6 +614,7 @@ CODE REQUIREMENTS:
 3. Return dict with at minimum: {{"metrics": {{...}}, "benchmarks": {{...}}, "error": None}}
 4. Keep the code clean, well-commented and importable.
 5. Prefer catalog functions; only write custom logic for custom_metrics not in catalog.
+6. {benchmark_rule}
 
 Return ONLY valid JSON (no markdown fences):
 {{
@@ -955,6 +969,126 @@ Return ONLY the raw Python test code — no markdown fences, no explanation:
             return callback
         return print  # fallback: print to console
 
+    # ── CSV runner boilerplate injected when output_format == "csv" ─────────
+    _CSV_RUNNER_TEMPLATE = '''
+
+import csv as _csv
+import argparse as _argparse
+
+_REQUESTED_METRICS = {requested_metrics}
+
+
+def _collect_files(repo_path: str, ext: str = ".java"):
+    """Walk repo_path and yield paths of files matching ext."""
+    import os as _os
+    for root, _, files in _os.walk(repo_path):
+        for fname in files:
+            if fname.endswith(ext):
+                yield _os.path.join(root, fname)
+
+
+def generate_csv(repo_path: str, output_csv: str, file_limit: int = None) -> str:
+    """Calculate metrics for every source file in repo_path and write a CSV.
+
+    Args:
+        repo_path:   Absolute path to the git repository root.
+        output_csv:  Destination CSV file path.
+        file_limit:  Optional cap on the number of files processed.
+
+    Returns:
+        Path to the written CSV.
+    """
+    import os as _os
+    if not _os.path.exists(repo_path):
+        raise FileNotFoundError(f"Repository path does not exist: {{repo_path}}")
+    if not _os.path.exists(_os.path.join(repo_path, ".git")):
+        raise ValueError(f"Not a git repository: {{repo_path}}")
+
+    files = list(_collect_files(repo_path))
+    if file_limit:
+        files = files[:file_limit]
+    if not files:
+        raise RuntimeError(f"No source files found in: {{repo_path}}")
+
+    fieldnames = ["file_path"] + list(_REQUESTED_METRICS) + ["error"]
+    _os.makedirs(_os.path.dirname(_os.path.abspath(output_csv)), exist_ok=True)
+
+    with open(output_csv, "w", newline="", encoding="utf-8") as f:
+        writer = _csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
+        writer.writeheader()
+        for idx, fpath in enumerate(files, 1):
+            print(f"[{{idx}}/{{len(files)}}] {{_os.path.relpath(fpath, repo_path)}}")
+            result = calculate(fpath, repo_path)
+            row = {{"file_path": _os.path.relpath(fpath, repo_path)}}
+            row.update(result.get("metrics", {{}}))
+            row["error"] = result.get("error") or ""
+            writer.writerow(row)
+
+    print(f"\\nDone — {{len(files)}} rows written to: {{output_csv}}")
+    return output_csv
+
+
+def main():
+    import os as _os, sys as _sys
+    parser = _argparse.ArgumentParser(
+        description="Generate metrics CSV from a git repository."
+    )
+    parser.add_argument(
+        "repo_path", nargs="?", default=None,
+        help="Path to the git repository. Falls back to ConfigManager default.",
+    )
+    parser.add_argument("-o", "--output", default=None,
+                        help="Output CSV path. Default: <repo_name>_metrics.csv.")
+    parser.add_argument("--limit", type=int, default=None, metavar="N",
+                        help="Process only the first N source files.")
+    args = parser.parse_args()
+
+    repo_path = args.repo_path
+    if not repo_path:
+        try:
+            _sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
+            from config.config_manager import ConfigManager
+            repo_path = ConfigManager().get_repo_path()
+            print(f"Using configured repo: {{repo_path}}")
+        except Exception:
+            parser.error(
+                "No repo_path supplied and no default found in config. "
+                "Pass the repo path as the first argument."
+            )
+
+    repo_path = _os.path.abspath(repo_path)
+    repo_name = _os.path.basename(repo_path)
+    output_csv = args.output or _os.path.join(
+        _os.path.dirname(_os.path.abspath(__file__)),
+        f"{{repo_name}}_metrics.csv",
+    )
+
+    generate_csv(repo_path, output_csv, file_limit=args.limit)
+
+
+if __name__ == "__main__":
+    main()
+'''
+
+    def _inject_csv_runner(self, code: str, requirements: Dict) -> str:
+        """
+        If output_format is csv and the code has no generate_csv / main block,
+        append the standard CSV runner so the script is immediately runnable.
+        """
+        if requirements.get("output_format", "").lower() != "csv":
+            return code
+        # Don't double-inject
+        if "generate_csv" in code or "if __name__" in code:
+            return code
+
+        # Collect the metric names the LLM put into REQUESTED_METRICS / requested_metrics,
+        # or fall back to the list from requirements.
+        metrics = requirements.get("metrics_needed", [])
+        runner = self._CSV_RUNNER_TEMPLATE.format(
+            requested_metrics=repr(metrics)
+        )
+        return code.rstrip() + "\n" + runner
+
     def _save_session(
         self,
         code: str,
@@ -968,7 +1102,8 @@ Return ONLY the raw Python test code — no markdown fences, no explanation:
             return
         try:
             sd = Path(self.session_dir)
-            (sd / "generated_code.py").write_text(code, encoding="utf-8")
+            final_code = self._inject_csv_runner(code, requirements)
+            (sd / "generated_code.py").write_text(final_code, encoding="utf-8")
             summary = {
                 "session_id": self.session_id,
                 "timestamp": datetime.now().isoformat(),

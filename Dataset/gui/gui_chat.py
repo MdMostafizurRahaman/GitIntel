@@ -275,18 +275,25 @@ class ChatMixin:
             self.output_path_var.set(f"Output: {session_dir}")
             self.status_var.set(f"Validated \u2014 {iters} iteration(s)")
 
-            # Apply the validated code to generate the actual dataset
+            # Apply the validated code to generate the actual dataset — auto-start,
+            # no second confirmation needed (user already confirmed at step 1).
             if code and self.repo_path:
-                self._jury_pending_code = (code, result.get("requirements", {}))
+                reqs = result.get("requirements", {})
+                self._jury_pending_code = (code, reqs)
+                self._last_jury_session_dir = session_dir
                 self._update_plan_step("4", "active")
-                self.confirm_label.config(
-                    text=f"Code validated! ({tr.get('passing_llms', 0)}/3 juries, "
-                         f"{tr.get('total_passed', 0)}/{tr.get('total_tests', 0)} tests)\n"
-                         f"Click Confirm to generate the actual dataset CSV."
+                fmt = (reqs.get("output_format") or "csv").upper()
+                self.add_agent_message(
+                    MessageType.THINKING,
+                    f"Starting dataset application — generating {fmt} from repository…\n"
+                    f"This may take a few minutes for large repos.",
                 )
-                self.confirm_yes_btn.config(command=self._confirm_cp2_yes)
-                self.confirm_no_btn.config(command=self._confirm_cp2_no)
-                self.set_approval_visible(True)
+                import threading as _t
+                _t.Thread(
+                    target=self._apply_jury_code_thread,
+                    args=(code, reqs),
+                    daemon=True,
+                ).start()
             elif code:
                 # No repo — show the code for manual use
                 preview = code[:600] + ("\n\u2026(truncated)" if len(code) > 600 else "")
@@ -506,6 +513,16 @@ class ChatMixin:
         os.makedirs(session_dir, exist_ok=True)
         output_csv = os.path.join(session_dir, 'dataset.csv')
 
+        # ── Read Data Limit from sidebar ─────────────────────────────────
+        raw_limit = (
+            self.file_limit_var.get().strip().lower()
+            if hasattr(self, 'file_limit_var') else 'all'
+        )
+        try:
+            _file_limit = None if raw_limit in ('all', '', '0') else int(raw_limit)
+        except ValueError:
+            _file_limit = 500
+
         tmp_path = None
         try:
             # Write to temp file
@@ -523,6 +540,97 @@ class ChatMixin:
             spec   = importlib.util.spec_from_file_location("_jury_generated", tmp_path)
             module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(module)
+
+            # ── Strategy 0: Benchmark-centric (defects4j / bugsjar / etc.) ──
+            # When the requirements list benchmarks, call each generator ONCE
+            # with commit_limit = _file_limit, then flatten the JSON output to
+            # CSV.  This avoids the LLM anti-pattern of calling generate_benchmark
+            # once per file (which ignores the limit and blows up the runtime).
+            benchmarks_needed = (requirements or {}).get("benchmarks_needed", [])
+            if benchmarks_needed and self.repo_path:
+                import json as _json2
+                parent_dir2 = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                if parent_dir2 not in _sys.path:
+                    _sys.path.insert(0, parent_dir2)
+                from metrics_catalog import MetricsCatalog as _MC
+
+                all_rows = []
+                errors   = []
+                for bname in benchmarks_needed:
+                    self.root.after(0, lambda b=bname, lim=_file_limit: self.add_agent_message(
+                        MessageType.THINKING,
+                        f"Running {b} benchmark"
+                        + (f" (limit: {lim} commits)" if lim else " (all commits)") + "…",
+                    ))
+                    try:
+                        bres = _MC.generate_benchmark(
+                            bname, self.repo_path,
+                            output_dir=session_dir,
+                            file_limit=_file_limit,   # mapped to commit_limit inside
+                        )
+                        if "error" in bres:
+                            errors.append(f"{bname}: {bres['error']}")
+                            continue
+                        # Read flattened bug rows from the written JSON file
+                        json_file = bres.get("json_file")
+                        if json_file and os.path.exists(json_file):
+                            with open(json_file, encoding="utf-8") as _jf:
+                                jdata = _json2.load(_jf)
+                            for bug in jdata.get("bugs", []):
+                                row = {"benchmark": bname}
+                                # Flatten: expand modified_files list to count only
+                                flat = {
+                                    k: (len(v) if isinstance(v, list) else v)
+                                    for k, v in bug.items()
+                                    if k != "modified_files"
+                                }
+                                row.update(flat)
+                                all_rows.append(row)
+                        else:
+                            errors.append(f"{bname}: json_file not found in result")
+                    except Exception as be:
+                        errors.append(f"{bname}: {be}")
+
+                if all_rows:
+                    import csv as _csv3
+                    seen = {}
+                    for r in all_rows:
+                        for k in r:
+                            seen.setdefault(k, None)
+                    cols = list(seen.keys())
+                    with open(output_csv, "w", newline="", encoding="utf-8") as _f:
+                        w = _csv3.DictWriter(_f, fieldnames=cols, extrasaction="ignore")
+                        w.writeheader()
+                        w.writerows(all_rows)
+                    total = len(all_rows)
+                    limit_note = (
+                        f" (limited to {_file_limit} commits per benchmark)"
+                        if _file_limit else ""
+                    )
+                    err_note = f"\n\n  Errors: {'; '.join(errors)}" if errors else ""
+                    msg = (
+                        f"Bug-commit dataset generated{limit_note} — {total} rows\n"
+                        f"  Columns : {len(cols)}\n"
+                        f"  Saved to:\n  {output_csv}"
+                        f"{err_note}"
+                    )
+                    def _show_bench_success(m=msg, csv=output_csv, n=total):
+                        folder = os.path.dirname(str(csv))
+                        self.add_agent_message(MessageType.SUCCESS, m, actions=[{
+                            'label': 'Open Dataset Folder',
+                            'callback': lambda p=folder: os.startfile(p) if os.path.exists(p) else None,
+                        }])
+                        self._update_plan_step("4", "done")
+                        self.status_var.set(f"Dataset ready — {n} bugs")
+                        self.output_path_var.set(f"Output: {csv}")
+                    self.root.after(0, _show_bench_success)
+                    return
+                elif errors:
+                    # All benchmarks errored — fall through to per-file strategies
+                    self.root.after(0, lambda e="; ".join(errors): self.add_agent_message(
+                        MessageType.THINKING,
+                        f"Benchmark strategy failed ({e}) — falling back to per-file mode…",
+                    ))
 
             # ── Strategy 1: Author-level ──────────────────────────────────────
             if hasattr(module, 'get_author_stats') and self.repo_path:
@@ -597,6 +705,48 @@ class ChatMixin:
                     ))
                     return
 
+            # ── Strategy 2b: generate_csv(repo_path, output_csv, file_limit) ───
+            # Used when the injected CSV runner is present (output_format=csv)
+            if hasattr(module, 'generate_csv') and self.repo_path:
+                try:
+                    result_csv = module.generate_csv(
+                        self.repo_path, output_csv, file_limit=_file_limit
+                    )
+                    total = None
+                    # Try to count rows in the written CSV
+                    try:
+                        import csv as _csv2
+                        with open(result_csv, newline='', encoding='utf-8') as _f:
+                            total = sum(1 for _ in _csv2.reader(_f)) - 1  # minus header
+                    except Exception:
+                        pass
+                    limit_note = (
+                        f" (limited to {_file_limit})"
+                        if _file_limit else ""
+                    )
+                    msg = (
+                        f"Dataset generated{limit_note} — "
+                        + (f"{total} rows" if total is not None else "file saved") +
+                        f"\n\nSaved to:\n  {result_csv}"
+                    )
+                    def _show_csv_success(m=msg, csv=result_csv):
+                        folder = os.path.dirname(str(csv))
+                        self.add_agent_message(MessageType.SUCCESS, m, actions=[{
+                            'label': 'Open Dataset Folder',
+                            'callback': lambda p=folder: os.startfile(p) if os.path.exists(p) else None,
+                        }])
+                        self._update_plan_step("4", "done")
+                        self.output_path_var.set(f"Output: {csv}")
+                        self.status_var.set(f"Dataset ready")
+                    self.root.after(0, _show_csv_success)
+                    return
+                except Exception as csv_exc:
+                    # Fall through to per-file strategy
+                    self.root.after(0, lambda e=str(csv_exc): self.add_agent_message(
+                        MessageType.THINKING,
+                        f"generate_csv() failed ({e}) — falling back to per-file mode…",
+                    ))
+
             # ── Strategy 2: generate_dataset(repo_path, output_dir) ──────────
             if hasattr(module, 'generate_dataset') and self.repo_path:
                 result = module.generate_dataset(self.repo_path, session_dir)
@@ -623,42 +773,120 @@ class ChatMixin:
                     "(expected: calculate / get_author_stats / generate_dataset)"
                 )
 
+            # ── Determine which file extensions to scan from requirements ────
+            lang = requirements.get('language', 'java') if requirements else 'java'
+            ext_map = {
+                'java':   ('.java',),
+                'python': ('.py',),
+                'any':    ('.java', '.py'),
+            }
+            target_exts = ext_map.get(lang, ('.java', '.py'))
+            skip_dirs = {"target", "build", ".git", "__pycache__",
+                         "node_modules", ".gradle", "dist", ".idea", ".mvn"}
+
             source_files = []
             if self.repo_path:
                 for root_dir, dirs, files in os.walk(self.repo_path):
-                    dirs[:] = [d for d in dirs
-                               if d not in {"target", "build", ".git", "__pycache__", "node_modules"}]
+                    dirs[:] = [d for d in dirs if d not in skip_dirs]
                     for fname in files:
-                        if fname.endswith((".java", ".py")):
+                        if fname.endswith(target_exts):
                             source_files.append(os.path.join(root_dir, fname))
-                        if len(source_files) >= 50:
-                            break
-                    if len(source_files) >= 50:
-                        break
             if not source_files:
                 source_files = [__file__]
 
+            # ── Apply the sidebar Data Limit setting ──────────────────────
+            total_found = len(source_files)
+            if _file_limit:
+                source_files = source_files[:_file_limit]
+
+            total_files = len(source_files)
+            limit_note = (
+                f" (limited to {_file_limit} of {total_found})"
+                if _file_limit and _file_limit < total_found
+                else ""
+            )
+            self.root.after(0, lambda n=total_files, note=limit_note: self.add_agent_message(
+                MessageType.THINKING,
+                f"Running metric code on {n} file(s){note}…",
+            ))
+
+            def _flatten(d: dict, prefix: str = '') -> dict:
+                """Flatten a nested dict, joining keys with '.'"""
+                out = {}
+                for k, v in d.items():
+                    key = f"{prefix}{k}" if not prefix else f"{prefix}.{k}"
+                    if isinstance(v, dict):
+                        out.update(_flatten(v, key))
+                    elif isinstance(v, list):
+                        out[key] = str(v)  # stringify lists
+                    else:
+                        out[key] = v
+                return out
+
             file_rows = []
-            for fp in source_files:
+            for idx, fp in enumerate(source_files, 1):
                 try:
                     res = module.calculate(fp, self.repo_path)
-                    m   = res.get('metrics', res) if isinstance(res, dict) else {}
-                    row = {'file': os.path.basename(fp)}
-                    row.update({k: v for k, v in m.items()
-                                if not k.startswith('_') and not isinstance(v, (list, dict))})
+                    if isinstance(res, dict):
+                        # Pull from 'metrics' sub-key if present, else use full dict
+                        core = res.get('metrics') if isinstance(res.get('metrics'), dict) else res
+                        row = {'file': os.path.relpath(fp, self.repo_path)
+                               if self.repo_path else os.path.basename(fp)}
+                        row.update(_flatten({k: v for k, v in core.items()
+                                             if k not in ('benchmarks', 'error')}))
+                        if res.get('error'):
+                            row['_error'] = str(res['error'])
+                    else:
+                        row = {'file': os.path.basename(fp), '_error': f"bad return: {type(res)}"}
                     file_rows.append(row)
                 except Exception as e:
-                    file_rows.append({'file': os.path.basename(fp), 'error': str(e)})
+                    file_rows.append({
+                        'file': os.path.relpath(fp, self.repo_path)
+                                if self.repo_path else os.path.basename(fp),
+                        '_error': str(e),
+                    })
 
-            if file_rows:
-                df = pd.DataFrame(file_rows)
-                df.to_csv(output_csv, index=False)
+                if idx % 50 == 0:
+                    self.root.after(0, lambda i=idx, t=total_files: self.add_agent_message(
+                        MessageType.THINKING, f"Progress: {i}/{t} files…"
+                    ))
+
+            if not file_rows:
+                raise RuntimeError("calculate() produced no rows — check generated code")
+
+            # ── Save in requested output format ───────────────────────────────
+            output_fmt = (requirements.get('output_format', 'csv') if requirements else 'csv') or 'csv'
+            # Build stable column order
+            seen_cols: dict = {}
+            for row in file_rows:
+                for k in row:
+                    seen_cols.setdefault(k, None)
+            all_cols = list(seen_cols.keys())
+
+            import json as _json
+            if output_fmt == 'jsonl':
+                output_csv = output_csv.replace('.csv', '.jsonl')
+                with open(output_csv, 'w', encoding='utf-8') as _f:
+                    for row in file_rows:
+                        _f.write(_json.dumps(row, default=str) + '\n')
+            elif output_fmt == 'json':
+                output_csv = output_csv.replace('.csv', '.json')
+                with open(output_csv, 'w', encoding='utf-8') as _f:
+                    _json.dump(file_rows, _f, indent=2, default=str)
+            else:
+                import csv as _csv
+                with open(output_csv, 'w', newline='', encoding='utf-8') as _f:
+                    writer = _csv.DictWriter(_f, fieldnames=all_cols, extrasaction='ignore')
+                    writer.writeheader()
+                    writer.writerows(file_rows)
 
             total = len(file_rows)
-            ok    = sum(1 for r in file_rows if 'error' not in r)
+            ok    = sum(1 for r in file_rows if '_error' not in r)
             preview = (
-                f"File-level Dataset — {ok}/{total} files processed\n\n"
-                f"Dataset saved to:\n  {output_csv}"
+                f"Dataset generated — {ok}/{total} files processed\n"
+                f"Columns  : {len(all_cols)}\n"
+                f"Format   : {output_fmt}\n\n"
+                f"Saved to:\n  {output_csv}"
             )
             def _show_file_success(m=preview, csv=output_csv, n=total):
                 folder = os.path.dirname(str(csv))

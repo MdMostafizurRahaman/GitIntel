@@ -499,95 +499,141 @@ class JuryTabMixin:
         }
     
     def _generate_dataset_with_jury_code(self, jury_result: Dict):
-        """Generate real dataset using jury-validated code"""
-        try:
-            self.root.after(0, lambda: self.add_agent_message(MessageType.INFO,
-                "  Extracting base metrics from repository..."))
-            
-            # Use existing dataset generation logic from _generate_metrics_dataset
-            # Get base metrics from repo
-            from metrics_generators.master_metrics_generator import MasterMetricsGenerator
-            
-            generator = MasterMetricsGenerator(self.repo_path)
-            java_files = list(Path(self.repo_path).rglob('*.java'))[:100]  # Limit for testing
-            
-            if not java_files:
-                self.root.after(0, lambda: self.add_agent_message(MessageType.ERROR,
-                    "  No Java files found in repository!"))
-                return
-            
-            self.root.after(0, lambda: self.add_agent_message(MessageType.INFO,
-                f"Found {len(java_files)} Java files. Extracting metrics..."))
-            
-            rows = []
-            for idx, file_path in enumerate(java_files, 1):
-                try:
-                    metrics = generator.extract_all_metrics(str(file_path))
-                    metrics['file'] = os.path.relpath(file_path, self.repo_path)
-                    rows.append(metrics)
-                    
-                    if idx % 10 == 0:
-                        self.root.after(0, lambda i=idx: self.add_agent_message(MessageType.INFO,
-                            f"Progress: {i}/{len(java_files)} files"))
-                except Exception as e:
-                    pass
-            
-            if not rows:
-                self.root.after(0, lambda: self.add_agent_message(MessageType.ERROR,
-                    "  Failed to extract metrics from repository!"))
-                return
-            
-            self.root.after(0, lambda: self.add_agent_message(MessageType.SUCCESS,
-                f"  Extracted base metrics from {len(rows)} files"))
-            
-            # Apply jury-validated custom metric
-            self.root.after(0, lambda: self.add_agent_message(MessageType.INFO,
-                f"🔧 Applying validated custom metric: {jury_result['function_name']}..."))
-            
-            custom_metric = self._convert_jury_to_metric_format(jury_result)
-            
-            from dataset_helpers import apply_custom_metrics
-            
-            rows, applied_count, errors = apply_custom_metrics(
-                rows, [custom_metric], self.repo_path
-            )
-            
-            if applied_count > 0:
-                self.root.after(0, lambda: self.add_agent_message(MessageType.SUCCESS,
-                    f"  Successfully applied custom metric!"))
-            else:
-                self.root.after(0, lambda: self.add_agent_message(MessageType.ERROR,
-                    f"  Custom metric application failed: {errors}"))
-                return
-            
-            # Save dataset
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            output_dir = Path('generated_datasets')
-            output_dir.mkdir(exist_ok=True)
-            output_file = output_dir / f"jury_dataset_{timestamp}.csv"
+        """Generate dataset by directly executing the validated calculate() on every repo file."""
+        import tempfile
+        import importlib.util
+        import sys as _sys
+        import json as _json
 
-            with open(output_file, 'w', newline='', encoding='utf-8') as f:
-                writer = csv.DictWriter(f, fieldnames=rows[0].keys())
-                writer.writeheader()
-                writer.writerows(rows)
-            
-            self.root.after(0, lambda: self.add_agent_message(MessageType.SUCCESS,
-                f"  Dataset saved: {output_file}\n"
-                f"   Records: {len(rows)}\n"
-                f"   Columns: {len(rows[0].keys())}\n"
-                f"   Custom metric: {jury_result['function_name']}"))
-            
-            self.root.after(0, lambda: messagebox.showinfo("Dataset Generated!",
-                f"Successfully generated dataset!\n\n"
-                f"File: {output_file}\n"
-                f"Records: {len(rows)}\n"
-                f"Columns: {len(rows[0].keys())}"
+        try:
+            requirements = jury_result.get('requirements', {})
+            lang         = requirements.get('language', 'java')
+            output_fmt   = (requirements.get('output_format', 'csv') or 'csv')
+            func_name    = jury_result.get('function_name', 'dataset')
+            session_dir  = jury_result.get('session_dir')
+
+            # ── Pick file extensions from requirements language ─────────────
+            ext_map   = {'java': ('.java',), 'python': ('.py',), 'any': ('.java', '.py')}
+            target_exts = ext_map.get(lang, ('.java',))
+            skip_dirs = {'.git', 'build', 'target', '__pycache__', 'node_modules', '.gradle'}
+
+            repo   = Path(self.repo_path)
+            files  = [
+                fp for pattern in target_exts
+                for fp in repo.rglob(f'*{pattern}')
+                if not any(p in skip_dirs for p in fp.parts)
+            ]
+
+            if not files:
+                self.root.after(0, lambda: self.add_agent_message(
+                    MessageType.ERROR,
+                    f"No {lang} files found in: {self.repo_path}"))
+                return
+
+            self.root.after(0, lambda n=len(files): self.add_agent_message(
+                MessageType.INFO, f"Found {n} file(s). Running validated metric code…"))
+
+            # ── Load validated code as a module ────────────────────────────
+            dataset_root = str(Path(__file__).parent.parent)
+            tmp = Path(tempfile.mktemp(suffix='_jury_metric.py'))
+            tmp.write_text(jury_result['code'], encoding='utf-8')
+
+            try:
+                for p in (dataset_root, str(tmp.parent)):
+                    if p not in _sys.path:
+                        _sys.path.insert(0, p)
+
+                spec = importlib.util.spec_from_file_location('_jury_metric', tmp)
+                mod  = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(mod)
+
+                def _flatten(d: dict, prefix: str = '') -> dict:
+                    out = {}
+                    for k, v in d.items():
+                        key = f"{prefix}.{k}" if prefix else k
+                        if isinstance(v, dict):
+                            out.update(_flatten(v, key))
+                        else:
+                            out[key] = str(v) if isinstance(v, list) else v
+                    return out
+
+                rows  = []
+                total = len(files)
+                for idx, fp in enumerate(files, 1):
+                    try:
+                        result = mod.calculate(str(fp), str(repo))
+                        if isinstance(result, dict):
+                            core = result.get('metrics') if isinstance(result.get('metrics'), dict) else result
+                            row  = {'file': str(fp.relative_to(repo))}
+                            row.update(_flatten({k: v for k, v in core.items()
+                                                 if k not in ('benchmarks', 'error')}))
+                            if result.get('error'):
+                                row['_error'] = str(result['error'])
+                            rows.append(row)
+                    except Exception:
+                        pass
+
+                    if idx % 50 == 0:
+                        self.root.after(0, lambda i=idx, t=total: self.add_agent_message(
+                            MessageType.INFO, f"Progress: {i}/{t}"))
+
+            finally:
+                try:
+                    tmp.unlink()
+                except Exception:
+                    pass
+
+            if not rows:
+                self.root.after(0, lambda: self.add_agent_message(
+                    MessageType.ERROR,
+                    "No data extracted. Verify the metric code runs on your repo files."))
+                return
+
+            # ── Build column order ─────────────────────────────────────────
+            seen: dict = {}
+            for row in rows:
+                for k in row:
+                    seen.setdefault(k, None)
+            all_cols = list(seen.keys())
+
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            out_dir   = Path(session_dir) if session_dir else Path('generated_datasets')
+            out_dir.mkdir(parents=True, exist_ok=True)
+
+            # ── Write output ───────────────────────────────────────────────
+            if output_fmt == 'jsonl':
+                out_file = out_dir / f"{func_name}_{timestamp}.jsonl"
+                with open(out_file, 'w', encoding='utf-8') as f:
+                    for row in rows:
+                        f.write(_json.dumps(row, default=str) + '\n')
+            elif output_fmt == 'json':
+                out_file = out_dir / f"{func_name}_{timestamp}.json"
+                with open(out_file, 'w', encoding='utf-8') as f:
+                    _json.dump(rows, f, indent=2, default=str)
+            else:
+                out_file = out_dir / f"{func_name}_{timestamp}.csv"
+                with open(out_file, 'w', newline='', encoding='utf-8') as f:
+                    writer = csv.DictWriter(f, fieldnames=all_cols, extrasaction='ignore')
+                    writer.writeheader()
+                    writer.writerows(rows)
+
+            msg = (
+                f" Dataset saved!\n"
+                f"  File    : {out_file}\n"
+                f"  Records : {len(rows)}\n"
+                f"  Columns : {len(all_cols)}\n"
+                f"  Format  : {output_fmt}"
+            )
+            self.root.after(0, lambda m=msg: self.add_agent_message(MessageType.SUCCESS, m))
+            self.root.after(0, lambda: messagebox.showinfo(
+                "Dataset Generated!",
+                f"File: {out_file}\nRecords: {len(rows)}\nColumns: {len(all_cols)}"
             ))
-            
+
         except Exception as e:
             error_msg = f"Error: {str(e)}\n{traceback.format_exc()}"
-            self.root.after(0, lambda msg=error_msg: self.add_agent_message(MessageType.ERROR,
-                f"  Dataset generation failed:\n{msg}"))
+            self.root.after(0, lambda msg=error_msg: self.add_agent_message(
+                MessageType.ERROR, f" Dataset generation failed:\n{msg}"))
     
 
 
