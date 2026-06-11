@@ -571,7 +571,12 @@ Return ONLY valid JSON (no markdown, no extra text):
 
         # Only expose benchmark API if the user actually asked for benchmarks
         benchmarks_needed = [b for b in requirements.get("benchmarks_needed", []) if b]
-        if benchmarks_needed:
+        # Check if custom metrics are requested (custom ones NOT in standard benchmark schemas)
+        custom_metrics_req = requirements.get("custom_metrics", [])
+        has_custom = bool(custom_metrics_req)
+        metrics_needed = requirements.get("metrics_needed", [])
+
+        if benchmarks_needed and not has_custom:
             benchmark_api_block = f"""  # Benchmark generation (user requested: {benchmarks_needed}):
   MetricsCatalog.generate_benchmark(
       benchmark_name: str,   # 'promise'|'defects4j'|'bugsjar'|
@@ -580,10 +585,13 @@ Return ONLY valid JSON (no markdown, no extra text):
       output_dir: str = None,
       file_limit: int = None
   ) -> dict"""
-            benchmark_rule = "  If benchmarks_needed is non-empty, call generate_benchmark for each one (call it once per benchmark key, NOT per file)."
+            benchmark_rule = "  If benchmarks_needed is non-empty AND no custom_metrics are requested, call generate_benchmark for each one (call it once per benchmark key, NOT per file)."
         else:
-            benchmark_api_block = "  # (No benchmarks requested — do NOT call generate_benchmark)"
-            benchmark_rule = "  CRITICAL: benchmarks_needed is empty — do NOT call generate_benchmark or any benchmark function under any circumstances."
+            benchmark_api_block = "  # (No benchmarks requested OR custom metrics requested — do NOT call generate_benchmark)"
+            if has_custom:
+                benchmark_rule = "  CRITICAL: custom_metrics were requested — benchmark generators have fixed schemas and WILL IGNORE custom metrics. DO NOT call generate_benchmark. Instead, use calculate_all_metrics() with selected_metrics parameter to ensure custom metrics are included."
+            else:
+                benchmark_rule = "  CRITICAL: benchmarks_needed is empty — do NOT call generate_benchmark or any benchmark function under any circumstances."
 
         prompt = f"""You are Jury 2 — the Code Generator for a software-engineering dataset pipeline.
 
@@ -598,7 +606,11 @@ Python API you must use:
   from metrics_catalog import MetricsCatalog
 
   # All 64 metrics for a single file:
-  MetricsCatalog.calculate_all_metrics(file_path: str, repo_path: str = None) -> dict
+  MetricsCatalog.calculate_all_metrics(file_path: str, repo_path: str = None, selected_metrics: list = None) -> dict
+
+  # IMPORTANT: To request specific metrics (including custom ones), pass selected_metrics:
+  # Example: MetricsCatalog.calculate_all_metrics(file_path, repo_path, selected_metrics=["num_files", "loc", "kloc"])
+  # This ensures repository-level metrics (num_files, num_commits, etc.) are included in the output
 
   # Specific categories:
   MetricsCatalog.calculate_loc_metrics(file_path)          # loc, cloc, bloc, soc
@@ -671,6 +683,14 @@ Fix the code so tests pass. Return ONLY valid JSON (no markdown fences):
         benchmarks = [
             b for b in requirements.get("benchmarks_needed", []) if b
         ]
+        metrics = requirements.get("metrics_needed", [])
+        custom_metrics = requirements.get("custom_metrics", [])
+
+        # CRITICAL: If custom metrics are requested, skip benchmark generators
+        # because they have fixed schemas and ignore custom metrics
+        if custom_metrics:
+            benchmarks = []  # Don't call benchmark generators
+
         bench_block = ""
         if benchmarks:
             bench_block = (
@@ -683,6 +703,11 @@ Fix the code so tests pass. Return ONLY valid JSON (no markdown fences):
                 "            result['benchmarks'][_b] = {'error': str(_e)}\n"
             )
 
+        # Pass selected_metrics if provided in requirements to ensure repo-level metrics are included
+        metrics_param = ""
+        if metrics:
+            metrics_param = f", selected_metrics={repr(metrics)}"
+
         return (
             "#!/usr/bin/env python3\n"
             '"""Auto-generated dataset calculator (fallback wrapper)"""\n'
@@ -693,7 +718,7 @@ Fix the code so tests pass. Return ONLY valid JSON (no markdown fences):
             "    result = {'metrics': {}, 'benchmarks': {}, 'error': None}\n"
             "    try:\n"
             "        result['metrics'] = MetricsCatalog.calculate_all_metrics(\n"
-            "            file_path=file_path, repo_path=repo_path\n"
+            "            file_path=file_path, repo_path=repo_path" + metrics_param + "\n"
             "        )\n"
             + bench_block +
             "    except Exception as e:\n"

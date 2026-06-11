@@ -22,7 +22,14 @@ class MetricsHelper:
 
     def _flat(self, file_path: str, selected_metrics: list = None) -> Dict[str, Any]:
         """Return flat metrics dict via MetricsCatalog."""
-        return self._catalog().calculate_all_metrics(file_path, self.repo_path, selected_metrics=selected_metrics)
+        metrics = self._catalog().calculate_all_metrics(file_path, self.repo_path, selected_metrics=selected_metrics)
+        
+        # Ensure repository-level metrics are included
+        if selected_metrics and 'num_files' in selected_metrics:
+            repo_metrics = self._catalog().get_repository_metrics(self.repo_path)
+            metrics.update(repo_metrics)
+        
+        return metrics
 
     # ------------------------------------------------------------------
     def get_all_metrics(self, file_path: str = None, selected_metrics: list = None) -> Dict[str, Any]:

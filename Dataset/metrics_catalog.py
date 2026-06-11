@@ -709,6 +709,10 @@ class MetricsCatalog:
         Pass selected_metrics to skip calculators whose outputs are not needed.
         Delegates to MasterMetricsGenerator when possible; falls back to
         individual calculators for CK / complexity metrics.
+
+        NOTE: Repository-level metrics like num_files are handled separately.
+        If selected_metrics is provided and includes repo-level metrics,
+        they will be automatically added to the result.
         """
         try:
             from pathlib import Path
@@ -716,7 +720,18 @@ class MetricsCatalog:
             generator_path = repo_path or str(Path(file_path).parent)
             generator = MasterMetricsGenerator(generator_path)
             result = generator.generate_all_metrics(file_path, selected_metrics=selected_metrics)
-            return result.get("metrics", {})
+            metrics = result.get("metrics", {})
+
+            # Add repository-level metrics if requested in selected_metrics
+            # (This is now ALWAYS checked, not just when selected_metrics is provided)
+            if selected_metrics:
+                repo_metrics = cls.get_repository_metrics(generator_path)
+                # Only add repo metrics that were explicitly requested
+                for metric_name in selected_metrics:
+                    if metric_name in repo_metrics:
+                        metrics[metric_name] = repo_metrics[metric_name]
+
+            return metrics
         except Exception:
             # Fallback: assemble from individual calculators
             metrics = {}
@@ -724,6 +739,17 @@ class MetricsCatalog:
             metrics.update(cls.calculate_ck_metrics(file_path))
             metrics.update(cls.calculate_complexity_metrics(file_path))
             return metrics
+    
+    @classmethod
+    def get_repository_metrics(cls, repo_path: str) -> dict:
+        """Get repository-level metrics (e.g., num_files)"""
+        try:
+            from metrics_generators import MasterMetricsGenerator
+            generator = MasterMetricsGenerator(repo_path)
+            return generator._get_repo_level_metrics()
+        except Exception as e:
+            print(f"[WARNING] Could not get repository metrics: {e}")
+            return {'num_files': 0}
 
     @classmethod
     def generate_benchmark(cls, benchmark_name: str, repo_path: str,

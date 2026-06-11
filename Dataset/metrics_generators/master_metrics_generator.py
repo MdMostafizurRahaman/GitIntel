@@ -57,6 +57,9 @@ class MasterMetricsGenerator:
     }
     # Groups that depend on other groups (must run if dependents are needed)
     _MAINT_DEPS = {'halst', 'loc', 'compl'}  # maintainability depends on these
+    
+    # Repository-level metrics that should NOT be calculated per file
+    _REPO_LEVEL_METRICS = {'num_files'}  # These are repository-wide, not per-file
 
     def _needs(self, group: str, selected: set) -> bool:
         """Return True if any metric in this group is needed."""
@@ -115,7 +118,8 @@ class MasterMetricsGenerator:
 
             # ========== SIZE Metrics (5) ==========
             if self._needs('size', sel):
-                metrics['metrics']['num_files'] = 1
+                # Skip num_files as it's a repository-level metric, not per-file
+                # num_files will be calculated and merged separately at the repository level
                 metrics['metrics']['num_classes'] = len(re.findall(r'\bclass\s+\w+', content))
                 metrics['metrics']['num_interfaces_count'] = len(re.findall(r'\binterface\s+\w+', content))
                 metrics['metrics']['num_methods'] = len(re.findall(r'\b(?:public|private|protected|static|def)\s+(?:\w+\s+)*\w+\s*\(', content))
@@ -280,6 +284,20 @@ class MasterMetricsGenerator:
                 all_metrics[str(source_file.relative_to(repo_path))] = file_metrics
         
         return all_metrics
+    
+    def _get_repo_level_metrics(self) -> Dict[str, Any]:
+        """Calculate repository-level metrics that apply to all files"""
+        repo_path = Path(self.repo_path)
+        
+        # Count actual code files
+        java_files = list(repo_path.rglob('*.java'))
+        py_files = list(repo_path.rglob('*.py'))
+        code_files = [f for f in java_files + py_files if '.git' not in f.parts]
+        num_files = len(code_files)
+        
+        return {
+            'num_files': num_files
+        }
     
     def export_to_csv(self, output_path: str, file_path: str = None):
         """Export metrics to CSV file"""
