@@ -31,7 +31,7 @@
   - [Full Redeploy Process](#full-redeploy-process)
   - [Clean Rebuild After Code Changes](#clean-rebuild-after-code-changes)
 - [Project Structure](#project-structure)
-- [Metrics Catalog (64 Metrics)](#metrics-catalog-64-metrics)
+- [Metrics Catalog (65 Metrics)](#metrics-catalog-65-metrics)
 - [Benchmark Datasets (7 Benchmarks)](#benchmark-datasets-7-benchmarks)
 - [Output Formats](#output-formats)
 - [Configuration Reference](#configuration-reference)
@@ -72,7 +72,7 @@ GitIntel follows a four-layer architecture as defined in the SRS:
 │  ┌───────────────────┐  ┌───────────────────┐                   │
 │  │ Repository        │  │ Metric            │                   │
 │  │ Analysis          │→ │ Computation       │                   │
-│  │                   │  │ (64 metrics,      │                   │
+│  │                   │  │ (65 metrics,      │                   │
 │  │ • AST parsing     │  │  14 categories)   │                   │
 │  │ • Commit mining   │  │                   │                   │
 │  │ • Static analysis │  └────────┬──────────┘                   │
@@ -127,7 +127,7 @@ GitIntel decomposes into five major components (from SRS Section 7.3):
           │          │              │              │              │
          GUI      Clone/        Static         LLM            Data
                Upload +       Analysis +    Generator +     Assembly +
-              Validation     64 Metrics +   Multi-LLM      Format Export
+               Validation     65 Metrics +   Multi-LLM      Format Export
                             7 Benchmarks     Jury (3        (CSV/JSON)
                                            Verifiers +
                                            Test Executor)
@@ -241,7 +241,7 @@ User launches GitIntel
 │  MODULE 6: Dataset Generation & Export               │
 │                                                      │
 │  ProcessingPipeline.execute(repo_data)               │
-│  • Compute all 64 selected metrics                   │
+│  • Compute all 65 selected metrics                   │
 │  • Apply custom metric code from jury                │
 │  • Merge benchmark data + predefined metrics         │
 │  • Apply custom metrics                              │
@@ -827,7 +827,7 @@ GitIntel/
         ├── .env                   # API credentials (not committed)
         │
         ├── integrated_jury_system.py     # IntegratedJurySystem — core LLM engine
-        ├── metrics_catalog.py            # MetricsCatalog — 64 metrics, 14 categories
+     ├── metrics_catalog.py            # MetricsCatalog — 65 metrics, 14 categories
         ├── dataset_generator.py          # GUI compatibility shim
         │
         ├── api/
@@ -902,7 +902,7 @@ GitIntel/
 
 ---
 
-## Metrics Catalog (64 Metrics)
+## Metrics Catalog (65 Metrics)
 
 All metrics are computed from actual source code — no synthetic or hardcoded values.
 
