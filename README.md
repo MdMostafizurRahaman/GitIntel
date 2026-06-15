@@ -1,23 +1,20 @@
 # GitIntel
+
 ## Conversational Intelligence for Comprehensive GitHub Repository Analysis
 
-> **SE-801 Software Project Lab III** — Institute of Information Technology, University of Dhaka
->
-> **Submitted by:** Md. Mostafizur Rahaman (Roll: 1320)
-> **Supervised by:** Mridha Md. Nafis Fuad, Lecturer, IIT, University of Dhaka
+**Motivation:** Modern software engineering research requires large-scale, high-quality datasets from real-world repositories. Constructing such datasets manually is labor-intensive, error-prone, and difficult to reproduce — especially for researchers in developing regions with limited resources. GitIntel democratizes access to research-grade repository analytics by providing an intelligent, fully automated pipeline.
 
 ---
 
 ## Table of Contents
 
 - [Abstract](#abstract)
-- [System Architecture](#system-architecture)
-  - [Layered Architecture](#layered-architecture)
-  - [Top-Level Components](#top-level-components)
-  - [System Workflow](#system-workflow)
-  - [Multi-LLM Jury Mechanism](#multi-llm-jury-mechanism)
-  - [Class Structure](#class-structure)
-  - [Deployment Architecture](#deployment-architecture)
+  - [Project Architecture](#project-architecture)
+    - [Layered Architecture](#layered-architecture)
+    - [System Workflow](#system-workflow)
+    - [Multi-LLM Jury Mechanism](#multi-llm-jury-mechanism)
+    - [Class Structure](#class-structure)
+    - [Deployment Architecture](#deployment-architecture)
 - [Features](#features)
 - [Prerequisites](#prerequisites)
 - [Installation](#installation)
@@ -36,7 +33,6 @@
 - [Output Formats](#output-formats)
 - [Configuration Reference](#configuration-reference)
 - [Troubleshooting](#troubleshooting)
-- [Research Context](#research-context)
 - [License](#license)
 
 ---
@@ -47,359 +43,109 @@ Software engineering research increasingly depends on large-scale GitHub reposit
 
 The system natively supports seven widely adopted research benchmarks — Defects4J, Bugs.jar, PROMISE, CodeXGLUE, CodeSearchNet, ManySStuBs4J, and Sourcerer — while computing comprehensive software metrics across lines of code, CK metrics, complexity measures, Halstead metrics, and more. A novel **multi-LLM jury architecture** (one generator + three independent judges) validates custom metric implementations through consensus-based verification, ensuring dataset reliability even when processing complex repository histories.
 
----
-
-## System Architecture
-
-### Layered Architecture
+## Project Architecture
 
 GitIntel follows a four-layer architecture as defined in the SRS:
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    PRESENTATION LAYER                           │
-│                                                                 │
-│   GUI (Tkinter/PyQt5) — Copilot-style interface with:           │
-│   • Task progress panel    • Agent conversation view            │
-│   • Column preview dialog  • User approval gates                │
-│   • 4 functional tabs      • Real-time execution logs           │
-└────────────────────────────┬────────────────────────────────────┘
-                             │
-                             ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                   BUSINESS LOGIC LAYER                          │
-│                                                                 │
-│  ┌───────────────────┐  ┌───────────────────┐                   │
-│  │ Repository        │  │ Metric            │                   │
-│  │ Analysis          │→ │ Computation       │                   │
-│  │                   │  │ (65 metrics,      │                   │
-│  │ • AST parsing     │  │  14 categories)   │                   │
-│  │ • Commit mining   │  │                   │                   │
-│  │ • Static analysis │  └────────┬──────────┘                   │
-│  └───────────────────┘           │                              │
-│                                  ▼                              │
-│  ┌──────────────────┐  ┌───────────────────┐                    │
-│  │ Code Generation  │  │ Dataset           │                    │
-│  │ & Validation     │← │ Assembly          │                    │
-│  │                  │  │                   │                    │
-│  │ • LLM Generator  │  │ • Metrics data    │                    │
-│  │ • 3 LLM Verifiers│  │ • Benchmark data  │                    │
-│  │ • Test execution │  │ • Custom metrics  │                    │
-│  │ • 5-iter retry   │  │                   │                    │
-│  └──────────────────┘  └───────────────────┘                    │
-└────────────────────────────┬────────────────────────────────────┘
-                             │
-                             ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                 SERVICE INTEGRATION LAYER                       │
-│                                                                 │
-│   LLM Service APIs (Internet connection required):              │
-│   ┌──────────────┐  ┌──────────────┐  ┌──────────────┐          │
-│   │ Google Gemini│  │  OpenAI GPT  │  │ AWS Bedrock  │          │
-│   │  (Primary)   │  │ (Secondary)  │  │  (Fallback)  │          │
-│   └──────────────┘  └──────────────┘  └──────────────┘          │
-└────────────────────────────┬────────────────────────────────────┘
-                             │
-                             ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                     FILE SYSTEM LAYER                           │
-│                                                                 │
-│   Local storage — no database used:                             │
-│   • clone/           Cloned repositories                        │
-│   • generated_datasets/  Output datasets (CSV / JSON)           │
-│   • temp/            Temporary code execution files             │
-│   • .env             API credentials                            │
-└─────────────────────────────────────────────────────────────────┘
-```
+![Layered Architecture](images/layered_architecture.png)
 
----
+### Layered Architecture
 
-### Top-Level Components
+- **Presentation Layer:** GUI (Tkinter/PyQt5) — Copilot-style interface with:
+  - Task progress panel
+  - Agent conversation view
+  - Column preview dialog
+  - User approval gates
+  - 4 functional tabs
+  - Real-time execution logs
 
-GitIntel decomposes into five major components (from SRS Section 7.3):
+- **Business Logic Layer:**
+  - Repository Analysis (AST parsing, commit mining, static analysis)
+  - Metric Computation (65 metrics, 14 categories)
+  - Code Generation & Validation (LLM Generator, 3 LLM Verifiers, Test execution, 5-iter retry)
+  - Dataset Assembly (Metrics data, Benchmark data, Custom metrics)
 
-```
-                              GitIntel
-          ┌──────────┬──────────────┬──────────────┬──────────────┐
-          │          │              │              │              │
-   User Interface  Repo        Analysis        Code          Dataset
-                Management     Engine        Generation     Generation
-          │          │              │              │              │
-         GUI      Clone/        Static         LLM            Data
-               Upload +       Analysis +    Generator +     Assembly +
-               Validation     65 Metrics +   Multi-LLM      Format Export
-                            7 Benchmarks     Jury (3        (CSV/JSON)
-                                           Verifiers +
-                                           Test Executor)
-```
+- **Service Integration Layer:**
+  - LLM Service APIs (Google Gemini - Primary, OpenAI GPT - Secondary, AWS Bedrock - Fallback)
 
----
+- **File System Layer:**
+  - Local storage (clone/, generated_datasets/, temp/, .env)
 
 ### System Workflow
 
 The complete end-to-end workflow follows six sequential modules:
 
-```
-User launches GitIntel
-        │
-        ▼
-┌─────────────────────────────────────────────────────┐
-│  MODULE 1: Repository Clone & Mode Selection        │
-│                                                     │
-│  ┌──────────────────┐    ┌──────────────────┐       │
-│  │  Remote URL      │    │  Local Path      │       │
-│  │  → Auto-clone    │    │  → Direct use    │       │
-│  └────────┬─────────┘    └────────┬─────────┘       │
-│           └──────────┬────────────┘                 │
-│                      ▼                              │
-│              Validate Repository                    │
-│                      │                              │
-│         ┌────────────┴────────────┐                 │
-│         ▼                         ▼                 │
-│      Ask Mode               Agent Mode              │
-│   (confirm each step)    (autonomous, minimal       │
-│                           user interaction)         │
-└──────────────────────┬──────────────────────────────┘
-                       │
-                       ▼
-┌──────────────────────────────────────────────────────┐
-│  MODULE 2: Requirement Specification                 │
-│                                                      │
-│  User provides natural language requirement via GUI  │
-│  e.g. "Generate bug prediction dataset with          │
-│        Defects4J + cyclomatic complexity + LOC"      │
-│                                                      │
-│  LLM parses and identifies:                          │
-│  • Benchmark metrics  (Defects4J, Bugs.jar, ...)     │
-│  • Predefined metrics (cyclomatic_complexity, ...)   │
-│  • Custom metrics     (Defect Density = ...)         │
-│                                                      │
-│  ← Iterative clarification until fully specified →   │
-└──────────────────────┬───────────────────────────────┘
-                       │
-                       ▼
-┌──────────────────────────────────────────────────────┐
-│  MODULE 3: Define Metrics Generation                 │
-│                                                      │
-│  For each requested metric:                          │
-│                                                      │
-│  MetricsCatalog.validate_metric(name)                │
-│        │                                             │
-│   Found? ──Yes──→ Use existing implementation        │
-│        │                                             │
-│        No                                            │
-│        ▼                                             │
-│  Flag as missing → Route to Multi-LLM Jury           │
-└──────────────────────┬───────────────────────────────┘
-                       │
-                       ▼
-┌──────────────────────────────────────────────────────┐
-│  MODULE 4: Benchmark Dataset Generation              │
-│                                                      │
-│  BaseExtractor subclass per benchmark:               │
-│  Defects4J / Bugs.jar / PROMISE / CodeXGLUE /        │
-│  CodeSearchNet / ManySStuBs4J / Sourcerer            │
-│                                                      │
-│  Extracts: buggy-fixed code pairs, commit-level      │
-│  annotations, historical defect information          │
-└──────────────────────┬───────────────────────────────┘
-                       │
-                       ▼
-┌──────────────────────────────────────────────────────┐
-│  MODULE 5: Multi-LLM Jury Evaluation                 │
-│  (only for custom / missing metrics)                 │
-│                                                      │
-│  ┌─────────────────────────────────────────────┐     │
-│  │  LLM GENERATOR                              │     │
-│  │  Generates Python code for the metric       │     │
-│  │  Function signature: calculate_formulas(df) │     │
-│  └─────────────────────┬───────────────────────┘     │
-│                        │ generated code              │
-│                        ▼                             │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐            │
-│  │VERIFIER 1│  │VERIFIER 2│  │VERIFIER 3│            │
-│  │ Generate │  │ Generate │  │ Generate │            │
-│  │ & run    │  │ & run    │  │ & run    │            │
-│  │ unit     │  │ unit     │  │ unit     │            │
-│  │ tests    │  │ tests    │  │ tests    │            │
-│  └────┬─────┘  └────┬─────┘  └────┬─────┘            │
-│       │             │             │                  │
-│       └─────────────┼─────────────┘                  │
-│                     ▼                                │
-│           Consensus Check: ≥ 2/3 pass?               │
-│                     │                                │
-│         Yes ────────┘──────────── No                 │
-│          │                         │                 │
-│          ▼                         ▼                 │
-│   Metric approved          Iteration < 5?            │
-│                           Yes → Fix & retry          │
-│                           No  → Human intervention   │
-└──────────────────────┬───────────────────────────────┘
-                       │
-                       ▼
-┌──────────────────────────────────────────────────────┐
-│  MODULE 6: Dataset Generation & Export               │
-│                                                      │
-│  ProcessingPipeline.execute(repo_data)               │
-│  • Compute all 65 selected metrics                   │
-│  • Apply custom metric code from jury                │
-│  • Merge benchmark data + predefined metrics         │
-│  • Apply custom metrics                              │
-│                                                      │
-│  Dataset.export_csv() / export_json()                │
-│  → generated_datasets/multi_agent_run_<timestamp>/   │
-└──────────────────────────────────────────────────────┘
-```
+![System Workflow](images/system_workflow.png)
 
----
+1. **Module 1:** Repository Clone & Mode Selection
+   - Remote URL → Auto-clone OR Local Path → Direct use
+   - Validate Repository
+   - Ask Mode (confirm each step) OR Agent Mode (autonomous, minimal user interaction)
+
+2. **Module 2:** Requirement Specification
+   - User provides natural language requirement via GUI
+   - LLM parses and identifies: Benchmark metrics, Predefined metrics, Custom metrics
+   - Iterative clarification until fully specified
+
+3. **Module 3:** Define Metrics Generation
+   - For each requested metric: MetricsCatalog.validate_metric(name)
+   - Found? → Use existing implementation
+   - No → Flag as missing → Route to Multi-LLM Jury
+
+4. **Module 4:** Benchmark Dataset Generation
+   - BaseExtractor subclass per benchmark: Defects4J / Bugs.jar / PROMISE / CodeXGLUE / CodeSearchNet / ManySStuBs4J / Sourcerer
+   - Extracts: buggy-fixed code pairs, commit-level annotations, historical defect information
+
+5. **Module 5:** Multi-LLM Jury Evaluation (only for custom / missing metrics)
+   - LLM GENERATOR: Generates Python code for the metric
+   - VERIFIER 1, VERIFIER 2, VERIFIER 3: Generate & run unit tests
+   - Consensus Check: ≥ 2/3 pass? → Metric approved OR < 2/3 pass → Iteration < 5? → Fix & retry OR iteration = 5 → HUMAN INTERVENTION REQUIRED
+
+6. **Module 6:** Dataset Generation & Export
+   - ProcessingPipeline.execute(repo_data)
+   - Compute all 65 selected metrics
+   - Apply custom metric code from jury
+   - Merge benchmark data + predefined metrics
+   - Apply custom metrics
+   - Dataset.export_csv() / export_json()
 
 ### Multi-LLM Jury Mechanism
 
 The jury system is the core innovation of GitIntel. It uses **1 code generator + 3 independent verifiers**, all running on LLMs (Google Gemini / AWS Bedrock):
 
-```
-Custom metric request
-        │
-        ▼
-┌───────────────────────────────────────┐
-│  LLMCodeJurySystem                    │
-│                                       │
-│  generator: GenerativeModel           │
-│  verifier_1, verifier_2, verifier_3:  │
-│              GenerativeModel          │
-│  multi_provider: MultiProviderLLM     │
-│  use_aws_fallback: bool               │
-│  attempt_count: int (max 5)           │
-└────────────────────┬──────────────────┘
-                     │
-         ┌───────────┘
-         │
-         ▼  Phase 1: Clarification
-    IntegratedJurySystem._phase1_understand_with_history()
-    → Asks clarifying questions until confidence > 60%
-    → Max 2 clarification rounds
-    → Returns: requirements dict
-         │
-         ▼  Phase 2: Code Generation
-    IntegratedJurySystem._phase2_generate_code()
-    → Checks MetricsCatalog first
-    → Generates: calculate_formulas(df, repo_path) → pd.DataFrame
-    → Returns: executable Python module as string
-         │
-         ▼  Phase 3: Test & Validate (3 verifiers in parallel)
-    AgenticCodeTestExecutor.generate_tests(code) → List[str]
-    AgenticCodeTestExecutor.execute_tests(code, tests) → TestResult
-         │
-         ├── 2/3 pass → SUCCESS → apply metric to dataset
-         │
-         └── < 2/3 pass → send error back to generator
-                    │
-                    ├── iteration < 5 → retry Phase 2
-                    │
-                    └── iteration = 5 → HUMAN INTERVENTION REQUIRED
-```
+![Multi-LLM Jury Mechanism](images/multi_llm_Jury.png)
 
-**LLM provider fallback chain:**
+- **Phase 1:** Clarification - Asks clarifying questions until confidence > 60%
+- **Phase 2:** Code Generation - Checks MetricsCatalog first, then writes code
+- **Phase 3:** Test & Validate (3 verifiers in parallel) - Independent unit test generation + execution
 
-```
-Google Gemini  →  OpenAI GPT  →  AWS Bedrock (Claude)
-   Primary          Secondary        Last resort
-```
-
----
+**LLM provider fallback chain:** Google Gemini → OpenAI GPT → AWS Bedrock (Claude)
 
 ### Class Structure
 
 Key classes and their relationships (from SRS CRC analysis):
 
-```
-┌─────────┐   initiates    ┌───────────────────┐    displays   ┌─────┐
-│  User   │ ────────────→  │  AgenticSystem    │ ────────────→ │ GUI │
-└─────────┘                │                   │               └─────┘
-     │                     │ - mode: AgentMode │
-     │ uploads             │ - repo_path       │
-     ▼                     │ - selected_metrics│
-┌────────────┐             │ - conversation    │
-│ Repository │ ──supplies→ │   _history        │
-│            │             └────────┬──────────┘
-│ - path     │                      │
-│ - commits  │           ┌──────────┼──────────────┐
-│ - metadata │           │          │              │
-└────────────┘           ▼          ▼              ▼
-                  ┌──────────┐ ┌──────────┐ ┌──────────────────┐
-                  │ Metrics  │ │  Base    │ │ LLMCodeJury      │
-                  │ Catalog  │ │Extractor │ │ System           │
-                  │          │ │          │ │                  │
-                  │ 64metrics│ │ 7 bench- │ │ 1 generator +    │
-                  │ 14 categ.│ │  marks   │ │ 3 verifiers      │
-                  └────┬─────┘ └────┬─────┘ └────────┬─────────┘
-                       │            │                │
-                       └────────────┼────────────────┘
-                                    ▼
-                         ┌─────────────────────┐
-                         │  ProcessingPipeline │
-                         │                     │
-                         │  - processors[]     │
-                         │  - execution_log    │
-                         └──────────┬──────────┘
-                                    │
-                                    ▼
-                           ┌────────────────┐
-                           │    Dataset     │
-                           │                │
-                           │ - data:        │
-                           │   pd.DataFrame │
-                           │ - CSV / JSON   │
-                           └────────────────┘
-```
+![Class Structure](images/class_structure.png)
 
----
+- **User** initiates → **AgenticSystem** displays → **GUI**
+- **Repository** supplies → **Metrics Catalog** (64 metrics, 14 categories)
+- **BaseExtractor** (7 benchmarks)
+- **LLMCodeJury System** (1 generator + 3 verifiers)
+- **ProcessingPipeline** (-processors[], -execution_log)
+- **Dataset** (-data: pd.DataFrame, -CSV / JSON)
 
 ### Deployment Architecture
 
 GitIntel runs entirely on the **user's local machine**. No server or database is required:
 
-```
-┌─────────────────────────────────────────────────┐
-│              User's Local Machine               │
-│                                                 │
-│  ┌─────────────────────────────────────────┐    │
-│  │       GitIntel Desktop Application      │    │
-│  │                                         │    │
-│  │  ┌────────────────┐  ┌───────────────┐  │    │
-│  │  │   GUI Layer    │  │  Processing   │  │    │
-│  │  │  (Tkinter /    │  │  Engine       │  │    │
-│  │  │   PyQt5)       │  │  (Analysis,   │  │    │
-│  │  └────────────────┘  │   Metrics,    │  │    │
-│  │                      │   Code Gen)   │  │    │
-│  │  ┌────────────────┐  └───────────────┘  │    │
-│  │  │ Core Components│  ┌───────────────┐  │    │
-│  │  │ AgenticSystem  │  │  Data Pipeline│  │    │
-│  │  │ Multi-LLM Jury │  │  (Extraction, │  │    │
-│  │  └────────────────┘  │   Assembly)   │  │    │
-│  │                      └───────────────┘  │    │
-│  │  Python Runtime (3.8+)                  │    │
-│  └──────────────────┬──────────────────────┘    │
-│                     │                           │
-│  ┌──────────────────▼──────────────────────┐    │
-│  │         Local File System               │    │
-│  │  clone/     generated_datasets/  .env   │    │
-│  └─────────────────────────────────────────┘    │
-└────────────────────┬────────────────────────────┘
-                     │ HTTPS API calls
-                     ▼
-┌─────────────────────────────────────────────────┐
-│           External Services (Internet)          │
-│                                                 │
-│  ┌──────────────┐ ┌────────────┐ ┌──────────┐   │
-│  │Google Gemini │ │ OpenAI GPT │ │  AWS     │   │
-│  │  (Primary)   │ │(Secondary) │ │ Bedrock  │   │
-│  └──────────────┘ └────────────┘ └──────────┘   │
-│              LLM Service APIs                   │
-└─────────────────────────────────────────────────┘
+![Deployment Architecture](images/deployment_architecture.png)
 
-Operating System: Windows 10/11 | macOS | Linux Ubuntu 20.04+
-```
+- **GitIntel Desktop Application**
+  - GUI Layer (Tkinter / PyQt5)
+  - Processing Engine (Analysis, Metrics, Code Gen)
+  - Core Components (AgenticSystem, Multi-LLM Jury, Data Pipeline)
+- **Local File System:** clone/, generated_datasets/, .env
+- **External Services:** Google Gemini (Primary), OpenAI GPT (Secondary), AWS Bedrock (Fallback)
 
 > **No database is used.** All data is stored on the local file system.
 
@@ -408,6 +154,7 @@ Operating System: Windows 10/11 | macOS | Linux Ubuntu 20.04+
 ## Features
 
 **Normal (Core) Features:**
+
 - Accept Git repositories by remote URL (auto-clone) or existing local path
 - Static analysis of source code and full commit history
 - Compute 64 predefined software engineering metrics across 14 categories
@@ -415,6 +162,7 @@ Operating System: Windows 10/11 | macOS | Linux Ubuntu 20.04+
 - Manually select any combination of metrics and benchmarks
 
 **Expected (Standard) Features:**
+
 - Natural language requirement interpretation via LLM
 - Iterative clarification until requirements are fully specified
 - Automatic detection of missing vs. available metrics
@@ -422,6 +170,7 @@ Operating System: Windows 10/11 | macOS | Linux Ubuntu 20.04+
 - Fully automated dataset generation from scratch for any repository
 
 **Exciting (Differentiating) Features:**
+
 - **Multi-LLM jury validation**: 3 independent LLMs validate all generated code
 - **Automated unit test generation**: each verifier independently writes and executes tests
 - **Consensus-based approval**: metric accepted only if ≥ 2/3 verifiers confirm
@@ -433,15 +182,16 @@ Operating System: Windows 10/11 | macOS | Linux Ubuntu 20.04+
 
 ## Prerequisites
 
-| Requirement | Version | Notes |
-|---|---|---|
-| Python | 3.8+ | 3.10 or 3.11 recommended |
-| Git | any | Required for repository cloning and history analysis |
-| LLM API key | — | Google Gemini (primary); AWS Bedrock as fallback |
-| OS | any | Windows 10/11, macOS, Linux Ubuntu 20.04+ |
-| Java | 8+ | Optional — needed only for Java repository static analysis |
+| Requirement | Version | Notes                                                       |
+| ----------- | ------- | ----------------------------------------------------------- |
+| Python      | 3.8+    | 3.10 or 3.11 recommended                                    |
+| Git         | any     | Required for repository cloning and history analysis        |
+| LLM API key | —      | Google Gemini (primary); AWS Bedrock as fallback            |
+| OS          | any     | Windows 10/11, macOS, Linux Ubuntu 20.04+                   |
+| Java        | 8+      | Optional — needed only for Java repository static analysis |
 
 **LLM API — minimum one required:**
+
 - Google Gemini API key (`GOOGLE_API_KEY`) — primary, free tier available
 - AWS Bedrock access (`AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY`) — fallback
 - OpenAI API key (`OPENAI_API_KEY`) — secondary fallback
@@ -466,12 +216,14 @@ cd GitIntelProject/Dataset/gui
 ### 3. Create and activate a virtual environment
 
 **Windows:**
+
 ```bash
 python -m venv venv
 venv\Scripts\activate
 ```
 
 **Linux / macOS:**
+
 ```bash
 python -m venv venv
 source venv/bin/activate
@@ -499,19 +251,19 @@ pip install boto3 botocore lizard radon fastapi uvicorn pyinstaller
 
 **Full dependency reference:**
 
-| Package | Purpose |
-|---|---|
-| `google-generativeai` | Google Gemini — primary LLM |
-| `boto3` / `botocore` | AWS Bedrock (Claude) — LLM fallback |
-| `pandas` / `numpy` | Data processing and dataset export |
-| `GitPython` | Git repository cloning and commit history |
-| `PyDriller` | Commit history mining and code churn extraction |
-| `lizard` | Cyclomatic complexity analysis |
-| `radon` | Maintainability index, Halstead metrics |
-| `PyQt5` | Qt-based GUI (alternative to Tkinter) |
-| `fastapi` / `uvicorn` | REST API server |
-| `python-dotenv` | `.env` file loading |
-| `pyinstaller` | Build standalone Windows/macOS/Linux executable |
+| Package                   | Purpose                                         |
+| ------------------------- | ----------------------------------------------- |
+| `google-generativeai`   | Google Gemini — primary LLM                    |
+| `boto3` / `botocore`  | AWS Bedrock (Claude) — LLM fallback            |
+| `pandas` / `numpy`    | Data processing and dataset export              |
+| `GitPython`             | Git repository cloning and commit history       |
+| `PyDriller`             | Commit history mining and code churn extraction |
+| `lizard`                | Cyclomatic complexity analysis                  |
+| `radon`                 | Maintainability index, Halstead metrics         |
+| `PyQt5`                 | Qt-based GUI (alternative to Tkinter)           |
+| `fastapi` / `uvicorn` | REST API server                                 |
+| `python-dotenv`         | `.env` file loading                           |
+| `pyinstaller`           | Build standalone Windows/macOS/Linux executable |
 
 ---
 
@@ -582,14 +334,14 @@ API docs available at `http://localhost:8000/docs`.
 
 **Endpoints:**
 
-| Method | Path | Description |
-|---|---|---|
-| `GET` | `/api/health` | Health check |
-| `GET` | `/api/datasets` | List 7 supported benchmarks |
-| `POST` | `/api/extract` | Extract data from repository |
-| `POST` | `/api/process` | Normalize and compute metrics |
-| `POST` | `/api/label` | Apply defect labels |
-| `POST` | `/api/export` | Export to CSV / JSON / JSONL |
+| Method   | Path              | Description                   |
+| -------- | ----------------- | ----------------------------- |
+| `GET`  | `/api/health`   | Health check                  |
+| `GET`  | `/api/datasets` | List 7 supported benchmarks   |
+| `POST` | `/api/extract`  | Extract data from repository  |
+| `POST` | `/api/process`  | Normalize and compute metrics |
+| `POST` | `/api/label`    | Apply defect labels           |
+| `POST` | `/api/export`   | Export to CSV / JSON / JSONL  |
 
 ---
 
@@ -602,6 +354,7 @@ The GUI is implemented using a mixin-based architecture. Four functional tabs:
 The main tab for end-to-end dataset generation.
 
 **Sidebar:**
+
 - Repository selector (Browse / Clone / Set path)
 - 7 benchmark checkboxes
 - 64-metric selector (modal dialog, organized by category)
@@ -609,12 +362,14 @@ The main tab for end-to-end dataset generation.
 - Generate Dataset / Clear buttons
 
 **Center panel:**
+
 - Task plan list with real-time progress tracking
 - Natural language chat input for dataset requests
 - Start / Pause / Clear / Open Output controls
 - Progress bar
 
 **Workflow triggered:**
+
 ```
 Verify Repository → Analyze (static analysis) → Generate Dataset → Save to output/
 ```
@@ -626,6 +381,7 @@ Verify Repository → Analyze (static analysis) → Generate Dataset → Save to
 Direct interface to the `IntegratedJurySystem` for custom metric code generation.
 
 **4-step integrated workflow:**
+
 ```
 Step 1  →  Jury 1 (Clarifier): iterative Q&A until requirements clear
 Step 2  →  Jury 2 (Generator): check MetricsCatalog, then write code
@@ -634,6 +390,7 @@ Step 4  →  Validation: 2/3 consensus required; retry up to 5× or escalate
 ```
 
 **Session management:**
+
 - Session dir: `generated_datasets/jury_YYYYMMDD_HHMMSS_XXXXXX/`
 - Artifacts saved: `prompt.txt`, `code.py`, `test_results.json`
 
@@ -644,11 +401,13 @@ Step 4  →  Validation: 2/3 consensus required; retry up to 5× or escalate
 Define and validate metrics expressed as mathematical formulas or plain English descriptions.
 
 **Three approval gates:**
+
 1. Formula generation approval (review generated code)
 2. Plan approval (confirm analysis scope)
 3. Final preview approval (review sample output)
 
 **Validation stages:**
+
 ```
 Code Generation → 3 judges approve/reject
 Test Generation → generate N tests, compute quality score
@@ -663,11 +422,13 @@ Validation      → success OR failed_max_retries (after 5 iterations)
 Monitor and control the full agentic workflow with detailed agent-level logging.
 
 **Metrics selection panel:**
+
 - Category filter dropdown (12 categories)
 - Searchable metrics listbox (64 total)
 - Quick-select: All / None / Popular preset
 
 **Workflow controls:**
+
 - Configure: repository path + natural language request + selected metrics
 - Execute: run full pipeline with progress callbacks
 - Color-coded log: per-agent activity in real time
@@ -907,53 +668,65 @@ GitIntel/
 All metrics are computed from actual source code — no synthetic or hardcoded values.
 
 ### 1. LOC Metrics (5)
-| Metric | Description |
-|---|---|
-| `loc` | Total lines of code |
-| `kloc` | Lines of code in thousands |
-| `soc` | Source-only lines (no comments/blanks) |
-| `cloc` | Comment lines count |
-| `bloc` | Blank lines count |
+
+| Metric   | Description                            |
+| -------- | -------------------------------------- |
+| `loc`  | Total lines of code                    |
+| `kloc` | Lines of code in thousands             |
+| `soc`  | Source-only lines (no comments/blanks) |
+| `cloc` | Comment lines count                    |
+| `bloc` | Blank lines count                      |
 
 ### 2. Size Metrics (4)
+
 `num_files` · `num_classes` · `num_methods` · `num_statements`
 
 ### 3. Complexity Metrics (4)
-| Metric | Tool |
-|---|---|
-| `cyclomatic_complexity` | lizard |
-| `cognitive_complexity` | AST analysis |
-| `essential_complexity` | Control flow |
-| `max_nesting_depth` | AST traversal |
+
+| Metric                    | Tool          |
+| ------------------------- | ------------- |
+| `cyclomatic_complexity` | lizard        |
+| `cognitive_complexity`  | AST analysis  |
+| `essential_complexity`  | Control flow  |
+| `max_nesting_depth`     | AST traversal |
 
 ### 4. Change / Churn Metrics (4)
+
 `churn` · `additions` · `deletions` · `changes`
 *(extracted via GitPython / PyDriller from commit history)*
 
 ### 5. CK Metrics (6)
+
 `WMC` (Weighted Methods per Class) · `DIT` (Depth of Inheritance Tree) · `NOC` (Number of Children) · `CBO` (Coupling Between Objects) · `RFC` (Response for a Class) · `LCOM` (Lack of Cohesion of Methods)
 
 ### 6. Maintainability Metrics (3)
+
 `maintainability_index` · `technical_debt` · `code_smells`
 *(depends on Halstead + LOC + Complexity — computed after those groups)*
 
 ### 7. Halstead Metrics (5)
+
 `halstead_volume` · `halstead_difficulty` · `halstead_effort` · `halstead_time` · `halstead_bugs`
 *(computed via radon)*
 
 ### 8. Defect Metrics (8)
+
 `defect_type` · `severity` · `priority` · `bug_density` · `num_bugs` · `vulnerabilities` · `has_defect` · `pre_release_bugs`
 
 ### 9. Quality Metrics (4)
+
 `duplication` · `test_coverage` · `documentation` · `comment_ratio`
 
 ### 10. OOP Metrics (8)
+
 `NPM` (Non-Private Methods) · `NPRM` · `NPA` · `NPRA` · `fan_in` · `fan_out` · `NOI` · `NOP`
 
 ### 11. Coupling Metrics (4)
+
 `afferent_coupling` · `efferent_coupling` · `instability` · `abstractness`
 
 ### 12. Process Metrics (10)
+
 `num_authors` · `num_commits` · `code_age` · `change_frequency` · `pre_release_bugs` · `post_release_bugs` · `bug_fix_time` · `revisions` · `loc_added` · `loc_deleted`
 
 ---
@@ -961,41 +734,48 @@ All metrics are computed from actual source code — no synthetic or hardcoded v
 ## Benchmark Datasets (7 Benchmarks)
 
 ### Defects4J
+
 - **Source:** https://github.com/rjust/defects4j
 - **Coverage:** 835 real bugs from 17 Java projects
 - **Use cases:** Bug prediction, test generation, program repair
 - **Output schema:** `bug_id, revision_id_buggy, revision_id_fixed, commit_message, author_name, files_modified, has_patch`
 
 ### Bugs.jar
+
 - **Source:** https://github.com/bugs-dot-jar/bugs-dot-jar
 - **Coverage:** 1,158 bugs from 8 Apache/Java libraries (Commons, Camel, Wicket, Maven, Flink, etc.)
 - **Use cases:** Bug analysis, defect prediction, clone detection
 - **Output schema:** `bug_id, project, buggy_commit, fixed_commit, issue_id, files_changed, lines_added, lines_deleted`
 
 ### ManySStuBs4J
+
 - **Source:** https://github.com/maldil/ManySStuBs4J
 - **Coverage:** 153,000+ single-statement bugs with 16 classifications
 - **Bug types:** `CHANGE_OPERATOR` · `CHANGE_OPERAND` · `CHANGE_NUMERAL` · `WRONG_FUNCTION_NAME` · `CHANGE_MODIFIER` · `MORE_SPECIFIC_IF` · and 10 more
 - **Output schema:** `bugType, commitSHA1, patch, bugLineNum, sourceBeforeFix, sourceAfterFix`
 
 ### CodeSearchNet
+
 - **Source:** https://github.com/github/CodeSearchNet
 - **Coverage:** 100,000+ method/documentation pairs — Java, Python, Go, PHP, Ruby, JavaScript
 - **Split:** 80% train / 10% valid / 10% test
 - **Output schema:** `repo, func_name, language, original_string, code_tokens, docstring, partition`
 
 ### PROMISE
+
 - **Source:** http://promise.site.uottawa.ca/
 - **Coverage:** 44-column metrics for every Java file in the repository
 - **Metrics:** CK + Halstead + LOC + Complexity = 44 total columns
 - **Output schema:** 44 columns including `wmc, dit, noc, cbo, rfc, lcom, halstead_volume, ..., bug, defects`
 
 ### Sourcerer
+
 - **Source:** https://sourcerer.ics.uci.edu/
 - **Coverage:** File-level OOP and build system metrics for all Java files
 - **Output schema:** `project, file_path, num_classes, num_interfaces, num_methods, inheritance_depth, has_pom, has_gradle`
 
 ### CodeXGLUE
+
 - **Source:** https://github.com/microsoft/CodeXGLUE
 - **Tasks:** Clone Detection · Defect Detection · Code Refinement
 - **Output:** Per-task subdirectories with `data.jsonl` + `train/valid/test.txt` splits
@@ -1006,12 +786,12 @@ All metrics are computed from actual source code — no synthetic or hardcoded v
 
 All outputs written to `generated_datasets/multi_agent_run_<timestamp>/`:
 
-| Format | Extension | Best for |
-|---|---|---|
-| CSV | `.csv` | Spreadsheet tools, pandas, sklearn |
-| JSON | `.json` | Structured / nested data |
-| JSONL | `.jsonl` | Streaming, Hugging Face datasets |
-| Parquet | `.parquet` | Large datasets, columnar queries |
+| Format  | Extension    | Best for                           |
+| ------- | ------------ | ---------------------------------- |
+| CSV     | `.csv`     | Spreadsheet tools, pandas, sklearn |
+| JSON    | `.json`    | Structured / nested data           |
+| JSONL   | `.jsonl`   | Streaming, Hugging Face datasets   |
+| Parquet | `.parquet` | Large datasets, columnar queries   |
 
 Example CSV output:
 
@@ -1023,6 +803,7 @@ src/parser.java,22,430,0.07,true
 ```
 
 Each run also produces a metadata file with:
+
 - Repository information
 - Metrics selected and their sources (predefined / auto-generated)
 - Benchmark configurations used
@@ -1035,26 +816,26 @@ Each run also produces a metadata file with:
 
 ### Environment Variables
 
-| Variable | Required | Default | Description |
-|---|---|---|---|
-| `GOOGLE_API_KEY` | Yes* | — | Google Gemini — primary LLM |
-| `AWS_ACCESS_KEY_ID` | Yes* | — | AWS IAM key — Bedrock fallback |
-| `AWS_SECRET_ACCESS_KEY` | Yes* | — | AWS IAM secret |
-| `AWS_DEFAULT_REGION` | No | `us-east-1` | AWS region for Bedrock |
-| `OPENAI_API_KEY` | No | — | OpenAI — secondary LLM |
-| `GITHUB_TOKEN` | No | — | Avoids GitHub API rate limits |
-| `NEO4J_URI` | No | — | Neo4j for knowledge graph |
-| `NEO4J_USERNAME` | No | `neo4j` | Neo4j username |
-| `NEO4J_PASSWORD` | No | — | Neo4j password |
+| Variable                  | Required | Default       | Description                     |
+| ------------------------- | -------- | ------------- | ------------------------------- |
+| `GOOGLE_API_KEY`        | Yes*     | —            | Google Gemini — primary LLM    |
+| `AWS_ACCESS_KEY_ID`     | Yes*     | —            | AWS IAM key — Bedrock fallback |
+| `AWS_SECRET_ACCESS_KEY` | Yes*     | —            | AWS IAM secret                  |
+| `AWS_DEFAULT_REGION`    | No       | `us-east-1` | AWS region for Bedrock          |
+| `OPENAI_API_KEY`        | No       | —            | OpenAI — secondary LLM         |
+| `GITHUB_TOKEN`          | No       | —            | Avoids GitHub API rate limits   |
+| `NEO4J_URI`             | No       | —            | Neo4j for knowledge graph       |
+| `NEO4J_USERNAME`        | No       | `neo4j`     | Neo4j username                  |
+| `NEO4J_PASSWORD`        | No       | —            | Neo4j password                  |
 
 \* At least one LLM provider credential is required (`GOOGLE_API_KEY` or AWS credentials).
 
 ### AgenticSystem Modes
 
-| Mode | Behavior |
-|---|---|
-| **Ask Mode** | Requests confirmation before each major step; shows column preview; user can modify selections at each stage |
-| **Agent Mode** | Proceeds autonomously; user interaction only for clarification and human-intervention escalation |
+| Mode                 | Behavior                                                                                                     |
+| -------------------- | ------------------------------------------------------------------------------------------------------------ |
+| **Ask Mode**   | Requests confirmation before each major step; shows column preview; user can modify selections at each stage |
+| **Agent Mode** | Proceeds autonomously; user interaction only for clarification and human-intervention escalation             |
 
 ---
 
@@ -1123,26 +904,6 @@ taskkill /PID <pid> /F
 
 ---
 
-## Research Context
-
-**Project:** SE-801 Software Project Lab III
-**Institution:** Institute of Information Technology (IIT), University of Dhaka
-**Student:** Md. Mostafizur Rahaman (BSSE-1320)
-**Supervisor:** Mridha Md. Nafis Fuad, Lecturer, IIT, University of Dhaka
-**Submission:** January 13, 2026
-
-**Motivation:** Modern software engineering research requires large-scale, high-quality datasets from real-world repositories. Constructing such datasets manually is labor-intensive, error-prone, and difficult to reproduce — especially for researchers in developing regions with limited resources. GitIntel democratizes access to research-grade repository analytics by providing an intelligent, fully automated pipeline.
-
-**References:**
-
-[1] S. Abedu, L. Menneron, S. Khatoonabadi, "RepoChat: An LLM-Powered Chatbot for GitHub Repository Question-Answering," MSR 2025, IEEE/ACM, Ottawa, Canada.
-
-[2] S. Abedu, A. Abdellatif, E. Shihab, "LLM-Based Chatbots for Mining Software Repositories: Challenges and Opportunities," EASE 2024.
-
-[3] T. Berkane, M. Charpignon, M. Majumder, "LLM-Based Web Data Collection for Research Dataset Creation," medRxiv.
-
----
-
 ## Contributing
 
 Priority areas for contribution:
@@ -1161,15 +922,7 @@ Open an issue before submitting large pull requests.
 
 MIT License — see `LICENSE` for details.
 
----
-
-## Acknowledgments
-
-- Static analysis tools: [lizard](https://github.com/terryyin/lizard), [radon](https://github.com/rubik/radon), [GitPython](https://gitpython.readthedocs.io/), [PyDriller](https://pydriller.readthedocs.io/)
-- LLM providers: [Google Gemini](https://ai.google.dev/), [AWS Bedrock](https://aws.amazon.com/bedrock/) (Anthropic Claude)
-- Knowledge graph: [Neo4j](https://neo4j.com/)
-- Benchmark datasets: Defects4J, Bugs.jar, ManySStuBs4J, CodeXGLUE, CodeSearchNet, Sourcerer, PROMISE
 
 ---
 
-**Version:** 2.0.0 | **Status:** Production Ready | **Platform:** Windows / macOS / Linux
+**Version:** 2.0.0 | **Platform:** Windows / macOS / Linux
