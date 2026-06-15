@@ -276,13 +276,14 @@ Create a `.env` file in `GitIntelProject/Dataset/` (one level above `gui/`):
 # Primary: Google Gemini (free tier available)
 GOOGLE_API_KEY=your_google_api_key
 
+JURRY_1=your_gemini_api_key_1
+JURRY_2=your_gemini_api_key_2
+JURRY_3=your_gemini_api_key_3
+
 # Fallback: AWS Bedrock (Claude)
 AWS_ACCESS_KEY_ID=your_aws_access_key_id
 AWS_SECRET_ACCESS_KEY=your_aws_secret_access_key
 AWS_DEFAULT_REGION=us-east-1
-
-# Optional: OpenAI (secondary LLM provider)
-OPENAI_API_KEY=your_openai_api_key
 
 # ── Repository Access ────────────────────────────────────
 # Increases GitHub API rate limit for large-scale cloning
